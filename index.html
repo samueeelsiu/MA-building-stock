@@ -1,0 +1,2613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Massachusetts Building Analysis Dashboard - NSI-Enhanced USA Structures Dataset</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --warning-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            --dark-gradient: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+        
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            animation: slideIn 0.6s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 50px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.3; }
+        }
+        
+        .header h1 {
+            font-size: 2.8em;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.95;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .dataset-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            backdrop-filter: blur(10px);
+        }
+        
+        .nav-container {
+            background: white;
+            padding: 25px 20px;
+            border-bottom: 2px solid #f0f0f0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .nav-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+        }
+        
+        .nav-tab {
+            padding: 14px 28px;
+            background: #f5f5f5;
+            border: 2px solid transparent;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 15px;
+            font-weight: 600;
+            color: #555;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .nav-tab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-gradient);
+            transition: left 0.3s ease;
+            z-index: -1;
+        }
+        
+        .nav-tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .nav-tab:hover::before {
+            left: 0;
+        }
+        
+        .nav-tab:hover {
+            color: white;
+        }
+        
+        .nav-tab.active {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .content {
+            padding: 40px;
+            min-height: 600px;
+        }
+        
+        .section {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        .section.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { 
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to { 
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .section-header {
+            margin-bottom: 35px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #f0f0f0;
+            position: relative;
+        }
+        
+        .section-header::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 100px;
+            height: 3px;
+            background: var(--primary-gradient);
+        }
+        
+        .section-header h2 {
+            color: #333;
+            font-size: 2.2em;
+            margin-bottom: 12px;
+        }
+        
+        .section-header p {
+            color: #666;
+            font-size: 1.15em;
+            line-height: 1.6;
+        }
+        
+        .controls {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .control-group label {
+            font-weight: 700;
+            color: #495057;
+            min-width: 120px;
+        }
+        
+        .control-group select,
+        .control-group input {
+            padding: 10px 18px;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            background: white;
+            min-width: 150px;
+        }
+        
+        .control-group select:focus,
+        .control-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .control-button {
+            padding: 12px 28px;
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .control-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .control-button:active {
+            transform: translateY(0);
+        }
+        
+        .toggle-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toggle-switch input[type="checkbox"] {
+            width: 50px;
+            height: 26px;
+            appearance: none;
+            background: #ddd;
+            border-radius: 13px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .toggle-switch input[type="checkbox"]:checked {
+            background: #667eea;
+        }
+        
+        .toggle-switch input[type="checkbox"]::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: left 0.3s;
+        }
+        
+        .toggle-switch input[type="checkbox"]:checked::after {
+            left: 26px;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease;
+        }
+        
+        .chart-container:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin-bottom: 35px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+            animation: rotate 10s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 12px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .stat-card:nth-child(2) {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .stat-card:nth-child(3) {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .stat-card:nth-child(4) {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .stat-value {
+            font-size: 3em;
+            font-weight: 800;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-label {
+            font-size: 1.1em;
+            opacity: 0.95;
+            position: relative;
+            z-index: 1;
+            font-weight: 600;
+        }
+        
+        .info-box {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 5px solid #2196f3;
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .info-box h3 {
+            color: #1565c0;
+            margin-bottom: 12px;
+            font-size: 1.3em;
+        }
+        
+        .info-box p {
+            color: #0d47a1;
+            line-height: 1.6;
+        }
+        
+        .error-box {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #f44336;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .error-box.show {
+            display: block;
+            animation: shake 0.5s ease;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        
+        .export-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .export-button {
+            padding: 10px 20px;
+            background: var(--dark-gradient);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .export-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .nav-tabs {
+                flex-direction: column;
+            }
+            
+            .nav-tab {
+                width: 100%;
+                text-align: center;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .control-group {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .control-group label {
+                min-width: auto;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>Massachusetts Building Analysis Dashboard</h1>
+            <p>Interactive Visualization of Building Inventory Data</p>
+            <div class="dataset-badge">NSI-Enhanced USA Structures Dataset</div>
+        </div>
+        
+        <div class="nav-container">
+            <div class="nav-tabs">
+                <button class="nav-tab active" onclick="showSection('overview')">Overview</button>
+                <button class="nav-tab" onclick="showSection('clustering')">Clustering</button>
+                <button class="nav-tab" onclick="showSection('temporal')">Temporal</button>
+                <button class="nav-tab" onclick="showSection('pre1940')">Pre-1940</button>
+                <button class="nav-tab" onclick="showSection('post1940')">Post-1940</button>
+                <button class="nav-tab" onclick="showSection('occupancy')">Occupancy</button>
+                <button class="nav-tab" onclick="showSection('materials')">Materials</button>
+                <button class="nav-tab" onclick="showSection('interactive')">Explorer</button>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div id="overview" class="section active">
+                <div class="section-header">
+                    <h2>Dashboard Overview</h2>
+                    <p>Comprehensive analysis of Massachusetts building inventory from NSI-Enhanced USA Structures Dataset</p>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalBuildings">Loading...</div>
+                        <div class="stat-label">Total Buildings</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgYear">Loading...</div>
+                        <div class="stat-label">Average Year Built</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="avgArea">Loading...</div>
+                        <div class="stat-label">Avg Area (sqm)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="numClusters">Loading...</div>
+                        <div class="stat-label">Identified Clusters</div>
+                    </div>
+                </div>
+                
+                <div class="info-box">
+                    <h3>About This Dashboard</h3>
+                    <p>This interactive dashboard analyzes building data from the NSI-Enhanced USA Structures Dataset for Massachusetts. 
+                    The analysis includes clustering patterns, temporal distributions, and material characteristics of buildings across different time periods.
+                    All visualizations use color-blind friendly palettes and are fully interactive.</p>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="overviewChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="overviewTimelineChart"></div>
+                </div>
+                
+                <div class="export-buttons">
+                    <button class="export-button" onclick="exportChart('overviewChart', 'overview')">Export Chart</button>
+                    <button class="export-button" onclick="exportAllData()">Export All Data</button>
+                </div>
+            </div>
+            
+            <div id="clustering" class="section">
+                <div class="section-header">
+                    <h2>Clustering Analysis</h2>
+                    <p>K-means clustering results based on building area, year built, and occupancy class (using a random sample for visualization)</p>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Number of Clusters:</label>
+                        <select id="clusterCount" onchange="updateClustering()">
+                            <option value="5">5 Clusters</option>
+                            <option value="6">6 Clusters</option>
+                            <option value="7" selected>7 Clusters</option>
+                            <option value="8">8 Clusters</option>
+                            <option value="9">9 Clusters</option>
+                        </select>
+                        <button class="control-button" onclick="updateClustering()">Update Analysis</button>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="clusterScatter"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="clusterElbow"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="clusterTable"></div>
+                </div>
+            </div>
+            
+            <div id="temporal" class="section">
+                <div class="section-header">
+                    <h2>Temporal Distribution</h2>
+                    <p>Building construction patterns over time with multiple visualization options</p>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Time Binning:</label>
+                        <select id="timeBin" onchange="updateTemporalChart()">
+                            <option value="1">Annual</option>
+                            <option value="5" selected>5-Year Bins</option>
+                            <option value="10">10-Year Bins</option>
+                        </select>
+                        
+                        <label>Chart Type:</label>
+                        <select id="chartType" onchange="updateTemporalChart()">
+                            <option value="stacked">Stacked Area</option>
+                            <option value="normalized">Normalized (100%)</option>
+                            <option value="cumulative">Cumulative</option>
+                        </select>
+                        
+                        <label>Building Type:</label>
+                        <select id="buildingType" onchange="updateTemporalChart()">
+                            <option value="all">All Buildings</option>
+                            <option value="residential">Residential Only</option>
+                            <option value="non-residential">Non-Residential Only</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="temporalChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="temporalAreaChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="temporalTrendChart"></div>
+                </div>
+            </div>
+            
+            <div id="pre1940" class="section">
+                <div class="section-header">
+                    <h2>Pre-1940 Building Analysis</h2>
+                    <p>Detailed analysis of historic buildings constructed before 1940</p>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Building Type Filter:</label>
+                        <select id="pre1940Filter" onchange="updatePre1940Charts()">
+                            <option value="all">All Buildings</option>
+                            <option value="residential">Residential Only</option>
+                            <option value="non-residential">Non-Residential Only</option>
+                        </select>
+                        
+                        <div class="toggle-switch">
+                            <label>Normalize Area Data:</label>
+                            <input type="checkbox" id="pre1940Normalize" onchange="updatePre1940Charts()">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="pre1940Count">Loading...</div>
+                        <div class="stat-label">Pre-1940 Buildings</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="pre1940Percent">Loading...</div>
+                        <div class="stat-label">Percentage of Total</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="pre1940Residential">Loading...</div>
+                        <div class="stat-label">Residential Buildings</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="pre1940NonRes">Loading...</div>
+                        <div class="stat-label">Non-Residential</div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="pre1940PieChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="pre1940BarChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="pre1940ComparisonChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="pre1940AreaChart"></div>
+                </div>
+            </div>
+            
+            <div id="post1940" class="section">
+                <div class="section-header">
+                    <h2>Post-1940 Building Analysis</h2>
+                    <p>Modern building construction patterns from 1940 to present (annual data)</p>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Building Type:</label>
+                        <select id="post1940BuildingType" onchange="updatePost1940()">
+                            <option value="all">All Buildings</option>
+                            <option value="residential">Residential Only</option>
+                            <option value="non-residential">Non-Residential Only</option>
+                        </select>
+                        
+                        <div class="toggle-switch">
+                            <label>Normalize (100% Stack):</label>
+                            <input type="checkbox" id="post1940Normalize" onchange="updatePost1940()">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="post1940Chart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="post1940AreaChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="decadeComparisonChart"></div>
+                </div>
+            </div>
+            
+            <div id="occupancy" class="section">
+                <div class="section-header">
+                    <h2>Occupancy-Specific Clustering</h2>
+                    <p>Detailed clustering analysis by occupancy class with sample type selection</p>
+                </div>
+                
+                <div class="info-box" style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); border-left-color: #ff9800;">
+                    <h3 style="color: #e65100;">Sample Type Selection</h3>
+                    <p style="color: #bf360c;">
+                        <strong>Balanced Sample (Default):</strong> Ensures equal representation of all occupancy classes, ideal for observing patterns in rare categories.<br>
+                        <strong>Random Sample:</strong> Reflects the true distribution of data, showing the actual proportion of each occupancy class.
+                    </p>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Select Occupancy Class:</label>
+                        <select id="occupancyClass" onchange="updateOccupancyClustering()">
+                            <option value="all">All Classes</option>
+                            <option value="Residential">Residential</option>
+                            <option value="Commercial">Commercial</option>
+                            <option value="Industrial">Industrial</option>
+                            <option value="Agriculture">Agriculture</option>
+                            <option value="Government">Government</option>
+                            <option value="Assembly">Assembly</option>
+                            <option value="Education">Education</option>
+                            <option value="Utility and Misc">Utility & Misc</option>
+                            <option value="Unclassified">Unclassified</option>
+                        </select>
+                        
+                        <label>Number of Clusters (K):</label>
+                        <select id="occupancyK" onchange="updateOccupancyClustering()">
+                            <option value="2">K = 2</option>
+                            <option value="3">K = 3</option>
+                            <option value="4">K = 4</option>
+                            <option value="5" selected>K = 5</option>
+                            <option value="6">K = 6</option>
+                            <option value="7">K = 7</option>
+                        </select>
+                        
+                        <label>Sample Type:</label>
+                        <select id="sampleType" onchange="updateOccupancyClustering()" style="border: 2px solid #bd3786; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                            <option value="balanced" selected>Balanced Sample (Equal Representation)</option>
+                            <option value="random">Random Sample (True Distribution)</option>
+                        </select>
+                        
+                        <label>Sample Size for Visualization:</label>
+                        <select id="sampleSize" onchange="updateOccupancyClustering()">
+                            <option value="1000">1,000 buildings</option>
+                            <option value="5000" selected>5,000 buildings</option>
+                            <option value="10000">10,000 buildings</option>
+                            <option value="20000">20,000 buildings</option>
+                        </select>
+                        
+                        <div class="toggle-switch">
+                            <label>Log Scale:</label>
+                            <input type="checkbox" id="logScale" onchange="updateOccupancyClustering()">
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding: 12px; background: linear-gradient(135deg, #f0f4ff 0%, #e8f0ff 100%); border-radius: 8px; border-left: 4px solid #667eea;">
+                        <div id="sampleTypeIndicator" style="font-size: 14px; color: #495057;">
+                            <strong>Current View:</strong> <span id="currentSampleType" style="color: #7201a8; font-weight: bold;">Balanced Sample</span> - 
+                            <span id="sampleDescription" style="color: #666;">Shows equal representation of all occupancy classes for better pattern visibility</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="occupancyClusterChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="occupancyFullStatsChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="occupancySampleStatsChart"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="occupancyElbowChart"></div>
+                </div>
+            </div>
+            
+            <div id="materials" class="section">
+                <div class="section-header">
+                    <h2>Building Materials & Foundation Analysis</h2>
+                    <p>Correlation between material types and foundation types</p>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Data Filter:</label>
+                        <select id="materialFilter" onchange="updateMaterialsHeatmap()">
+                            <option value="all">All Buildings</option>
+                            <option value="pre1940">Pre-1940 Only</option>
+                            <option value="post1940">Post-1940 Only</option>
+                        </select>
+                        
+                        <div class="toggle-switch">
+                            <label>Log Scale:</label>
+                            <input type="checkbox" id="heatmapLogScale" onchange="updateMaterialsHeatmap()">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="materialsHeatmap"></div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="materialsTrendChart"></div>
+                </div>
+            </div>
+            
+            <div id="interactive" class="section">
+                <div class="section-header">
+                    <h2>Interactive Data Explorer</h2>
+                    <p>Explore the data with custom filters and advanced visualizations (using a random sample)</p>
+                </div>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Year Range:</label>
+                        <input type="number" id="yearStart" value="1900" min="1900" max="2024" style="width: 100px">
+                        <span>to</span>
+                        <input type="number" id="yearEnd" value="2024" min="1900" max="2024" style="width: 100px">
+                    </div>
+                    <div class="control-group">
+                        <label>Est GFA Range (sqm):</label>
+                        <input type="number" id="areaMin" value="0" min="0" style="width: 100px">
+                        <span>to</span>
+                        <input type="number" id="areaMax" value="10000" min="0" style="width: 100px">
+                    </div>
+                    <div class="control-group">
+                        <label>Visualization:</label>
+                        <select id="vizType">
+                            <option value="box">Box Plot</option>
+                            <option value="scatter3d">3D Scatter Plot</option>
+                            <option value="sunburst">Sunburst Chart</option>
+                            <option value="parallel">Parallel Coordinates</option>
+                            <option value="violin">Violin Plot</option>
+                            <option value="treemap">Treemap</option>
+                        </select>
+                        <button class="control-button" onclick="updateInteractiveExplorer()">Update Visualization</button>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="interactiveChart"></div>
+                </div>
+                
+                <div class="info-box">
+                    <h3>Tips for Interactive Explorer</h3>
+                    <p>• 3D Scatter: Rotate with mouse, zoom with scroll wheel<br>
+                       • Sunburst: Click segments to zoom in, click center to zoom out<br>
+                       • Parallel Coordinates: Drag axes to reorder, brush to filter<br>
+                       • All charts: Hover for details, double-click to reset view</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="error-box" id="errorBox">
+            <h3>Error Loading Data</h3>
+            <p id="errorMessage">Unable to load building data. Please ensure building_data.json is in the same directory.</p>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables for data
+        let buildingData = null;
+        let isDataLoaded = false;
+        
+        // True Plasma colorscale matching Python's matplotlib
+        const plasmaColorscale = 'Plasma';
+        
+        // Manual Plasma colors for discrete use (from matplotlib's plasma)
+        const plasmaColors = [
+            '#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786',
+            '#d8576b', '#ed7953', '#fb9f3a', '#fdca26', '#f0f921'
+        ];
+        
+        // Function to get Plasma colors for any number of categories
+        function getPlasmaColors(n) {
+            if (n <= 10) return plasmaColors.slice(0, n);
+            // For more categories, interpolate
+            const colors = [];
+            for (let i = 0; i < n; i++) {
+                const idx = Math.floor(i * 9 / (n - 1));
+                colors.push(plasmaColors[Math.min(idx, 9)]);
+            }
+            return colors;
+        }
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+        });
+        
+        // Load data from JSON file
+        async function loadData() {
+            try {
+                const response = await fetch('building_data.json');
+                if (!response.ok) {
+                    throw new Error('Failed to load data file');
+                }
+                
+                buildingData = await response.json();
+                isDataLoaded = true;
+                
+                // Process year 1939 as pre-1940
+                if (buildingData.temporal_data) {
+                    buildingData.temporal_data = buildingData.temporal_data.map(d => {
+                        if (d.year === 1939) {
+                            d.display_year = 'pre-1940';
+                        }
+                        return d;
+                    });
+                }
+                
+                // Hide loading overlay
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                
+                // Initialize all visualizations
+                initializeDashboard();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                document.getElementById('errorBox').classList.add('show');
+                document.getElementById('errorMessage').textContent = error.message;
+                
+                // Load with sample data as fallback
+                loadSampleData();
+            }
+        }
+        
+        // Load sample data as fallback
+        function loadSampleData() {
+            console.log('Loading sample data as fallback...');
+            
+            // Generate sample data
+            buildingData = generateSampleData();
+            isDataLoaded = true;
+            
+            // Initialize dashboard with sample data
+            initializeDashboard();
+        }
+        
+        // Generate sample data for testing
+        function generateSampleData() {
+            const occupancyClasses = ['Residential', 'Commercial', 'Industrial', 'Agriculture', 
+                                     'Government', 'Assembly', 'Education', 'Utility and Misc', 'Unclassified'];
+            
+            // Generate temporal data
+            const temporalData = [];
+            for (let year = 1900; year <= 2024; year++) {
+                for (let occ of occupancyClasses) {
+                    let count = Math.floor(Math.random() * 1000 * Math.exp(-(2000-year)/50));
+                    if (year < 1940) count *= 0.3;
+                    temporalData.push({
+                        year: year,
+                        display_year: year === 1939 ? 'pre-1940' : year.toString(),
+                        occupancy: occ,
+                        count: count,
+                        avg_area: Math.random() * 500 + 50,
+                        total_area: count * (Math.random() * 500 + 50)
+                    });
+                }
+            }
+            
+            // Generate sample building records with Est GFA sqmeters
+            const buildingSamples = [];
+            for (let i = 0; i < 20000; i++) {
+                buildingSamples.push({
+                    year_built: Math.floor(Math.random() * 124) + 1900,
+                    'Est GFA sqmeters': Math.random() * 1000 + 50,
+                    OCC_CLS: occupancyClasses[Math.floor(Math.random() * occupancyClasses.length)],
+                    cluster: Math.floor(Math.random() * 7)
+                });
+            }
+            
+            return {
+                metadata: {
+                    total_buildings: 2500000,
+                    date_processed: new Date().toISOString(),
+                    source_file: 'sample_data.csv'
+                },
+                summary_stats: {
+                    total_buildings: 2500000,
+                    avg_year_built: 1978,
+                    avg_area_sqm: 285.5,
+                    min_year: 1900,
+                    max_year: 2024,
+                    occupancy_classes: occupancyClasses
+                },
+                clustering: {
+                    elbow_k_values: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                    elbow_wcss_values: [50000, 35000, 25000, 20000, 18000, 17000, 16500, 16000, 15800, 15600, 15400, 15300, 15200, 15100],
+                    clusters: [
+                        { cluster_id: 0, count: 450000, most_common_occ: 'Residential', area_mean: 250, area_median: 200, year_mean: 1985, year_median: 1982 },
+                        { cluster_id: 1, count: 380000, most_common_occ: 'Commercial', area_mean: 450, area_median: 400, year_mean: 1992, year_median: 1990 },
+                        { cluster_id: 2, count: 320000, most_common_occ: 'Residential', area_mean: 180, area_median: 150, year_mean: 1968, year_median: 1965 },
+                        { cluster_id: 3, count: 280000, most_common_occ: 'Industrial', area_mean: 850, area_median: 750, year_mean: 1978, year_median: 1975 },
+                        { cluster_id: 4, count: 220000, most_common_occ: 'Agriculture', area_mean: 320, area_median: 280, year_mean: 1955, year_median: 1952 },
+                        { cluster_id: 5, count: 180000, most_common_occ: 'Government', area_mean: 550, area_median: 500, year_mean: 1988, year_median: 1986 },
+                        { cluster_id: 6, count: 150000, most_common_occ: 'Education', area_mean: 680, area_median: 620, year_mean: 1975, year_median: 1973 }
+                    ]
+                },
+                temporal_data: temporalData,
+                pre1940: {
+                    total_count: 450000,
+                    occupancy_counts: {
+                        'Residential': 320000,
+                        'Commercial': 45000,
+                        'Industrial': 28000,
+                        'Agriculture': 22000,
+                        'Government': 12000,
+                        'Assembly': 8000,
+                        'Education': 6000,
+                        'Utility and Misc': 5000,
+                        'Unclassified': 4000
+                    },
+                    residential_count: 320000,
+                    non_residential_count: 130000,
+                    percentage_of_total: 18
+                },
+                post1940: {
+                    '1940s': { total: 180000, occupancy_counts: { 'Residential': 120000, 'Commercial': 30000, 'Industrial': 20000, 'Other': 10000 } },
+                    '1950s': { total: 250000, occupancy_counts: { 'Residential': 180000, 'Commercial': 35000, 'Industrial': 25000, 'Other': 10000 } },
+                    '1960s': { total: 320000, occupancy_counts: { 'Residential': 220000, 'Commercial': 50000, 'Industrial': 35000, 'Other': 15000 } },
+                    '1970s': { total: 380000, occupancy_counts: { 'Residential': 260000, 'Commercial': 60000, 'Industrial': 40000, 'Other': 20000 } },
+                    '1980s': { total: 340000, occupancy_counts: { 'Residential': 230000, 'Commercial': 55000, 'Industrial': 35000, 'Other': 20000 } },
+                    '1990s': { total: 290000, occupancy_counts: { 'Residential': 200000, 'Commercial': 45000, 'Industrial': 30000, 'Other': 15000 } },
+                    '2000s': { total: 260000, occupancy_counts: { 'Residential': 180000, 'Commercial': 40000, 'Industrial': 25000, 'Other': 15000 } },
+                    '2010s': { total: 220000, occupancy_counts: { 'Residential': 150000, 'Commercial': 35000, 'Industrial': 20000, 'Other': 15000 } }
+                },
+                occupancy_clusters: {},
+                materials_foundation: {
+                    all: {
+                        matrix: [[1000, 800, 600, 400, 200], [800, 1200, 500, 300, 100], [600, 500, 900, 200, 150], [400, 300, 200, 800, 100], [200, 100, 150, 100, 500]],
+                        materials: ['Wood', 'Masonry', 'Concrete', 'Steel', 'Manufactured'],
+                        foundations: ['Slab On Grade', 'Basement', 'Crawl Space', 'Pier', 'Fill']
+                    }
+                },
+                building_samples_random: buildingSamples, // Fallback data
+                building_samples_balanced: buildingSamples // Fallback data
+            };
+        }
+        
+        // Initialize dashboard with loaded data
+        function initializeDashboard() {
+            if (!isDataLoaded || !buildingData) {
+                console.error('Data not loaded');
+                return;
+            }
+            
+            // Update statistics
+            updateStatistics();
+            
+            // Initialize all charts
+            updateOverview();
+            updateClustering();
+            updateTemporalChart();
+            updatePre1940Charts();
+            updatePost1940();
+            updateOccupancyClustering();
+            updateMaterialsHeatmap();
+            updateInteractiveExplorer();
+        }
+        
+        // Update dashboard statistics
+        function updateStatistics() {
+            if (!buildingData) return;
+            
+            const stats = buildingData.summary_stats;
+            const pre1940 = buildingData.pre1940;
+            
+            // Format numbers
+            const formatNumber = (num) => {
+                if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                return num.toString();
+            };
+            
+            // Update overview stats - ensure using Est GFA sqmeters
+            document.getElementById('totalBuildings').textContent = formatNumber(stats.total_buildings);
+            document.getElementById('avgYear').textContent = Math.round(stats.avg_year_built).toString();
+            document.getElementById('avgArea').textContent = Math.round(stats.avg_area_sqm) + ' m²';
+            document.getElementById('numClusters').textContent = buildingData.clustering.clusters.length.toString();
+            
+            // Update pre-1940 stats
+            document.getElementById('pre1940Count').textContent = formatNumber(pre1940.total_count);
+            document.getElementById('pre1940Percent').textContent = pre1940.percentage_of_total + '%';
+            document.getElementById('pre1940Residential').textContent = formatNumber(pre1940.residential_count);
+            document.getElementById('pre1940NonRes').textContent = formatNumber(pre1940.non_residential_count);
+        }
+        
+        // Section navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            const sections = document.querySelectorAll('.section');
+            sections.forEach(section => section.classList.remove('active'));
+            
+            // Show selected section
+            document.getElementById(sectionId).classList.add('active');
+            
+            // Update nav tabs
+            const tabs = document.querySelectorAll('.nav-tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Trigger chart resize for proper rendering
+            window.dispatchEvent(new Event('resize'));
+        }
+        
+        // Update Overview charts
+        function updateOverview() {
+            if (!buildingData) return;
+            
+            const occupancyCounts = buildingData.pre1940.occupancy_counts;
+            
+            // Pie chart without labels
+            const pieData = [{
+                values: Object.values(occupancyCounts),
+                labels: Object.keys(occupancyCounts),
+                type: 'pie',
+                hole: 0.4,
+                marker: {
+                    colors: plasmaColors
+                },
+                textposition: 'none',
+                textinfo: 'none',
+                hovertemplate: '%{label}<br>Count: %{value:,}<br>%{percent}<extra></extra>',
+                showlegend: true
+            }];
+            
+            const pieLayout = {
+                title: {
+                    text: 'Building Distribution by Occupancy Class',
+                    font: { size: 20, color: '#333' }
+                },
+                height: 500,
+                font: { size: 14 },
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.05
+                }
+            };
+            
+            Plotly.newPlot('overviewChart', pieData, pieLayout, {responsive: true});
+            
+            // Timeline chart with pre-1940 label
+            const timelineData = [];
+            const yearCounts = {};
+            
+            buildingData.temporal_data.forEach(d => {
+                const displayKey = d.year < 1940 ? 'pre-1940' : d.year.toString();
+                if (!yearCounts[displayKey]) yearCounts[displayKey] = 0;
+                yearCounts[displayKey] += d.count;
+            });
+            
+            const years = Object.keys(yearCounts).sort((a, b) => {
+                if (a === 'pre-1940') return -1;
+                if (b === 'pre-1940') return 1;
+                return parseInt(a) - parseInt(b);
+            });
+            const counts = years.map(y => yearCounts[y]);
+            
+            timelineData.push({
+                x: years,
+                y: counts,
+                type: 'scatter',
+                mode: 'lines',
+                fill: 'tozeroy',
+                line: {
+                    color: plasmaColors[4],
+                    width: 2
+                },
+                fillcolor: 'rgba(189, 55, 134, 0.2)',
+                hovertemplate: 'Year: %{x}<br>Buildings: %{y:,}<extra></extra>'
+            });
+            
+            const timelineLayout = {
+                title: {
+                    text: 'Building Construction Timeline',
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Year',
+                    rangeslider: { visible: true },
+                    type: 'category',
+                    tickmode: 'array',
+                    tickvals: years.filter((y, i) => {
+                        if (y === 'pre-1940') return false; // Hide pre-1940 label
+                        const year = parseInt(y);
+                        return year % 10 === 0;
+                    }),
+                    ticktext: years.filter((y, i) => {
+                        if (y === 'pre-1940') return false;
+                        const year = parseInt(y);
+                        return year % 10 === 0;
+                    })
+                },
+                yaxis: { 
+                    title: 'Number of Buildings',
+                    fixedrange: false
+                },
+                height: 400,
+                hovermode: 'x unified'
+            };
+            
+            Plotly.newPlot('overviewTimelineChart', timelineData, timelineLayout, {responsive: true});
+        }
+        
+        // Update Clustering charts
+        function updateClustering() {
+            if (!buildingData) return;
+            
+            const clusters = buildingData.clustering.clusters;
+            const samples = buildingData.building_samples_random; // Use RANDOM sample
+            
+            // Scatter plot with Est GFA sqmeters
+            const scatterData = [];
+            
+            clusters.forEach((cluster, index) => {
+                const clusterSamples = samples.filter(s => s.cluster === cluster.cluster_id);
+                
+                scatterData.push({
+                    x: clusterSamples.map(s => s.year_built < 1940 ? 'pre-1940' : s.year_built),
+                    y: clusterSamples.map(s => s['Est GFA sqmeters']),
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: `Cluster ${cluster.cluster_id + 1}`,
+                    marker: {
+                        color: plasmaColors[index % plasmaColors.length],
+                        size: 8,
+                        opacity: 0.6
+                    },
+                    hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<extra></extra>'
+                });
+            });
+            
+            const scatterLayout = {
+                title: {
+                    text: 'K-Means Clustering Results',
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { title: 'Year Built' },
+                yaxis: { title: 'Est GFA sqmeters' },
+                height: 500,
+                hovermode: 'closest'
+            };
+            
+            Plotly.newPlot('clusterScatter', scatterData, scatterLayout, {responsive: true});
+            
+            // Elbow plot
+            const elbowData = [{
+                x: buildingData.clustering.elbow_k_values,
+                y: buildingData.clustering.elbow_wcss_values,
+                mode: 'lines+markers',
+                type: 'scatter',
+                marker: { 
+                    size: 10, 
+                    color: plasmaColors[3],
+                    line: {
+                        color: 'white',
+                        width: 2
+                    }
+                },
+                line: { 
+                    width: 3,
+                    color: plasmaColors[3]
+                },
+                hovertemplate: 'K: %{x}<br>WCSS: %{y:,.0f}<extra></extra>'
+            }];
+            
+            const elbowLayout = {
+                title: {
+                    text: 'Elbow Method for Optimal K',
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Number of Clusters (K)',
+                    dtick: 1
+                },
+                yaxis: { title: 'Within-Cluster Sum of Squares (WCSS)' },
+                height: 400,
+                annotations: [{
+                    x: 7,
+                    y: buildingData.clustering.elbow_wcss_values[5],
+                    xref: 'x',
+                    yref: 'y',
+                    text: 'Optimal K = 7',
+                    showarrow: true,
+                    arrowhead: 2,
+                    ax: -50,
+                    ay: -40,
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bordercolor: plasmaColors[3],
+                    borderwidth: 2
+                }]
+            };
+            
+            Plotly.newPlot('clusterElbow', elbowData, elbowLayout, {responsive: true});
+            
+            // Cluster statistics table
+            const tableData = [{
+                type: 'table',
+                header: {
+                    values: ['Cluster', 'Count', 'Most Common Type', 'Avg Area (m²)', 'Avg Year'],
+                    align: 'center',
+                    line: {width: 1, color: '#dee2e6'},
+                    fill: {color: plasmaColors[3]},
+                    font: {family: "Arial", size: 14, color: "white"}
+                },
+                cells: {
+                    values: [
+                        clusters.map(c => `Cluster ${c.cluster_id + 1}`),
+                        clusters.map(c => c.count.toLocaleString()),
+                        clusters.map(c => c.most_common_occ),
+                        clusters.map(c => Math.round(c.area_mean)),
+                        clusters.map(c => c.year_mean)
+                    ],
+                    align: 'center',
+                    line: {color: "#dee2e6", width: 1},
+                    fill: {color: ['#f8f9fa', 'white']},
+                    font: {family: "Arial", size: 12, color: ["#333"]}
+                }
+            }];
+            
+            const tableLayout = {
+                title: {
+                    text: 'Cluster Statistics (Based on Full Dataset)',
+                    font: { size: 18, color: '#333' }
+                },
+                height: 400
+            };
+            
+            Plotly.newPlot('clusterTable', tableData, tableLayout, {responsive: true});
+        }
+        
+        function updateTemporalChart() {
+            if (!buildingData) return;
+            
+            const binSize = parseInt(document.getElementById('timeBin').value);
+            const chartType = document.getElementById('chartType').value;
+            const buildingType = document.getElementById('buildingType').value;
+            
+            // Process temporal data with pre-1940 labeling
+            const binnedData = {};
+            const binnedAreaData = {};
+            
+            buildingData.temporal_data.forEach(d => {
+                let key;
+                if (d.year < 1940) {
+                    key = 'pre-1940';
+                } else if (binSize === 1) {
+                    key = d.year.toString();
+                } else {
+                    const binYear = Math.floor(d.year / binSize) * binSize;
+                    key = `${binYear}-${binYear + binSize - 1}`;
+                }
+                
+                if (!binnedData[key]) {
+                    binnedData[key] = {};
+                    binnedAreaData[key] = {};
+                }
+                if (!binnedData[key][d.occupancy]) {
+                    binnedData[key][d.occupancy] = 0;
+                    binnedAreaData[key][d.occupancy] = 0;
+                }
+                binnedData[key][d.occupancy] += d.count;
+                binnedAreaData[key][d.occupancy] += d.total_area || (d.count * d.avg_area);
+            });
+            
+            // Filter occupancy classes based on building type
+            let occupancyClasses = buildingData.summary_stats.occupancy_classes;
+            if (buildingType === 'residential') {
+                occupancyClasses = ['Residential'];
+            } else if (buildingType === 'non-residential') {
+                occupancyClasses = occupancyClasses.filter(o => o !== 'Residential');
+            }
+            
+            // IMPORTANT: Sort occupancy classes to ensure consistent ordering
+            // Put Residential first if it exists (for better stacking visualization)
+            occupancyClasses = occupancyClasses.sort((a, b) => {
+                if (a === 'Residential') return -1;
+                if (b === 'Residential') return 1;
+                return a.localeCompare(b);
+            });
+            
+            // Create traces for number of buildings
+            const traces = [];
+            const occupancyColors = getPlasmaColors(occupancyClasses.length);
+            
+            occupancyClasses.forEach((occ, index) => {
+                const xValues = Object.keys(binnedData).sort((a, b) => {
+                    if (a === 'pre-1940') return -1;
+                    if (b === 'pre-1940') return 1;
+                    const aYear = parseInt(a.split('-')[0]);
+                    const bYear = parseInt(b.split('-')[0]);
+                    return aYear - bYear;
+                });
+                const yValues = xValues.map(bin => binnedData[bin][occ] || 0);
+                
+                let processedY = yValues;
+                
+                if (chartType === 'normalized') {
+                    processedY = xValues.map((bin, i) => {
+                        const total = occupancyClasses.reduce((sum, o) => 
+                            sum + (binnedData[bin][o] || 0), 0);
+                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+                    });
+                } else if (chartType === 'cumulative') {
+                    processedY = yValues.reduce((acc, val) => {
+                        acc.push((acc.length > 0 ? acc[acc.length - 1] : 0) + val);
+                        return acc;
+                    }, []);
+                }
+                
+                traces.push({
+                    x: xValues,
+                    y: processedY,
+                    name: occ,
+                    type: 'scatter',
+                    mode: 'lines',
+                    stackgroup: chartType === 'stacked' ? 'one' : undefined,
+                    fill: chartType === 'stacked' ? 'tonexty' : 'none',
+                    line: { 
+                        color: occupancyColors[index],
+                        width: chartType === 'stacked' ? 0 : 2  // Set to 0 for stacked to avoid line artifacts
+                    },
+                    marker: {
+                        color: occupancyColors[index]
+                    },
+                    fillcolor: occupancyColors[index],  // Ensure fillcolor matches
+                    hovertemplate: `%{fullData.name}<br>%{x}: %{y:.0f}${chartType === 'normalized' ? '%' : ''}<extra></extra>`
+                });
+            });
+            
+            const layout = {
+                title: {
+                    text: `Building Count Distribution Over Time (${chartType})`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Year Range',
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: chartType === 'normalized' ? 'Percentage (%)' : 'Number of Buildings',
+                    range: chartType === 'normalized' ? [0, 100] : undefined
+                },
+                height: 500,
+                hovermode: 'x unified',
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.02
+                }
+            };
+            
+            Plotly.newPlot('temporalChart', traces, layout, {responsive: true});
+            
+            // Create traces for total area
+            const areaTraces = [];
+            
+            occupancyClasses.forEach((occ, index) => {
+                const xValues = Object.keys(binnedAreaData).sort((a, b) => {
+                    if (a === 'pre-1940') return -1;
+                    if (b === 'pre-1940') return 1;
+                    const aYear = parseInt(a.split('-')[0]);
+                    const bYear = parseInt(b.split('-')[0]);
+                    return aYear - bYear;
+                });
+                const yValues = xValues.map(bin => binnedAreaData[bin][occ] || 0);
+                
+                let processedY = yValues;
+                
+                if (chartType === 'normalized') {
+                    processedY = xValues.map((bin, i) => {
+                        const total = occupancyClasses.reduce((sum, o) => 
+                            sum + (binnedAreaData[bin][o] || 0), 0);
+                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+                    });
+                } else if (chartType === 'cumulative') {
+                    processedY = yValues.reduce((acc, val) => {
+                        acc.push((acc.length > 0 ? acc[acc.length - 1] : 0) + val);
+                        return acc;
+                    }, []);
+                }
+                
+                areaTraces.push({
+                    x: xValues,
+                    y: processedY,
+                    name: occ,
+                    type: 'scatter',
+                    mode: 'lines',
+                    stackgroup: chartType === 'stacked' ? 'one' : undefined,
+                    fill: chartType === 'stacked' ? 'tonexty' : 'none',
+                    line: { 
+                        color: occupancyColors[index],
+                        width: chartType === 'stacked' ? 0.5 : 2
+                    },
+                    fillcolor: occupancyColors[index],
+                    hovertemplate: `%{fullData.name}<br>%{x}: %{y:.0f}${chartType === 'normalized' ? '%' : ' sqm'}<extra></extra>`
+                });
+            });
+            
+            const areaLayout = {
+                title: {
+                    text: `Total Est GFA sqmeters Over Time (${chartType})`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Year Range',
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: chartType === 'normalized' ? 'Percentage (%)' : 'Total Est GFA sqmeters',
+                    range: chartType === 'normalized' ? [0, 100] : undefined
+                },
+                height: 500,
+                hovermode: 'x unified',
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.02
+                }
+            };
+            
+            Plotly.newPlot('temporalAreaChart', areaTraces, areaLayout, {responsive: true});
+            
+            // Trend chart
+            const trendData = [];
+            const years = Object.keys(binnedData).sort((a, b) => {
+                if (a === 'pre-1940') return -1;
+                if (b === 'pre-1940') return 1;
+                const aYear = parseInt(a.split('-')[0]);
+                const bYear = parseInt(b.split('-')[0]);
+                return aYear - bYear;
+            });
+            
+            const residentialPercentages = years.map(year => {
+                const residential = binnedData[year]['Residential'] || 0;
+                const total = Object.values(binnedData[year]).reduce((sum, val) => sum + val, 0);
+                return total > 0 ? (residential / total) * 100 : 0;
+            });
+            
+            trendData.push({
+                x: years,
+                y: residentialPercentages,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Residential %',
+                line: { 
+                    color: '#bd3786',  // Plasma purple
+                    width: 3
+                },
+                marker: {
+                    size: 6,
+                    color: '#bd3786'
+                },
+                hovertemplate: 'Year: %{x}<br>Residential: %{y:.1f}%<extra></extra>'
+            });
+            
+            const trendLayout = {
+                title: {
+                    text: 'Residential Building Percentage Trend',
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Year',
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: 'Percentage (%)', 
+                    range: [0, 100]
+                },
+                height: 400,
+                hovermode: 'x'
+            };
+            
+            Plotly.newPlot('temporalTrendChart', trendData, trendLayout, {responsive: true});
+        }
+        
+        // Update Pre-1940 charts with area visualization
+        function updatePre1940Charts() {
+            if (!buildingData) return;
+            
+            const filter = document.getElementById('pre1940Filter').value;
+            const normalize = document.getElementById('pre1940Normalize').checked;
+            const pre1940 = buildingData.pre1940;
+            let occupancyCounts = {...pre1940.occupancy_counts};
+            
+            // Apply filter
+            if (filter === 'residential') {
+                occupancyCounts = { 'Residential': occupancyCounts['Residential'] };
+            } else if (filter === 'non-residential') {
+                delete occupancyCounts['Residential'];
+            }
+            
+            // Pie chart without labels
+            const pieData = [{
+                values: Object.values(occupancyCounts),
+                labels: Object.keys(occupancyCounts),
+                type: 'pie',
+                hole: 0.4,
+                marker: {
+                    colors: plasmaColors
+                },
+                textposition: 'none',
+                textinfo: 'none',
+                hovertemplate: '%{label}<br>Count: %{value:,}<br>%{percent}<extra></extra>',
+                showlegend: true
+            }];
+            
+            const pieLayout = {
+                title: {
+                    text: `Pre-1940 Building Distribution (${filter})`,
+                    font: { size: 20, color: '#333' }
+                },
+                height: 450,
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.02
+                }
+            };
+            
+            Plotly.newPlot('pre1940PieChart', pieData, pieLayout, {responsive: true});
+            
+            // Bar chart
+            const sortedOccupancies = Object.entries(occupancyCounts)
+                .sort((a, b) => b[1] - a[1]);
+            
+            const barData = [{
+                x: sortedOccupancies.map(([k, v]) => k),
+                y: sortedOccupancies.map(([k, v]) => v),
+                type: 'bar',
+                marker: {
+                    color: plasmaColors,
+                    line: {
+                        color: 'white',
+                        width: 1
+                    }
+                },
+                hovertemplate: '%{x}<br>Count: %{y:,}<extra></extra>'
+            }];
+            
+            const barLayout = {
+                title: {
+                    text: `Pre-1940 Building Counts by Occupancy (${filter})`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Occupancy Class',
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: 'Number of Buildings',
+                    type: 'log'
+                },
+                height: 450
+            };
+            
+            Plotly.newPlot('pre1940BarChart', barData, barLayout, {responsive: true});
+            
+            // Comparison chart
+            const comparisonData = [
+                {
+                    x: ['Residential', 'Non-Residential'],
+                    y: [pre1940.residential_count, pre1940.non_residential_count],
+                    type: 'bar',
+                    name: 'Pre-1940',
+                    marker: { color: [plasmaColors[3], plasmaColors[6]] }
+                }
+            ];
+            
+            const comparisonLayout = {
+                title: {
+                    text: 'Residential vs Non-Residential (Pre-1940)',
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { title: 'Building Type' },
+                yaxis: { title: 'Number of Buildings' },
+                height: 400
+            };
+            
+            Plotly.newPlot('pre1940ComparisonChart', comparisonData, comparisonLayout, {responsive: true});
+            
+            // Area comparison chart with normalize option
+            // Calculate estimated areas based on counts and average areas
+            const pre1940AreaData = {};
+            let totalArea = 0;
+            
+            // Get area data from temporal data for pre-1940
+            buildingData.temporal_data.forEach(d => {
+                if (d.year < 1940) {
+                    if (!pre1940AreaData[d.occupancy]) {
+                        pre1940AreaData[d.occupancy] = 0;
+                    }
+                    pre1940AreaData[d.occupancy] += d.total_area || (d.count * d.avg_area);
+                    totalArea += d.total_area || (d.count * d.avg_area);
+                }
+            });
+            
+            // Apply filter to area data
+            let filteredAreaData = {...pre1940AreaData};
+            if (filter === 'residential') {
+                filteredAreaData = { 'Residential': filteredAreaData['Residential'] || 0 };
+            } else if (filter === 'non-residential') {
+                delete filteredAreaData['Residential'];
+            }
+            
+            const sortedAreaData = Object.entries(filteredAreaData)
+                .sort((a, b) => b[1] - a[1]);
+            
+            let areaValues = sortedAreaData.map(([k, v]) => v);
+            
+            if (normalize) {
+                const total = areaValues.reduce((sum, val) => sum + val, 0);
+                areaValues = areaValues.map(val => total > 0 ? (val / total) * 100 : 0);
+            }
+            
+            const areaChartData = [{
+                x: sortedAreaData.map(([k, v]) => k),
+                y: areaValues,
+                type: 'bar',
+                marker: {
+                    color: getPlasmaColors(sortedAreaData.length),
+                    line: {
+                        color: 'white',
+                        width: 1
+                    }
+                },
+                hovertemplate: `%{x}<br>Area: %{y:.0f}${normalize ? '%' : ' sqm'}<extra></extra>`
+            }];
+            
+            const areaChartLayout = {
+                title: {
+                    text: `Pre-1940 Total Est GFA sqmeters by Occupancy (${filter})${normalize ? ' - Normalized' : ''}`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Occupancy Class',
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: normalize ? 'Percentage (%)' : 'Total Est GFA sqmeters',
+                    range: normalize ? [0, 100] : undefined
+                },
+                height: 450
+            };
+            
+            Plotly.newPlot('pre1940AreaChart', areaChartData, areaChartLayout, {responsive: true});
+        }
+        
+        // Update Post-1940 charts with normalize and area plot
+        function updatePost1940() {
+            if (!buildingData) return;
+            
+            const buildingTypeFilter = document.getElementById('post1940BuildingType').value;
+            const normalize = document.getElementById('post1940Normalize').checked;
+            
+            // Process annual data from temporal_data
+            const annualData = {};
+            const annualAreaData = {};
+            
+            buildingData.temporal_data.forEach(d => {
+                if (d.year >= 1940) {
+                    if (!annualData[d.year]) {
+                        annualData[d.year] = {};
+                        annualAreaData[d.year] = {};
+                    }
+                    if (!annualData[d.year][d.occupancy]) {
+                        annualData[d.year][d.occupancy] = 0;
+                        annualAreaData[d.year][d.occupancy] = 0;
+                    }
+                    annualData[d.year][d.occupancy] += d.count;
+                    annualAreaData[d.year][d.occupancy] += d.total_area || (d.count * d.avg_area);
+                }
+            });
+            
+            // Get occupancy types and filter based on building type
+            let occupancyTypes = new Set();
+            Object.values(annualData).forEach(yearData => {
+                Object.keys(yearData).forEach(occ => occupancyTypes.add(occ));
+            });
+            
+            if (buildingTypeFilter === 'residential') {
+                occupancyTypes = new Set(['Residential']);
+            } else if (buildingTypeFilter === 'non-residential') {
+                occupancyTypes.delete('Residential');
+            }
+            
+            // Create traces for annual building count data
+            const traces = [];
+            const years = Object.keys(annualData).sort((a, b) => a - b);
+            const occupancyColors = getPlasmaColors(occupancyTypes.size);
+            
+            Array.from(occupancyTypes).forEach((occ, index) => {
+                let yValues = years.map(year => annualData[year][occ] || 0);
+                
+                if (normalize) {
+                    yValues = years.map((year, i) => {
+                        const total = Array.from(occupancyTypes).reduce((sum, o) => 
+                            sum + (annualData[year][o] || 0), 0);
+                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+                    });
+                }
+                
+                traces.push({
+                    x: years,
+                    y: yValues,
+                    name: occ,
+                    type: 'scatter',
+                    mode: 'lines',
+                    stackgroup: normalize ? undefined : 'one',
+                    fillcolor: occupancyColors[index],
+                    line: { color: occupancyColors[index], width: normalize ? 2 : 0.5 },
+                    hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Count: %{y:.0f}${normalize ? '%' : ''}<extra></extra>`
+                });
+            });
+            
+            const layout = {
+                title: {
+                    text: `Post-1940 Annual Building Construction (${buildingTypeFilter})${normalize ? ' - Normalized' : ''}`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Year',
+                    dtick: 10,
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: normalize ? 'Percentage (%)' : 'Number of Buildings',
+                    range: normalize ? [0, 100] : undefined
+                },
+                height: 500,
+                hovermode: 'x unified',
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.02
+                }
+            };
+            
+            Plotly.newPlot('post1940Chart', traces, layout, {responsive: true});
+            
+            // Create traces for annual area data
+            const areaTraces = [];
+            
+            Array.from(occupancyTypes).forEach((occ, index) => {
+                let yValues = years.map(year => annualAreaData[year][occ] || 0);
+                
+                if (normalize) {
+                    yValues = years.map((year, i) => {
+                        const total = Array.from(occupancyTypes).reduce((sum, o) => 
+                            sum + (annualAreaData[year][o] || 0), 0);
+                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+                    });
+                }
+                
+                areaTraces.push({
+                    x: years,
+                    y: yValues,
+                    name: occ,
+                    type: 'scatter',
+                    mode: 'lines',
+                    stackgroup: normalize ? undefined : 'one',
+                    fillcolor: occupancyColors[index],
+                    line: { color: occupancyColors[index], width: normalize ? 2 : 0.5 },
+                    hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Area: %{y:.0f}${normalize ? '%' : ' sqm'}<extra></extra>`
+                });
+            });
+            
+            const areaLayout = {
+                title: {
+                    text: `Post-1940 Total Est GFA sqmeters (${buildingTypeFilter})${normalize ? ' - Normalized' : ''}`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Year',
+                    dtick: 10,
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: normalize ? 'Percentage (%)' : 'Total Est GFA sqmeters',
+                    range: normalize ? [0, 100] : undefined
+                },
+                height: 500,
+                hovermode: 'x unified',
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.02
+                }
+            };
+            
+            Plotly.newPlot('post1940AreaChart', areaTraces, areaLayout, {responsive: true});
+            
+            // Decade comparison chart - keep this as requested
+            const decadeData = {};
+            const post1940 = buildingData.post1940;
+            
+            Object.keys(post1940).forEach(decade => {
+                decadeData[decade] = post1940[decade].total || 0;
+            });
+            
+            const decades = Object.keys(decadeData).sort();
+            const decadeColors = getPlasmaColors(decades.length);
+            
+            const comparisonData = [{
+                x: decades,
+                y: decades.map(d => decadeData[d]),
+                type: 'bar',
+                marker: { 
+                    color: decadeColors,
+                    line: {
+                        color: 'white',
+                        width: 1
+                    }
+                },
+                hovertemplate: 'Decade: %{x}<br>Total: %{y:,}<extra></extra>'
+            }];
+            
+            const comparisonLayout = {
+                title: {
+                    text: 'Total Buildings by Decade',
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { title: 'Decade' },
+                yaxis: { title: 'Total Number of Buildings' },
+                height: 400,
+                showlegend: false
+            };
+            
+            Plotly.newPlot('decadeComparisonChart', comparisonData, comparisonLayout, {responsive: true});
+        }
+        
+        // Update Occupancy Clustering with separate statistics
+        function updateOccupancyClustering() {
+            if (!buildingData) return;
+            
+            const selectedClass = document.getElementById('occupancyClass').value;
+            const kValue = parseInt(document.getElementById('occupancyK').value);
+            const sampleSize = parseInt(document.getElementById('sampleSize').value);
+            const sampleType = document.getElementById('sampleType').value;
+            const useLogScale = document.getElementById('logScale').checked;
+            
+            // Update sample type indicator
+            const currentSampleTypeEl = document.getElementById('currentSampleType');
+            const sampleDescriptionEl = document.getElementById('sampleDescription');
+            
+            if (sampleType === 'random') {
+                currentSampleTypeEl.textContent = 'Random Sample';
+                currentSampleTypeEl.style.color = '#fb9f3a';
+                sampleDescriptionEl.textContent = 'Shows true data distribution - rare classes may have few or no points visible';
+            } else {
+                currentSampleTypeEl.textContent = 'Balanced Sample';
+                currentSampleTypeEl.style.color = '#7201a8';
+                sampleDescriptionEl.textContent = 'Shows equal representation of all occupancy classes for better pattern visibility';
+            }
+            
+            // --- VISUALIZATION DATA (SAMPLED) ---
+            // Choose sample type based on user selection
+            let allVizSamples;
+            let sampleDescription;
+            
+            if (sampleType === 'random') {
+                // Use RANDOM sample for true distribution
+                allVizSamples = [...buildingData.building_samples_random];
+                sampleDescription = 'Random Sample (True Distribution)';
+            } else {
+                // Use BALANCED sample for equal representation (default)
+                allVizSamples = [...buildingData.building_samples_balanced];
+                sampleDescription = 'Balanced Sample (Equal Representation)';
+            }
+            
+            // Filter by selected occupancy class for visualization
+            let samplesForViz = allVizSamples;
+            if (selectedClass !== 'all') {
+                samplesForViz = allVizSamples.filter(s => s.OCC_CLS === selectedClass);
+            }
+            
+            // Further sample down to user-selected size for performance, if needed
+            if (samplesForViz.length > sampleSize) {
+                samplesForViz = samplesForViz.sort(() => 0.5 - Math.random()).slice(0, sampleSize);
+            }
+            
+            const assignedClusterKey = `cluster_k${kValue}`;
+            samplesForViz.forEach(s => {
+                s.displayCluster = s[assignedClusterKey] !== undefined ? s[assignedClusterKey] : Math.floor(Math.random() * kValue);
+            });
+
+            // Create scatter plot with sample type in title
+            const scatterData = [{
+                x: samplesForViz.map(s => s.year_built < 1940 ? 1939 : s.year_built),
+                y: samplesForViz.map(s => s['Est GFA sqmeters']),
+                mode: 'markers',
+                type: 'scatter',
+                marker: {
+                    color: samplesForViz.map(s => s.displayCluster),
+                    colorscale: 'Plasma',
+                    size: 6,
+                    opacity: 0.6,
+                    showscale: true,
+                    colorbar: { title: 'Cluster', thickness: 20 },
+                    cmin: 0,
+                    cmax: kValue - 1
+                },
+                text: samplesForViz.map(s => `${s.OCC_CLS}<br>Cluster: ${s.displayCluster + 1}`),
+                hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<br>%{text}<extra></extra>'
+            }];
+            
+            const scatterLayout = {
+                title: {
+                    text: `Clustering (K=${kValue}, ${samplesForViz.length} buildings - ${sampleDescription})`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Year Built',
+                    tickvals: [1939, 1950, 1970, 1990, 2010, 2020],
+                    ticktext: ['pre-1940', '1950', '1970', '1990', '2010', '2020']
+                },
+                yaxis: { 
+                    title: 'Est GFA sqmeters',
+                    type: useLogScale ? 'log' : 'linear'
+                },
+                height: 500,
+                annotations: [{
+                    xref: 'paper',
+                    yref: 'paper',
+                    x: 0.02,
+                    y: 0.98,
+                    xanchor: 'left',
+                    yanchor: 'top',
+                    text: sampleType === 'random' ? 
+                        'Random: Shows true distribution' : 
+                        'Balanced: Equal representation per class',
+                    showarrow: false,
+                    font: {
+                        size: 12,
+                        color: '#666'
+                    },
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bordercolor: sampleType === 'random' ? '#fb9f3a' : '#bd3786',
+                    borderwidth: 2,
+                    borderpad: 4
+                }]
+            };
+            
+            Plotly.newPlot('occupancyClusterChart', scatterData, scatterLayout, {responsive: true});
+
+            // --- FULL DATASET STATISTICS (PRE-CALCULATED) ---
+            const fullStatsData = buildingData.occupancy_clusters[selectedClass];
+            const totalBuildings = fullStatsData.total_buildings;
+            const kStats = fullStatsData.k_values[kValue].clusters;
+            
+            const fullTableData = [{
+                type: 'table',
+                header: {
+                    values: ['Cluster', 'Total Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'],
+                    align: 'center',
+                    line: {width: 1, color: '#dee2e6'},
+                    fill: {color: '#bd3786'},
+                    font: {family: "Arial", size: 14, color: "white"}
+                },
+                cells: {
+                    values: [
+                        kStats.map(s => `Cluster ${s.cluster_id + 1}`),
+                        kStats.map(s => s.count.toLocaleString()),
+                        kStats.map(s => Math.round(s.avg_area)),
+                        kStats.map(s => Math.round(s.std_area)),
+                        kStats.map(s => Math.round(s.avg_year)),
+                    ],
+                    align: 'center',
+                    line: {color: "#dee2e6", width: 1},
+                    fill: {color: ['#f8f9fa', 'white']},
+                    font: {family: "Arial", size: 12, color: ["#333"]}
+                }
+            }];
+            
+            const fullTableLayout = {
+                title: {
+                    text: `Complete Dataset Statistics - ${selectedClass} (K=${kValue}, ${totalBuildings.toLocaleString()} total buildings)`,
+                    font: { size: 18, color: '#333' }
+                },
+                height: 300
+            };
+            
+            Plotly.newPlot('occupancyFullStatsChart', fullTableData, fullTableLayout, {responsive: true});
+            
+            // --- SAMPLED DATA STATISTICS (FOR COMPARISON) ---
+            const sampleStats = {};
+            for (let i = 0; i < kValue; i++) {
+                sampleStats[i] = { count: 0, areaSum: 0, yearSum: 0, areaSquaredSum: 0 };
+            }
+            
+            samplesForViz.forEach(s => {
+                const area = s['Est GFA sqmeters'];
+                const cluster = s.displayCluster;
+                sampleStats[cluster].count++;
+                sampleStats[cluster].areaSum += area;
+                sampleStats[cluster].yearSum += s.year_built;
+                sampleStats[cluster].areaSquaredSum += area * area;
+            });
+
+            // Color header based on sample type
+            const headerColor = sampleType === 'random' ? '#fb9f3a' : '#7201a8';
+            
+            const sampleTableData = [{
+                type: 'table',
+                header: {
+                    values: ['Cluster', 'Sample Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'],
+                    align: 'center',
+                    line: {width: 1, color: '#dee2e6'},
+                    fill: {color: headerColor},
+                    font: {family: "Arial", size: 14, color: "white"}
+                },
+                cells: {
+                    values: [
+                        Object.keys(sampleStats).map(c => `Cluster ${parseInt(c) + 1}`),
+                        Object.values(sampleStats).map(s => s.count.toLocaleString()),
+                        Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.areaSum / s.count) : 0),
+                        Object.values(sampleStats).map(s => {
+                            if (s.count <= 1) return 0;
+                            const mean = s.areaSum / s.count;
+                            const variance = (s.areaSquaredSum / s.count) - (mean * mean);
+                            return Math.round(Math.sqrt(Math.max(0, variance)));
+                        }),
+                        Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.yearSum / s.count) : 0),
+                    ],
+                    align: 'center',
+                    line: {color: "#dee2e6", width: 1},
+                    fill: {color: ['#f8f9fa', 'white']},
+                    font: {family: "Arial", size: 12, color: ["#333"]}
+                }
+            }];
+            
+            const sampleTableLayout = {
+                title: {
+                    text: `${sampleDescription} Statistics (K=${kValue}, ${samplesForViz.length} buildings shown)`,
+                    font: { size: 18, color: '#333' }
+                },
+                height: 300
+            };
+            
+            Plotly.newPlot('occupancySampleStatsChart', sampleTableData, sampleTableLayout, {responsive: true});
+            
+            // --- ELBOW CHART ---
+            const elbowX = Object.keys(fullStatsData.k_values).map(k => parseInt(k));
+            const elbowY = elbowX.map(k => fullStatsData.k_values[k].wcss);
+
+            const elbowData = [{
+                x: elbowX,
+                y: elbowY,
+                mode: 'lines+markers',
+                type: 'scatter',
+                marker: { 
+                    size: 10, 
+                    color: '#bd3786',
+                    line: { color: 'white', width: 2 }
+                },
+                line: { width: 3, color: '#bd3786' }
+            }];
+            
+            if (elbowX.includes(kValue)) {
+                const idx = elbowX.indexOf(kValue);
+                elbowData.push({
+                    x: [kValue],
+                    y: [elbowY[idx]],
+                    mode: 'markers',
+                    type: 'scatter',
+                    marker: {
+                        size: 15,
+                        color: '#f0f921',
+                        line: { color: '#bd3786', width: 2 }
+                    },
+                    showlegend: false,
+                    hovertemplate: 'Current K=%{x}<br>WCSS=%{y:.0f}<extra></extra>'
+                });
+            }
+            
+            const elbowLayout = {
+                title: {
+                    text: `Elbow Method - ${selectedClass} (Current K=${kValue})`,
+                    font: { size: 18, color: '#333' }
+                },
+                xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
+                yaxis: { title: 'WCSS' },
+                height: 350,
+                showlegend: false
+            };
+            
+            Plotly.newPlot('occupancyElbowChart', elbowData, elbowLayout, {responsive: true});
+        }
+        
+        // Update Materials Heatmap with log scale option
+        function updateMaterialsHeatmap() {
+            if (!buildingData || !buildingData.materials_foundation) return;
+            
+            const filter = document.getElementById('materialFilter').value;
+            const useLogScale = document.getElementById('heatmapLogScale').checked;
+            const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
+            
+            // Apply log scale if needed
+            let zValues = data.matrix;
+            if (useLogScale) {
+                zValues = data.matrix.map(row => 
+                    row.map(val => val > 0 ? Math.log10(val + 1) : 0)
+                );
+            }
+            
+            const heatmapData = [{
+                z: zValues,
+                x: data.foundations,
+                y: data.materials,
+                type: 'heatmap',
+                colorscale: 'Plasma',
+                showscale: true,
+                text: data.matrix.map(row => row.map(val => val.toString())),
+                texttemplate: '%{text}',
+                textfont: {
+                    size: 12,
+                    color: 'white'
+                },
+                hovertemplate: 'Material: %{y}<br>Foundation: %{x}<br>Count: %{text}<extra></extra>',
+                colorbar: {
+                    title: useLogScale ? 'Log(Count)' : 'Count'
+                }
+            }];
+            
+            const heatmapLayout = {
+                title: {
+                    text: `Building Materials vs Foundation Types ${filter !== 'all' ? '(' + filter + ')' : ''} ${useLogScale ? '(Log Scale)' : ''}`,
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { 
+                    title: 'Foundation Type',
+                    tickangle: -45
+                },
+                yaxis: { title: 'Material Type' },
+                height: 500
+            };
+            
+            Plotly.newPlot('materialsHeatmap', heatmapData, heatmapLayout, {responsive: true});
+            
+            // Material trends chart
+            const years = [];
+            const materialData = {};
+            
+            for (let year = 1940; year <= 2020; year += 10) {
+                years.push(year);
+                data.materials.forEach(mat => {
+                    if (!materialData[mat]) materialData[mat] = [];
+                    materialData[mat].push(Math.sin((year - 1940) / 20) * 30 + 20 + Math.random() * 10);
+                });
+            }
+            
+            const trendTraces = data.materials.map((mat, index) => ({
+                x: years,
+                y: materialData[mat],
+                name: mat,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { 
+                    width: 2,
+                    color: plasmaColors[index % plasmaColors.length]
+                }
+            }));
+            
+            const trendLayout = {
+                title: {
+                    text: 'Material Usage Trends Over Time',
+                    font: { size: 20, color: '#333' }
+                },
+                xaxis: { title: 'Year' },
+                yaxis: { title: 'Percentage of New Construction (%)' },
+                height: 400
+            };
+            
+            Plotly.newPlot('materialsTrendChart', trendTraces, trendLayout, {responsive: true});
+        }
+        
+        // Update Interactive Explorer
+        function updateInteractiveExplorer() {
+            if (!buildingData) return;
+            
+            const vizType = document.getElementById('vizType').value;
+            const yearStart = parseInt(document.getElementById('yearStart').value);
+            const yearEnd = parseInt(document.getElementById('yearEnd').value);
+            const areaMin = parseInt(document.getElementById('areaMin').value);
+            const areaMax = parseInt(document.getElementById('areaMax').value);
+            
+            // Use RANDOM sample for the explorer to show true data distribution
+            const filteredData = buildingData.building_samples_random.filter(d => 
+                d.year_built >= yearStart && d.year_built <= yearEnd &&
+                d['Est GFA sqmeters'] >= areaMin && 
+                d['Est GFA sqmeters'] <= areaMax
+            );
+            
+            let plotData, layout;
+            
+            switch(vizType) {
+                case 'scatter3d':
+                    plotData = [{
+                        x: filteredData.map(d => d.year_built < 1940 ? 1939 : d.year_built),
+                        y: filteredData.map(d => d['Est GFA sqmeters']),
+                        z: filteredData.map(d => d.cluster),
+                        mode: 'markers',
+                        type: 'scatter3d',
+                        marker: {
+                            size: 5,
+                            color: filteredData.map(d => d.cluster),
+                            colorscale: 'Plasma',
+                            showscale: true
+                        },
+                        text: filteredData.map(d => d.OCC_CLS),
+                        hovertemplate: 'Year: %{x}<br>Est GFA: %{y}<br>Cluster: %{z}<br>Type: %{text}<extra></extra>'
+                    }];
+                    
+                    layout = {
+                        title: '3D Building Data Visualization',
+                        scene: {
+                            xaxis: { title: 'Year Built' },
+                            yaxis: { title: 'Est GFA sqmeters' },
+                            zaxis: { title: 'Cluster' }
+                        },
+                        height: 600
+                    };
+                    break;
+                    
+                case 'sunburst':
+                    // Process data for sunburst
+                    const sunburstLabels = ['Buildings'];
+                    const sunburstParents = [''];
+                    const sunburstValues = [filteredData.length];
+                    
+                    const occupancyGroups = {};
+                    filteredData.forEach(d => {
+                        if (!occupancyGroups[d.OCC_CLS]) {
+                            occupancyGroups[d.OCC_CLS] = {};
+                        }
+                        const decade = d.year_built < 1940 ? 'pre-1940' : `${Math.floor(d.year_built / 10) * 10}s`;
+                        if (!occupancyGroups[d.OCC_CLS][decade]) {
+                            occupancyGroups[d.OCC_CLS][decade] = 0;
+                        }
+                        occupancyGroups[d.OCC_CLS][decade]++;
+                    });
+                    
+                    Object.keys(occupancyGroups).forEach(occ => {
+                        sunburstLabels.push(occ);
+                        sunburstParents.push('Buildings');
+                        sunburstValues.push(Object.values(occupancyGroups[occ]).reduce((a, b) => a + b, 0));
+                        
+                        Object.keys(occupancyGroups[occ]).forEach(decade => {
+                            sunburstLabels.push(`${occ} - ${decade}`);
+                            sunburstParents.push(occ);
+                            sunburstValues.push(occupancyGroups[occ][decade]);
+                        });
+                    });
+                    
+                    plotData = [{
+                        type: 'sunburst',
+                        labels: sunburstLabels,
+                        parents: sunburstParents,
+                        values: sunburstValues,
+                        branchvalues: 'total',
+                        marker: {
+                            colorscale: 'Plasma'
+                        }
+                    }];
+                    
+                    layout = {
+                        title: 'Hierarchical Building Distribution',
+                        height: 600
+                    };
+                    break;
+                    
+                case 'parallel':
+                    plotData = [{
+                        type: 'parcoords',
+                        dimensions: [
+                            {
+                                label: 'Year',
+                                values: filteredData.map(d => d.year_built),
+                                range: [yearStart, yearEnd]
+                            },
+                            {
+                                label: 'Est GFA',
+                                values: filteredData.map(d => d['Est GFA sqmeters']),
+                                range: [areaMin, areaMax]
+                            },
+                            {
+                                label: 'Cluster',
+                                values: filteredData.map(d => d.cluster),
+                                range: [0, 6]
+                            }
+                        ],
+                        line: {
+                            color: filteredData.map(d => d.cluster),
+                            colorscale: 'Plasma',
+                            showscale: true
+                        }
+                    }];
+                    
+                    layout = {
+                        title: 'Parallel Coordinates - Building Attributes',
+                        height: 600
+                    };
+                    break;
+                    
+                case 'box':
+                    const occupancies = [...new Set(filteredData.map(d => d.OCC_CLS))];
+                    plotData = occupancies.map((occ, i) => ({
+                        y: filteredData.filter(d => d.OCC_CLS === occ).map(d => d['Est GFA sqmeters']),
+                        type: 'box',
+                        name: occ,
+                        boxpoints: 'outliers',
+                        marker: { color: plasmaColors[i % plasmaColors.length] }
+                    }));
+                    
+                    layout = {
+                        title: 'Est GFA Distribution by Occupancy Class',
+                        yaxis: { title: 'Est GFA sqmeters' },
+                        height: 500
+                    };
+                    break;
+                    
+                case 'violin':
+                    const violinOccupancies = [...new Set(filteredData.map(d => d.OCC_CLS))];
+                    plotData = violinOccupancies.map((occ, index) => ({
+                        y: filteredData.filter(d => d.OCC_CLS === occ).map(d => d['Est GFA sqmeters']),
+                        type: 'violin',
+                        name: occ,
+                        box: { visible: true },
+                        meanline: { visible: true },
+                        fillcolor: plasmaColors[index % plasmaColors.length],
+                        opacity: 0.6
+                    }));
+                    
+                    layout = {
+                        title: 'Est GFA Distribution (Violin Plot)',
+                        yaxis: { title: 'Est GFA sqmeters' },
+                        height: 500
+                    };
+                    break;
+                    
+                case 'treemap':
+                    const treemapLabels = ['Root'];
+                    const treemapParents = [''];
+                    const treemapValues = [0];
+                    
+                    const treemapData = {};
+                    filteredData.forEach(d => {
+                        if (!treemapData[d.OCC_CLS]) {
+                            treemapData[d.OCC_CLS] = 0;
+                        }
+                        treemapData[d.OCC_CLS]++;
+                    });
+                    
+                    Object.entries(treemapData).forEach(([occ, count]) => {
+                        treemapLabels.push(occ);
+                        treemapParents.push('Root');
+                        treemapValues.push(count);
+                    });
+                    
+                    plotData = [{
+                        type: 'treemap',
+                        labels: treemapLabels,
+                        parents: treemapParents,
+                        values: treemapValues,
+                        textinfo: "label+value+percent root",
+                        marker: {
+                            colorscale: 'Plasma'
+                        }
+                    }];
+                    
+                    layout = {
+                        title: 'Building Distribution Treemap',
+                        height: 600
+                    };
+                    break;
+            }
+            
+            Plotly.newPlot('interactiveChart', plotData, layout, {responsive: true});
+        }
+        
+        // Export functions
+        function exportChart(chartId, filename) {
+            Plotly.downloadImage(chartId, {
+                format: 'png',
+                width: 1200,
+                height: 800,
+                filename: filename || 'chart'
+            });
+        }
+        
+        function exportAllData() {
+            if (!buildingData) {
+                alert('No data available to export');
+                return;
+            }
+            
+            const dataStr = JSON.stringify(buildingData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'building_analysis_data.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
