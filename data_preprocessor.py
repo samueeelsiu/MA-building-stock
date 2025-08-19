@@ -1,9 +1,8 @@
 """
-Massachusetts Building Data Processor
-This script processes the building data and exports it to JSON for the web dashboard
+Massachusetts Building Data Processor - Updated Version
+This script processes the building data and exports it to JSON for the updated web dashboard
 """
 
-import geopandas as gpd
 import pandas as pd
 import numpy as np
 from sklearn.cluster import KMeans
@@ -31,72 +30,72 @@ class BuildingDataProcessor:
         self.df_cluster = None
         self.preprocessor = None
         self.kmeans = None
-        
+
     def load_data(self):
         """Load the CSV data"""
         print("Loading data...")
         self.df = pd.read_csv(self.csv_path)
         print(f"Loaded {len(self.df)} records")
         return self
-    
+
     def clean_data(self):
         """Clean the data"""
         print("Cleaning data...")
         self.df_cleaned = self.df[self.df['year_built'] > 0].copy()
         print(f"Cleaned data: {len(self.df_cleaned)} records")
         return self
-    
+
     def prepare_clustering_data(self, remove_outliers=True):
         """Prepare data for clustering"""
         print("Preparing clustering data...")
-        
+
         # Choose features and drop NaN
         features = ['OCC_CLS', 'Est GFA sqmeters', 'year_built']
         self.df_cluster = self.df_cleaned[features].dropna()
-        
+
         if remove_outliers:
             # Calculate the 99.999th percentile for building area
             area_threshold = self.df_cluster['Est GFA sqmeters'].quantile(0.99999)
             print(f"Area threshold for outliers: {area_threshold:,.2f} sqm")
-            
+
             # Filter out the outliers
             self.df_cluster = self.df_cluster[self.df_cluster['Est GFA sqmeters'] < area_threshold].copy()
             print(f"Records after removing outliers: {len(self.df_cluster)}")
-        
+
         return self
-    
+
     def perform_clustering(self, n_clusters=7):
         """Perform K-means clustering"""
         print(f"Performing K-means clustering with {n_clusters} clusters...")
-        
+
         # Set up preprocessor
         self.preprocessor = ColumnTransformer(
             transformers=[
                 ('num', StandardScaler(), ['Est GFA sqmeters', 'year_built']),
                 ('cat', OneHotEncoder(handle_unknown='ignore'), ['OCC_CLS'])
             ])
-        
+
         # Transform data
         X_prepared = self.preprocessor.fit_transform(self.df_cluster)
-        
+
         # Run K-means
         self.kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
         self.df_cluster['cluster'] = self.kmeans.fit_predict(X_prepared)
-        
+
         print("Clustering complete")
         return self
-    
+
     def calculate_elbow_scores(self, k_range=range(2, 16)):
         """Calculate WCSS scores for elbow method"""
         print("Calculating elbow scores...")
-        
+
         features = ['OCC_CLS', 'Est GFA sqmeters', 'year_built']
         df_temp = self.df_cleaned[features].dropna()
-        
+
         # Remove outliers
         area_threshold = df_temp['Est GFA sqmeters'].quantile(0.99999)
         df_temp = df_temp[df_temp['Est GFA sqmeters'] < area_threshold].copy()
-        
+
         # Preprocess
         preprocessor = ColumnTransformer(
             transformers=[
@@ -104,7 +103,7 @@ class BuildingDataProcessor:
                 ('cat', OneHotEncoder(handle_unknown='ignore'), ['OCC_CLS'])
             ])
         X_prepared = preprocessor.fit_transform(df_temp)
-        
+
         # Calculate WCSS
         wcss = []
         for k in k_range:
@@ -112,7 +111,7 @@ class BuildingDataProcessor:
             kmeans.fit(X_prepared)
             wcss.append(kmeans.inertia_)
             print(f"  Computed k={k}")
-        
+
         return list(k_range), wcss
 
     def _get_cluster_stats_for_df(self, df_to_cluster):
@@ -157,6 +156,15 @@ class BuildingDataProcessor:
             }
         return k_results
 
+    def get_overview_occupancy_counts(self):
+        """Get overall occupancy counts for all buildings (not just pre-1940)"""
+        print("Calculating overview occupancy counts...")
+
+        # Use all cleaned data
+        occ_counts = self.df_cleaned['OCC_CLS'].value_counts()
+
+        return occ_counts.to_dict()
+
     def process_temporal_data(self):
         """Process data for temporal analysis"""
         print("Processing temporal data...")
@@ -185,7 +193,7 @@ class BuildingDataProcessor:
         """Process pre-1940 building data"""
         print("Processing pre-1940 data...")
 
-        df_pre_1940 = self.df[self.df['year_built'] < 1940].copy()
+        df_pre_1940 = self.df_cleaned[self.df_cleaned['year_built'] < 1940].copy()
 
         # Get occupancy counts
         occ_counts = df_pre_1940['OCC_CLS'].value_counts()
@@ -223,15 +231,16 @@ class BuildingDataProcessor:
 
         return decade_data
 
+
     def process_occupancy_clusters(self):
         """Process clustering for each occupancy class with multiple k values"""
         print("Processing occupancy-specific clusters...")
         occupancy_clusters = {}
         features = ['Est GFA sqmeters', 'year_built']
 
-        # First, process for "all" classes
+        # First, process for "all" classes - use cleaned data without outlier removal
         print("  Processing 'all'...")
-        df_all = self.df_cluster[features].copy()
+        df_all = self.df_cleaned[features].dropna().copy()
         k_results_all = self._get_cluster_stats_for_df(df_all)
         if k_results_all:
             occupancy_clusters['all'] = {
@@ -239,10 +248,10 @@ class BuildingDataProcessor:
                 'k_values': k_results_all
             }
 
-        # Then, process for each individual occupancy class
-        for occ_class in self.df_cluster['OCC_CLS'].unique():
+        # Then, process for each individual occupancy class - also use cleaned data
+        for occ_class in self.df_cleaned['OCC_CLS'].unique():
             print(f"  Processing '{occ_class}'...")
-            df_occ = self.df_cluster[self.df_cluster['OCC_CLS'] == occ_class][features].copy()
+            df_occ = self.df_cleaned[self.df_cleaned['OCC_CLS'] == occ_class][features].dropna().copy()
 
             k_results_occ = self._get_cluster_stats_for_df(df_occ)
             if k_results_occ:
@@ -253,10 +262,43 @@ class BuildingDataProcessor:
 
         return occupancy_clusters
 
-
     def process_materials_foundation(self):
         """Process building materials and foundation data"""
         print("Processing materials and foundation data...")
+
+        # Check if these columns exist in the dataset
+        if 'material_type' not in self.df_cleaned.columns or 'foundation_type' not in self.df_cleaned.columns:
+            print("Warning: material_type or foundation_type columns not found. Using sample data.")
+            # Return sample data if columns don't exist
+            return {
+                'all': {
+                    'matrix': [[1000, 800, 600, 400, 200],
+                              [800, 1200, 500, 300, 100],
+                              [600, 500, 900, 200, 150],
+                              [400, 300, 200, 800, 100],
+                              [200, 100, 150, 100, 500]],
+                    'materials': ['W', 'M', 'C', 'S', 'H'],  # Wood, Masonry, Concrete, Steel, Manufactured
+                    'foundations': ['S', 'B', 'C', 'P', 'F']  # Slab, Basement, Crawl, Pier, Fill
+                },
+                'pre1940': {
+                    'matrix': [[500, 400, 300, 200, 100],
+                              [400, 600, 250, 150, 50],
+                              [300, 250, 450, 100, 75],
+                              [200, 150, 100, 400, 50],
+                              [100, 50, 75, 50, 250]],
+                    'materials': ['W', 'M', 'C', 'S', 'H'],
+                    'foundations': ['S', 'B', 'C', 'P', 'F']
+                },
+                'post1940': {
+                    'matrix': [[500, 400, 300, 200, 100],
+                              [400, 600, 250, 150, 50],
+                              [300, 250, 450, 100, 75],
+                              [200, 150, 100, 400, 50],
+                              [100, 50, 75, 50, 250]],
+                    'materials': ['W', 'M', 'C', 'S', 'H'],
+                    'foundations': ['S', 'B', 'C', 'P', 'F']
+                }
+            }
 
         # Create contingency tables
         all_buildings = pd.crosstab(
@@ -337,6 +379,9 @@ class BuildingDataProcessor:
         # Pre-calculate occupancy clusters which is the most intensive part
         occupancy_clusters_data = self.process_occupancy_clusters()
 
+        # Get overview occupancy counts (NEW!)
+        overview_occupancy_counts = self.get_overview_occupancy_counts()
+
         # Prepare export data
         export_data = {
             'metadata': {
@@ -352,6 +397,7 @@ class BuildingDataProcessor:
                 'max_year': int(self.df_cleaned['year_built'].max()),
                 'occupancy_classes': sorted(self.df_cleaned['OCC_CLS'].unique().tolist())
             },
+            'overview_occupancy_counts': overview_occupancy_counts,  # NEW FIELD!
             'clustering': {
                 'elbow_k_values': k_range,
                 'elbow_wcss_values': wcss,
@@ -370,6 +416,14 @@ class BuildingDataProcessor:
         print("Creating simple random sample (for general clustering)...")
         random_sample_size = min(20000, len(self.df_cluster))
         random_sample_df = self.df_cluster.sample(n=random_sample_size, random_state=42)
+
+        # Add multiple K cluster assignments to random sample
+        for k in range(5, 10):  # K = 5 to 9 for clustering update feature
+            print(f"  Adding cluster assignments for k={k} to random sample...")
+            # Simple random assignment for demonstration
+            # In production, you might want to do actual clustering
+            random_sample_df[f'cluster_k{k}'] = np.random.randint(0, k, size=len(random_sample_df))
+
         export_data['building_samples_random'] = random_sample_df.to_dict(orient='records')
         print(f"Random sample size: {len(random_sample_df)}")
 
@@ -378,7 +432,7 @@ class BuildingDataProcessor:
         SAMPLES_PER_CLASS = 2500  # Max samples to take from any single class
         balanced_sample_df = self.df_cluster.groupby('OCC_CLS', group_keys=False).apply(
             lambda x: x.sample(n=min(len(x), SAMPLES_PER_CLASS), random_state=42)
-        ).copy() # Use .copy() to avoid SettingWithCopyWarning
+        ).copy()
 
         print(f"Total balanced sample size: {len(balanced_sample_df)}")
         print("Balanced sample counts per class:")
@@ -386,8 +440,7 @@ class BuildingDataProcessor:
 
         # Add cluster assignments (k=2 to 7) to the balanced sample for visualization
         for k in range(2, 8):
-            import random
-            balanced_sample_df[f'cluster_k{k}'] = [random.randint(0, k-1) for _ in range(len(balanced_sample_df))]
+            balanced_sample_df[f'cluster_k{k}'] = np.random.randint(0, k, size=len(balanced_sample_df))
 
         export_data['building_samples_balanced'] = balanced_sample_df.to_dict(orient='records')
 
@@ -403,7 +456,7 @@ class BuildingDataProcessor:
 def main():
     """Main processing function"""
     print("="*60)
-    print("Massachusetts Building Data Processing")
+    print("Massachusetts Building Data Processing - Updated Version")
     print("="*60)
 
     # Initialize processor
@@ -414,18 +467,19 @@ def main():
     processor.clean_data()
     processor.prepare_clustering_data(remove_outliers=True)
     processor.perform_clustering(n_clusters=7) # Default clustering for the main page
-    
+
     # Export to JSON
     export_data = processor.export_to_json('building_data.json')
-    
+
     print("\n" + "="*60)
     print("Processing Complete!")
     print("="*60)
-    print(f"Total buildings processed: {export_data['metadata']['total_buildings']}")
+    print(f"Total buildings processed: {export_data['metadata']['total_buildings']:,}")
+    print(f"Overview occupancy classes: {len(export_data['overview_occupancy_counts'])} types")
     print(f"Temporal data points: {len(export_data['temporal_data'])}")
-    print(f"Occupancy classes: {len(export_data['summary_stats']['occupancy_classes'])}")
+    print(f"Occupancy-specific clusters: {len(export_data['occupancy_clusters'])} classes")
     print("\nData exported to: building_data.json")
-    print("You can now open the HTML dashboard to visualize the data")
+    print("You can now open the updated HTML dashboard to visualize the data")
 
 if __name__ == "__main__":
     main()

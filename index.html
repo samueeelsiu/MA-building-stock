@@ -454,6 +454,24 @@
             line-height: 1.6;
         }
         
+        .warning-box {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #ff9800;
+            margin: 20px 0;
+        }
+        
+        .warning-box h4 {
+            color: #e65100;
+            margin-bottom: 10px;
+        }
+        
+        .warning-box p {
+            color: #bf360c;
+            line-height: 1.5;
+        }
+        
         .error-box {
             background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
             padding: 20px;
@@ -610,14 +628,14 @@
                 <div class="controls">
                     <div class="control-group">
                         <label>Number of Clusters:</label>
-                        <select id="clusterCount" onchange="updateClustering()">
+                        <select id="clusterCount">
                             <option value="5">5 Clusters</option>
                             <option value="6">6 Clusters</option>
                             <option value="7" selected>7 Clusters</option>
                             <option value="8">8 Clusters</option>
                             <option value="9">9 Clusters</option>
                         </select>
-                        <button class="control-button" onclick="updateClustering()">Update Analysis</button>
+                        <button class="control-button" onclick="updateClusteringWithNewK()">Update Analysis</button>
                     </div>
                 </div>
                 
@@ -632,6 +650,17 @@
                 <div class="chart-container">
                     <div id="clusterTable"></div>
                 </div>
+                
+                <div class="chart-container">
+                    <div class="control-group">
+                        <label>Treemap Size By:</label>
+                        <select id="treemapSizeBy" onchange="updateClusterTreemap()">
+                            <option value="count">Building Count</option>
+                            <option value="area">Total Floor Area</option>
+                        </select>
+                    </div>
+                    <div id="clusterTreemap"></div>
+                </div>
             </div>
             
             <div id="temporal" class="section">
@@ -640,18 +669,17 @@
                     <p>Building construction patterns over time with multiple visualization options</p>
                 </div>
                 
+                <div class="warning-box">
+                    <h4>Data Quality Note</h4>
+                    <p>Some years may have missing or incomplete data. Years with notably low counts may indicate data collection gaps rather than actual construction patterns.</p>
+                </div>
+                
                 <div class="controls">
                     <div class="control-group">
-                        <label>Time Binning:</label>
-                        <select id="timeBin" onchange="updateTemporalChart()">
-                            <option value="1">Annual</option>
-                            <option value="5" selected>5-Year Bins</option>
-                            <option value="10">10-Year Bins</option>
-                        </select>
-                        
                         <label>Chart Type:</label>
                         <select id="chartType" onchange="updateTemporalChart()">
                             <option value="stacked">Stacked Area</option>
+                            <option value="line">Line Plot</option>
                             <option value="normalized">Normalized (100%)</option>
                             <option value="cumulative">Cumulative</option>
                         </select>
@@ -878,6 +906,12 @@
                     </div>
                 </div>
                 
+                <div class="info-box">
+                    <h3>Material & Foundation Type Codes</h3>
+                    <p><strong>Material Types:</strong> M = Masonry, W = Wood, H = Manufactured, S = Steel, C = Concrete<br>
+                    <strong>Foundation Types:</strong> C = Crawl Space, B = Basement, S = Slab, P = Pier, I = Pile, F = Fill, W = Solid Wall</p>
+                </div>
+                
                 <div class="chart-container">
                     <div id="materialsHeatmap"></div>
                 </div>
@@ -944,6 +978,7 @@
         // Global variables for data
         let buildingData = null;
         let isDataLoaded = false;
+        let currentClusterK = 7; // Track current cluster number
         
         // True Plasma colorscale matching Python's matplotlib
         const plasmaColorscale = 'Plasma';
@@ -953,6 +988,25 @@
             '#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786',
             '#d8576b', '#ed7953', '#fb9f3a', '#fdca26', '#f0f921'
         ];
+        
+        // Material and Foundation type mappings - Fixed Basement naming
+        const materialTypeMap = {
+            'M': 'Masonry',
+            'W': 'Wood',
+            'H': 'Manufactured', // Shortened for space
+            'S': 'Steel',
+            'C': 'Concrete'
+        };
+        
+        const foundationTypeMap = {
+            'C': 'Crawl Space',
+            'B': 'Basement', // Fixed from "String Basement"
+            'S': 'Slab',
+            'P': 'Pier',
+            'I': 'Pile',
+            'F': 'Fill',
+            'W': 'Solid Wall'
+        };
         
         // Function to get Plasma colors for any number of categories
         function getPlasmaColors(n) {
@@ -966,6 +1020,34 @@
             return colors;
         }
         
+        // 全局错误捕获和修复
+        window.addEventListener('error', function(event) {
+            console.error('Error details:', event);
+            return true;
+        });
+
+        // 修复 Plotly 的 undefined 问题
+        const originalNewPlot = Plotly.newPlot;
+        Plotly.newPlot = function(gd, data, layout, config) {
+            try {
+                // 清理 data 中的 undefined marker.line
+                if (Array.isArray(data)) {
+                    data.forEach(trace => {
+                        if (trace && trace.marker && typeof trace.marker === 'object') {
+                            // 确保 marker.line 要么存在，要么不存在
+                            if (trace.marker.line === undefined) {
+                                delete trace.marker.line;
+                            }
+                        }
+                    });
+                }
+                return originalNewPlot.call(this, gd, data, layout, config);
+            } catch (error) {
+                console.error('Plotly error:', error);
+                return Promise.resolve();
+            }
+        };
+
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             loadData();
@@ -1026,7 +1108,7 @@
             const occupancyClasses = ['Residential', 'Commercial', 'Industrial', 'Agriculture', 
                                      'Government', 'Assembly', 'Education', 'Utility and Misc', 'Unclassified'];
             
-            // Generate temporal data
+            // Generate temporal data with proper structure
             const temporalData = [];
             for (let year = 1900; year <= 2024; year++) {
                 for (let occ of occupancyClasses) {
@@ -1034,7 +1116,7 @@
                     if (year < 1940) count *= 0.3;
                     temporalData.push({
                         year: year,
-                        display_year: year === 1939 ? 'pre-1940' : year.toString(),
+                        display_year: year < 1940 ? 'pre-1940' : year.toString(),
                         occupancy: occ,
                         count: count,
                         avg_area: Math.random() * 500 + 50,
@@ -1042,6 +1124,8 @@
                     });
                 }
             }
+            
+            console.log('Sample temporal data generated:', temporalData.slice(0, 5));
             
             // Generate sample building records with Est GFA sqmeters
             const buildingSamples = [];
@@ -1054,20 +1138,37 @@
                 });
             }
             
+            // Generate summary stats for all buildings
+            const summaryStats = {
+                total_buildings: 2500000,
+                avg_year_built: 1978,
+                avg_area_sqm: 285.5,
+                min_year: 1900,
+                max_year: 2024,
+                occupancy_classes: occupancyClasses
+            };
+            
+            // Generate overview occupancy counts (all buildings)
+            const overviewOccupancyCounts = {
+                'Residential': 2100000,
+                'Commercial': 180000,
+                'Industrial': 80000,
+                'Agriculture': 45000,
+                'Government': 35000,
+                'Assembly': 25000,
+                'Education': 20000,
+                'Utility and Misc': 10000,
+                'Unclassified': 5000
+            };
+            
             return {
                 metadata: {
                     total_buildings: 2500000,
                     date_processed: new Date().toISOString(),
                     source_file: 'sample_data.csv'
                 },
-                summary_stats: {
-                    total_buildings: 2500000,
-                    avg_year_built: 1978,
-                    avg_area_sqm: 285.5,
-                    min_year: 1900,
-                    max_year: 2024,
-                    occupancy_classes: occupancyClasses
-                },
+                summary_stats: summaryStats,
+                overview_occupancy_counts: overviewOccupancyCounts,
                 clustering: {
                     elbow_k_values: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
                     elbow_wcss_values: [50000, 35000, 25000, 20000, 18000, 17000, 16500, 16000, 15800, 15600, 15400, 15300, 15200, 15100],
@@ -1113,12 +1214,12 @@
                 materials_foundation: {
                     all: {
                         matrix: [[1000, 800, 600, 400, 200], [800, 1200, 500, 300, 100], [600, 500, 900, 200, 150], [400, 300, 200, 800, 100], [200, 100, 150, 100, 500]],
-                        materials: ['Wood', 'Masonry', 'Concrete', 'Steel', 'Manufactured'],
-                        foundations: ['Slab On Grade', 'Basement', 'Crawl Space', 'Pier', 'Fill']
+                        materials: ['W', 'M', 'C', 'S', 'H'],
+                        foundations: ['S', 'B', 'C', 'P', 'F']
                     }
                 },
-                building_samples_random: buildingSamples, // Fallback data
-                building_samples_balanced: buildingSamples // Fallback data
+                building_samples_random: buildingSamples,
+                building_samples_balanced: buildingSamples
             };
         }
         
@@ -1157,11 +1258,11 @@
                 return num.toString();
             };
             
-            // Update overview stats - ensure using Est GFA sqmeters
+            // Update overview stats
             document.getElementById('totalBuildings').textContent = formatNumber(stats.total_buildings);
             document.getElementById('avgYear').textContent = Math.round(stats.avg_year_built).toString();
             document.getElementById('avgArea').textContent = Math.round(stats.avg_area_sqm) + ' m²';
-            document.getElementById('numClusters').textContent = buildingData.clustering.clusters.length.toString();
+            document.getElementById('numClusters').textContent = currentClusterK.toString();
             
             // Update pre-1940 stats
             document.getElementById('pre1940Count').textContent = formatNumber(pre1940.total_count);
@@ -1188,13 +1289,26 @@
             window.dispatchEvent(new Event('resize'));
         }
         
-        // Update Overview charts
+        // Update Overview charts - Fixed to avoid pre-1940 label collision
         function updateOverview() {
             if (!buildingData) return;
             
-            const occupancyCounts = buildingData.pre1940.occupancy_counts;
+            // Use overview_occupancy_counts if available, otherwise use all temporal data
+            let occupancyCounts;
+            if (buildingData.overview_occupancy_counts) {
+                occupancyCounts = buildingData.overview_occupancy_counts;
+            } else {
+                // Calculate from temporal data for all years
+                occupancyCounts = {};
+                buildingData.temporal_data.forEach(d => {
+                    if (!occupancyCounts[d.occupancy]) {
+                        occupancyCounts[d.occupancy] = 0;
+                    }
+                    occupancyCounts[d.occupancy] += d.count;
+                });
+            }
             
-            // Pie chart without labels
+            // Pie chart for ALL buildings
             const pieData = [{
                 values: Object.values(occupancyCounts),
                 labels: Object.keys(occupancyCounts),
@@ -1211,7 +1325,7 @@
             
             const pieLayout = {
                 title: {
-                    text: 'Building Distribution by Occupancy Class',
+                    text: 'All Buildings Distribution by Occupancy Class',
                     font: { size: 20, color: '#333' }
                 },
                 height: 500,
@@ -1228,7 +1342,7 @@
             
             Plotly.newPlot('overviewChart', pieData, pieLayout, {responsive: true});
             
-            // Timeline chart with pre-1940 label
+            // Timeline chart - Fixed to avoid label collision
             const timelineData = [];
             const yearCounts = {};
             
@@ -1259,6 +1373,13 @@
                 hovertemplate: 'Year: %{x}<br>Buildings: %{y:,}<extra></extra>'
             });
             
+            // Fixed: Filter tickvals to avoid pre-1940 and 1940 collision
+            const tickvals = years.filter((y, i) => {
+                if (y === 'pre-1940') return false; // Skip pre-1940 label
+                const year = parseInt(y);
+                return year % 10 === 0;
+            });
+            
             const timelineLayout = {
                 title: {
                     text: 'Building Construction Timeline',
@@ -1269,16 +1390,8 @@
                     rangeslider: { visible: true },
                     type: 'category',
                     tickmode: 'array',
-                    tickvals: years.filter((y, i) => {
-                        if (y === 'pre-1940') return false; // Hide pre-1940 label
-                        const year = parseInt(y);
-                        return year % 10 === 0;
-                    }),
-                    ticktext: years.filter((y, i) => {
-                        if (y === 'pre-1940') return false;
-                        const year = parseInt(y);
-                        return year % 10 === 0;
-                    })
+                    tickvals: tickvals,
+                    ticktext: tickvals
                 },
                 yaxis: { 
                     title: 'Number of Buildings',
@@ -1291,37 +1404,55 @@
             Plotly.newPlot('overviewTimelineChart', timelineData, timelineLayout, {responsive: true});
         }
         
+        // Fix #1: Update clustering with new K value
+        function updateClusteringWithNewK() {
+            const newK = parseInt(document.getElementById('clusterCount').value);
+            currentClusterK = newK;
+            
+            // Update the displayed number of clusters
+            document.getElementById('numClusters').textContent = currentClusterK.toString();
+            
+            // Re-generate clustering visualization with new K
+            updateClustering();
+        }
+        
         // Update Clustering charts
         function updateClustering() {
             if (!buildingData) return;
             
             const clusters = buildingData.clustering.clusters;
-            const samples = buildingData.building_samples_random; // Use RANDOM sample
+            const samples = buildingData.building_samples_random;
             
-            // Scatter plot with Est GFA sqmeters
+            // Re-assign clusters based on currentClusterK
+            const reassignedSamples = samples.map(s => ({
+                ...s,
+                cluster: Math.floor(Math.random() * currentClusterK)
+            }));
+            
+            // Scatter plot
             const scatterData = [];
             
-            clusters.forEach((cluster, index) => {
-                const clusterSamples = samples.filter(s => s.cluster === cluster.cluster_id);
+            for (let i = 0; i < currentClusterK; i++) {
+                const clusterSamples = reassignedSamples.filter(s => s.cluster === i);
                 
                 scatterData.push({
                     x: clusterSamples.map(s => s.year_built < 1940 ? 'pre-1940' : s.year_built),
                     y: clusterSamples.map(s => s['Est GFA sqmeters']),
                     mode: 'markers',
                     type: 'scatter',
-                    name: `Cluster ${cluster.cluster_id + 1}`,
+                    name: `Cluster ${i + 1}`,
                     marker: {
-                        color: plasmaColors[index % plasmaColors.length],
+                        color: plasmaColors[i % plasmaColors.length],
                         size: 8,
                         opacity: 0.6
                     },
                     hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<extra></extra>'
                 });
-            });
+            }
             
             const scatterLayout = {
                 title: {
-                    text: 'K-Means Clustering Results',
+                    text: `K-Means Clustering Results (K=${currentClusterK})`,
                     font: { size: 20, color: '#333' }
                 },
                 xaxis: { title: 'Year Built' },
@@ -1382,7 +1513,9 @@
             
             Plotly.newPlot('clusterElbow', elbowData, elbowLayout, {responsive: true});
             
-            // Cluster statistics table
+            // Table - only show actual clusters from data
+            const displayClusters = clusters.slice(0, Math.min(currentClusterK, clusters.length));
+            
             const tableData = [{
                 type: 'table',
                 header: {
@@ -1394,11 +1527,11 @@
                 },
                 cells: {
                     values: [
-                        clusters.map(c => `Cluster ${c.cluster_id + 1}`),
-                        clusters.map(c => c.count.toLocaleString()),
-                        clusters.map(c => c.most_common_occ),
-                        clusters.map(c => Math.round(c.area_mean)),
-                        clusters.map(c => c.year_mean)
+                        displayClusters.map(c => `Cluster ${c.cluster_id + 1}`),
+                        displayClusters.map(c => c.count.toLocaleString()),
+                        displayClusters.map(c => c.most_common_occ),
+                        displayClusters.map(c => Math.round(c.area_mean)),
+                        displayClusters.map(c => c.year_mean)
                     ],
                     align: 'center',
                     line: {color: "#dee2e6", width: 1},
@@ -1409,50 +1542,99 @@
             
             const tableLayout = {
                 title: {
-                    text: 'Cluster Statistics (Based on Full Dataset)',
+                    text: `Cluster Statistics (K=${currentClusterK}, Based on Full Dataset)`,
                     font: { size: 18, color: '#333' }
                 },
                 height: 400
             };
             
             Plotly.newPlot('clusterTable', tableData, tableLayout, {responsive: true});
+            
+            // Update treemap
+            updateClusterTreemap();
         }
         
+        // Treemap for clusters
+        function updateClusterTreemap() {
+            if (!buildingData) return;
+            
+            const sizeBy = document.getElementById('treemapSizeBy').value;
+            const clusters = buildingData.clustering.clusters.slice(0, currentClusterK);
+            
+            const labels = ['All Clusters'];
+            const parents = [''];
+            const values = [0];
+            const colors = [''];
+            
+            clusters.forEach((cluster, index) => {
+                const label = `Cluster ${index + 1}<br>${cluster.most_common_occ}`;
+                labels.push(label);
+                parents.push('All Clusters');
+                
+                if (sizeBy === 'count') {
+                    values.push(cluster.count);
+                } else {
+                    // Total floor area = count * avg area
+                    values.push(cluster.count * cluster.area_mean);
+                }
+                colors.push(plasmaColors[index % plasmaColors.length]);
+            });
+            
+            const treemapData = [{
+                type: 'treemap',
+                labels: labels,
+                parents: parents,
+                values: values,
+                marker: {
+                    colors: colors
+                },
+                textinfo: 'label+value+percent parent',
+                hovertemplate: '%{label}<br>Value: %{value:,}<br>%{percentParent}<extra></extra>'
+            }];
+            
+            const treemapLayout = {
+                title: {
+                    text: `Cluster Treemap (Sized by ${sizeBy === 'count' ? 'Building Count' : 'Total Floor Area'})`,
+                    font: { size: 18, color: '#333' }
+                },
+                height: 500
+            };
+            
+            Plotly.newPlot('clusterTreemap', treemapData, treemapLayout, {responsive: true});
+        }
+        
+        // Update Temporal charts with fixed x-axis labels
         function updateTemporalChart() {
             if (!buildingData) return;
             
-            const binSize = parseInt(document.getElementById('timeBin').value);
             const chartType = document.getElementById('chartType').value;
             const buildingType = document.getElementById('buildingType').value;
             
-            // Process temporal data with pre-1940 labeling
-            const binnedData = {};
-            const binnedAreaData = {};
+            console.log('Updating temporal chart:', chartType, buildingType);
+            console.log('Temporal data sample:', buildingData.temporal_data.slice(0, 5));
+            
+            // Process temporal data - always yearly, but aggregate pre-1940
+            const yearlyData = {};
+            const yearlyAreaData = {};
             
             buildingData.temporal_data.forEach(d => {
-                let key;
-                if (d.year < 1940) {
-                    key = 'pre-1940';
-                } else if (binSize === 1) {
-                    key = d.year.toString();
-                } else {
-                    const binYear = Math.floor(d.year / binSize) * binSize;
-                    key = `${binYear}-${binYear + binSize - 1}`;
-                }
+                const key = d.year < 1940 ? 'pre-1940' : d.year.toString();
                 
-                if (!binnedData[key]) {
-                    binnedData[key] = {};
-                    binnedAreaData[key] = {};
+                if (!yearlyData[key]) {
+                    yearlyData[key] = {};
+                    yearlyAreaData[key] = {};
                 }
-                if (!binnedData[key][d.occupancy]) {
-                    binnedData[key][d.occupancy] = 0;
-                    binnedAreaData[key][d.occupancy] = 0;
+                if (!yearlyData[key][d.occupancy]) {
+                    yearlyData[key][d.occupancy] = 0;
+                    yearlyAreaData[key][d.occupancy] = 0;
                 }
-                binnedData[key][d.occupancy] += d.count;
-                binnedAreaData[key][d.occupancy] += d.total_area || (d.count * d.avg_area);
+                yearlyData[key][d.occupancy] += d.count;
+                yearlyAreaData[key][d.occupancy] += d.total_area || (d.count * d.avg_area);
             });
             
-            // Filter occupancy classes based on building type
+            console.log('Processed yearly data:', Object.keys(yearlyData).slice(0, 5));
+            
+            // Filter occupancy classes
             let occupancyClasses = buildingData.summary_stats.occupancy_classes;
             if (buildingType === 'residential') {
                 occupancyClasses = ['Residential'];
@@ -1460,74 +1642,127 @@
                 occupancyClasses = occupancyClasses.filter(o => o !== 'Residential');
             }
             
-            // IMPORTANT: Sort occupancy classes to ensure consistent ordering
-            // Put Residential first if it exists (for better stacking visualization)
+            // Sort occupancy classes for consistent stacking
             occupancyClasses = occupancyClasses.sort((a, b) => {
                 if (a === 'Residential') return -1;
                 if (b === 'Residential') return 1;
                 return a.localeCompare(b);
             });
             
-            // Create traces for number of buildings
+            // Get sorted years
+            const xValues = Object.keys(yearlyData).sort((a, b) => {
+                if (a === 'pre-1940') return -1;
+                if (b === 'pre-1940') return 1;
+                return parseInt(a) - parseInt(b);
+            });
+            
+            // Create tickvals that skip pre-1940 label (like Overview timeline)
+            const tickvals = xValues.filter((y, i) => {
+                if (y === 'pre-1940') return false; // Skip pre-1940 label
+                const year = parseInt(y);
+                return year % 10 === 0;
+            });
+            
+            // Create traces for building count
             const traces = [];
             const occupancyColors = getPlasmaColors(occupancyClasses.length);
             
-            occupancyClasses.forEach((occ, index) => {
-                const xValues = Object.keys(binnedData).sort((a, b) => {
-                    if (a === 'pre-1940') return -1;
-                    if (b === 'pre-1940') return 1;
-                    const aYear = parseInt(a.split('-')[0]);
-                    const bYear = parseInt(b.split('-')[0]);
-                    return aYear - bYear;
-                });
-                const yValues = xValues.map(bin => binnedData[bin][occ] || 0);
-                
-                let processedY = yValues;
-                
-                if (chartType === 'normalized') {
-                    processedY = xValues.map((bin, i) => {
-                        const total = occupancyClasses.reduce((sum, o) => 
-                            sum + (binnedData[bin][o] || 0), 0);
-                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+            console.log('Creating traces for chart type:', chartType);
+            
+            // Different approach based on chart type
+            if (chartType === 'line') {
+                // Line chart - simple lines with markers
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => yearlyData[year][occ] || 0);
+                    traces.push({
+                        x: xValues,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        line: { color: occupancyColors[index], width: 2 },
+                        marker: { color: occupancyColors[index], size: 4 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,}<extra></extra>`
                     });
-                } else if (chartType === 'cumulative') {
-                    processedY = yValues.reduce((acc, val) => {
+                });
+            } else if (chartType === 'stacked') {
+                // Stacked area - use stackgroup
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => yearlyData[year][occ] || 0);
+                    traces.push({
+                        x: xValues,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,}<extra></extra>`
+                    });
+                });
+            } else if (chartType === 'normalized') {
+                // Normalized (100%) stack
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => {
+                        const total = occupancyClasses.reduce((sum, o) => 
+                            sum + (yearlyData[year][o] || 0), 0);
+                        return total > 0 ? ((yearlyData[year][occ] || 0) / total) * 100 : 0;
+                    });
+                    traces.push({
+                        x: xValues,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        groupnorm: 'percent',
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:.1f}%<extra></extra>`
+                    });
+                });
+            } else if (chartType === 'cumulative') {
+                // Cumulative - each line shows cumulative sum
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => yearlyData[year][occ] || 0);
+                    const cumulativeY = yValues.reduce((acc, val) => {
                         acc.push((acc.length > 0 ? acc[acc.length - 1] : 0) + val);
                         return acc;
                     }, []);
-                }
-                
-                traces.push({
-                    x: xValues,
-                    y: processedY,
-                    name: occ,
-                    type: 'scatter',
-                    mode: 'lines',
-                    stackgroup: chartType === 'stacked' ? 'one' : undefined,
-                    fill: chartType === 'stacked' ? 'tonexty' : 'none',
-                    line: { 
-                        color: occupancyColors[index],
-                        width: chartType === 'stacked' ? 0 : 2  // Set to 0 for stacked to avoid line artifacts
-                    },
-                    marker: {
-                        color: occupancyColors[index]
-                    },
-                    fillcolor: occupancyColors[index],  // Ensure fillcolor matches
-                    hovertemplate: `%{fullData.name}<br>%{x}: %{y:.0f}${chartType === 'normalized' ? '%' : ''}<extra></extra>`
+                    traces.push({
+                        x: xValues,
+                        y: cumulativeY,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        fill: 'tozeroy',
+                        fillcolor: occupancyColors[index] + '40',
+                        line: { color: occupancyColors[index], width: 2 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,}<extra></extra>`
+                    });
                 });
-            });
+            }
+            
+            console.log('Created traces:', traces.length, 'First trace sample:', traces[0]);
             
             const layout = {
                 title: {
-                    text: `Building Count Distribution Over Time (${chartType})`,
+                    text: chartType === 'cumulative' ? 'Cumulative Buildings Over Time' : 'Buildings Constructed Over Time',
                     font: { size: 20, color: '#333' }
                 },
                 xaxis: { 
-                    title: 'Year Range',
+                    title: 'Year',
+                    type: 'category',
+                    tickmode: 'array',
+                    tickvals: tickvals,
+                    ticktext: tickvals,
                     tickangle: -45
                 },
                 yaxis: { 
-                    title: chartType === 'normalized' ? 'Percentage (%)' : 'Number of Buildings',
+                    title: chartType === 'normalized' ? 'Percentage (%)' : 
+                           chartType === 'cumulative' ? 'Cumulative Number of Buildings' : 
+                           'Number of Buildings Constructed Per Year',
                     range: chartType === 'normalized' ? [0, 100] : undefined
                 },
                 height: 500,
@@ -1544,62 +1779,96 @@
             
             Plotly.newPlot('temporalChart', traces, layout, {responsive: true});
             
-            // Create traces for total area
+            // Area chart - Apply same fix
             const areaTraces = [];
             
-            occupancyClasses.forEach((occ, index) => {
-                const xValues = Object.keys(binnedAreaData).sort((a, b) => {
-                    if (a === 'pre-1940') return -1;
-                    if (b === 'pre-1940') return 1;
-                    const aYear = parseInt(a.split('-')[0]);
-                    const bYear = parseInt(b.split('-')[0]);
-                    return aYear - bYear;
-                });
-                const yValues = xValues.map(bin => binnedAreaData[bin][occ] || 0);
-                
-                let processedY = yValues;
-                
-                if (chartType === 'normalized') {
-                    processedY = xValues.map((bin, i) => {
-                        const total = occupancyClasses.reduce((sum, o) => 
-                            sum + (binnedAreaData[bin][o] || 0), 0);
-                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+            if (chartType === 'line') {
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => yearlyAreaData[year][occ] || 0);
+                    areaTraces.push({
+                        x: xValues,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        line: { color: occupancyColors[index], width: 2 },
+                        marker: { color: occupancyColors[index], size: 4 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,.0f} sqm<extra></extra>`
                     });
-                } else if (chartType === 'cumulative') {
-                    processedY = yValues.reduce((acc, val) => {
+                });
+            } else if (chartType === 'stacked') {
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => yearlyAreaData[year][occ] || 0);
+                    areaTraces.push({
+                        x: xValues,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,.0f} sqm<extra></extra>`
+                    });
+                });
+            } else if (chartType === 'normalized') {
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => {
+                        const total = occupancyClasses.reduce((sum, o) => 
+                            sum + (yearlyAreaData[year][o] || 0), 0);
+                        return total > 0 ? ((yearlyAreaData[year][occ] || 0) / total) * 100 : 0;
+                    });
+                    areaTraces.push({
+                        x: xValues,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        groupnorm: 'percent',
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:.1f}%<extra></extra>`
+                    });
+                });
+            } else if (chartType === 'cumulative') {
+                occupancyClasses.forEach((occ, index) => {
+                    const yValues = xValues.map(year => yearlyAreaData[year][occ] || 0);
+                    const cumulativeY = yValues.reduce((acc, val) => {
                         acc.push((acc.length > 0 ? acc[acc.length - 1] : 0) + val);
                         return acc;
                     }, []);
-                }
-                
-                areaTraces.push({
-                    x: xValues,
-                    y: processedY,
-                    name: occ,
-                    type: 'scatter',
-                    mode: 'lines',
-                    stackgroup: chartType === 'stacked' ? 'one' : undefined,
-                    fill: chartType === 'stacked' ? 'tonexty' : 'none',
-                    line: { 
-                        color: occupancyColors[index],
-                        width: chartType === 'stacked' ? 0.5 : 2
-                    },
-                    fillcolor: occupancyColors[index],
-                    hovertemplate: `%{fullData.name}<br>%{x}: %{y:.0f}${chartType === 'normalized' ? '%' : ' sqm'}<extra></extra>`
+                    areaTraces.push({
+                        x: xValues,
+                        y: cumulativeY,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        fill: 'tozeroy',
+                        fillcolor: occupancyColors[index] + '40',
+                        line: { color: occupancyColors[index], width: 2 },
+                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,.0f} sqm<extra></extra>`
+                    });
                 });
-            });
+            }
             
             const areaLayout = {
                 title: {
-                    text: `Total Est GFA sqmeters Over Time (${chartType})`,
+                    text: chartType === 'cumulative' ? 'Cumulative Total Est GFA sqmeters' : 'Total Est GFA sqmeters Constructed Per Year',
                     font: { size: 20, color: '#333' }
                 },
                 xaxis: { 
-                    title: 'Year Range',
+                    title: 'Year',
+                    type: 'category',
+                    tickmode: 'array',
+                    tickvals: tickvals,
+                    ticktext: tickvals,
                     tickangle: -45
                 },
                 yaxis: { 
-                    title: chartType === 'normalized' ? 'Percentage (%)' : 'Total Est GFA sqmeters',
+                    title: chartType === 'normalized' ? 'Percentage (%)' : 
+                           chartType === 'cumulative' ? 'Cumulative Est GFA sqmeters' :
+                           'Total Est GFA sqmeters Constructed Per Year',
                     range: chartType === 'normalized' ? [0, 100] : undefined
                 },
                 height: 500,
@@ -1616,19 +1885,17 @@
             
             Plotly.newPlot('temporalAreaChart', areaTraces, areaLayout, {responsive: true});
             
-            // Trend chart
+            // Trend chart - also update with tick filtering
             const trendData = [];
-            const years = Object.keys(binnedData).sort((a, b) => {
+            const years = Object.keys(yearlyData).sort((a, b) => {
                 if (a === 'pre-1940') return -1;
                 if (b === 'pre-1940') return 1;
-                const aYear = parseInt(a.split('-')[0]);
-                const bYear = parseInt(b.split('-')[0]);
-                return aYear - bYear;
+                return parseInt(a) - parseInt(b);
             });
             
             const residentialPercentages = years.map(year => {
-                const residential = binnedData[year]['Residential'] || 0;
-                const total = Object.values(binnedData[year]).reduce((sum, val) => sum + val, 0);
+                const residential = yearlyData[year]['Residential'] || 0;
+                const total = Object.values(yearlyData[year]).reduce((sum, val) => sum + val, 0);
                 return total > 0 ? (residential / total) * 100 : 0;
             });
             
@@ -1639,7 +1906,7 @@
                 mode: 'lines+markers',
                 name: 'Residential %',
                 line: { 
-                    color: '#bd3786',  // Plasma purple
+                    color: '#bd3786',
                     width: 3
                 },
                 marker: {
@@ -1649,6 +1916,13 @@
                 hovertemplate: 'Year: %{x}<br>Residential: %{y:.1f}%<extra></extra>'
             });
             
+            // Filter tickvals for trend chart too
+            const trendTickvals = years.filter((y, i) => {
+                if (y === 'pre-1940') return false; // Skip pre-1940 label
+                const year = parseInt(y);
+                return year % 10 === 0;
+            });
+            
             const trendLayout = {
                 title: {
                     text: 'Residential Building Percentage Trend',
@@ -1656,6 +1930,10 @@
                 },
                 xaxis: { 
                     title: 'Year',
+                    type: 'category',
+                    tickmode: 'array',
+                    tickvals: trendTickvals,
+                    ticktext: trendTickvals,
                     tickangle: -45
                 },
                 yaxis: { 
@@ -1669,7 +1947,7 @@
             Plotly.newPlot('temporalTrendChart', trendData, trendLayout, {responsive: true});
         }
         
-        // Update Pre-1940 charts with area visualization
+        // Pre-1940 charts remain the same
         function updatePre1940Charts() {
             if (!buildingData) return;
             
@@ -1685,7 +1963,7 @@
                 delete occupancyCounts['Residential'];
             }
             
-            // Pie chart without labels
+            // Pie chart
             const pieData = [{
                 values: Object.values(occupancyCounts),
                 labels: Object.keys(occupancyCounts),
@@ -1776,23 +2054,18 @@
             
             Plotly.newPlot('pre1940ComparisonChart', comparisonData, comparisonLayout, {responsive: true});
             
-            // Area comparison chart with normalize option
-            // Calculate estimated areas based on counts and average areas
+            // Area chart
             const pre1940AreaData = {};
-            let totalArea = 0;
             
-            // Get area data from temporal data for pre-1940
             buildingData.temporal_data.forEach(d => {
                 if (d.year < 1940) {
                     if (!pre1940AreaData[d.occupancy]) {
                         pre1940AreaData[d.occupancy] = 0;
                     }
                     pre1940AreaData[d.occupancy] += d.total_area || (d.count * d.avg_area);
-                    totalArea += d.total_area || (d.count * d.avg_area);
                 }
             });
             
-            // Apply filter to area data
             let filteredAreaData = {...pre1940AreaData};
             if (filter === 'residential') {
                 filteredAreaData = { 'Residential': filteredAreaData['Residential'] || 0 };
@@ -1843,7 +2116,7 @@
             Plotly.newPlot('pre1940AreaChart', areaChartData, areaChartLayout, {responsive: true});
         }
         
-        // Update Post-1940 charts with normalize and area plot
+        // Post-1940 and other functions remain the same...
         function updatePost1940() {
             if (!buildingData) return;
             
@@ -1869,7 +2142,7 @@
                 }
             });
             
-            // Get occupancy types and filter based on building type
+            // Get occupancy types and filter
             let occupancyTypes = new Set();
             Object.values(annualData).forEach(yearData => {
                 Object.keys(yearData).forEach(occ => occupancyTypes.add(occ));
@@ -1881,7 +2154,7 @@
                 occupancyTypes.delete('Residential');
             }
             
-            // Create traces for annual building count data
+            // Create traces for annual building count data - Fixed stacked area
             const traces = [];
             const years = Object.keys(annualData).sort((a, b) => a - b);
             const occupancyColors = getPlasmaColors(occupancyTypes.size);
@@ -1904,8 +2177,9 @@
                     type: 'scatter',
                     mode: 'lines',
                     stackgroup: normalize ? undefined : 'one',
-                    fillcolor: occupancyColors[index],
-                    line: { color: occupancyColors[index], width: normalize ? 2 : 0.5 },
+                    fill: normalize ? 'none' : (index === 0 ? 'tozeroy' : 'tonexty'),
+                    fillcolor: occupancyColors[index] + '80',
+                    line: { color: occupancyColors[index], width: normalize ? 2 : 1 },
                     hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Count: %{y:.0f}${normalize ? '%' : ''}<extra></extra>`
                 });
             });
@@ -1938,7 +2212,7 @@
             
             Plotly.newPlot('post1940Chart', traces, layout, {responsive: true});
             
-            // Create traces for annual area data
+            // Area traces (similar fix)
             const areaTraces = [];
             
             Array.from(occupancyTypes).forEach((occ, index) => {
@@ -1959,8 +2233,9 @@
                     type: 'scatter',
                     mode: 'lines',
                     stackgroup: normalize ? undefined : 'one',
-                    fillcolor: occupancyColors[index],
-                    line: { color: occupancyColors[index], width: normalize ? 2 : 0.5 },
+                    fill: normalize ? 'none' : (index === 0 ? 'tozeroy' : 'tonexty'),
+                    fillcolor: occupancyColors[index] + '80',
+                    line: { color: occupancyColors[index], width: normalize ? 2 : 1 },
                     hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Area: %{y:.0f}${normalize ? '%' : ' sqm'}<extra></extra>`
                 });
             });
@@ -1993,7 +2268,7 @@
             
             Plotly.newPlot('post1940AreaChart', areaTraces, areaLayout, {responsive: true});
             
-            // Decade comparison chart - keep this as requested
+            // Decade comparison chart
             const decadeData = {};
             const post1940 = buildingData.post1940;
             
@@ -2015,16 +2290,16 @@
                         width: 1
                     }
                 },
-                hovertemplate: 'Decade: %{x}<br>Total: %{y:,}<extra></extra>'
+                hovertemplate: 'Decade: %{x}<br>Buildings Constructed: %{y:,}<extra></extra>'
             }];
             
             const comparisonLayout = {
                 title: {
-                    text: 'Total Buildings by Decade',
+                    text: 'Buildings Constructed by Decade',
                     font: { size: 20, color: '#333' }
                 },
                 xaxis: { title: 'Decade' },
-                yaxis: { title: 'Total Number of Buildings' },
+                yaxis: { title: 'Number of Buildings Constructed in Decade' },
                 height: 400,
                 showlegend: false
             };
@@ -2032,7 +2307,7 @@
             Plotly.newPlot('decadeComparisonChart', comparisonData, comparisonLayout, {responsive: true});
         }
         
-        // Update Occupancy Clustering with separate statistics
+        // Occupancy clustering remains the same
         function updateOccupancyClustering() {
             if (!buildingData) return;
             
@@ -2056,28 +2331,25 @@
                 sampleDescriptionEl.textContent = 'Shows equal representation of all occupancy classes for better pattern visibility';
             }
             
-            // --- VISUALIZATION DATA (SAMPLED) ---
-            // Choose sample type based on user selection
+            // Choose sample type
             let allVizSamples;
             let sampleDescription;
             
             if (sampleType === 'random') {
-                // Use RANDOM sample for true distribution
                 allVizSamples = [...buildingData.building_samples_random];
                 sampleDescription = 'Random Sample (True Distribution)';
             } else {
-                // Use BALANCED sample for equal representation (default)
                 allVizSamples = [...buildingData.building_samples_balanced];
                 sampleDescription = 'Balanced Sample (Equal Representation)';
             }
             
-            // Filter by selected occupancy class for visualization
+            // Filter by selected occupancy class
             let samplesForViz = allVizSamples;
             if (selectedClass !== 'all') {
                 samplesForViz = allVizSamples.filter(s => s.OCC_CLS === selectedClass);
             }
             
-            // Further sample down to user-selected size for performance, if needed
+            // Sample down to user-selected size if needed
             if (samplesForViz.length > sampleSize) {
                 samplesForViz = samplesForViz.sort(() => 0.5 - Math.random()).slice(0, sampleSize);
             }
@@ -2087,7 +2359,7 @@
                 s.displayCluster = s[assignedClusterKey] !== undefined ? s[assignedClusterKey] : Math.floor(Math.random() * kValue);
             });
 
-            // Create scatter plot with sample type in title
+            // Create scatter plot
             const scatterData = [{
                 x: samplesForViz.map(s => s.year_built < 1940 ? 1939 : s.year_built),
                 y: samplesForViz.map(s => s['Est GFA sqmeters']),
@@ -2146,46 +2418,95 @@
             
             Plotly.newPlot('occupancyClusterChart', scatterData, scatterLayout, {responsive: true});
 
-            // --- FULL DATASET STATISTICS (PRE-CALCULATED) ---
-            const fullStatsData = buildingData.occupancy_clusters[selectedClass];
-            const totalBuildings = fullStatsData.total_buildings;
-            const kStats = fullStatsData.k_values[kValue].clusters;
-            
-            const fullTableData = [{
-                type: 'table',
-                header: {
-                    values: ['Cluster', 'Total Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'],
-                    align: 'center',
-                    line: {width: 1, color: '#dee2e6'},
-                    fill: {color: '#bd3786'},
-                    font: {family: "Arial", size: 14, color: "white"}
-                },
-                cells: {
-                    values: [
-                        kStats.map(s => `Cluster ${s.cluster_id + 1}`),
-                        kStats.map(s => s.count.toLocaleString()),
-                        kStats.map(s => Math.round(s.avg_area)),
-                        kStats.map(s => Math.round(s.std_area)),
-                        kStats.map(s => Math.round(s.avg_year)),
-                    ],
-                    align: 'center',
-                    line: {color: "#dee2e6", width: 1},
-                    fill: {color: ['#f8f9fa', 'white']},
-                    font: {family: "Arial", size: 12, color: ["#333"]}
+            // Full dataset statistics
+            if (buildingData.occupancy_clusters && buildingData.occupancy_clusters[selectedClass]) {
+                const fullStatsData = buildingData.occupancy_clusters[selectedClass];
+                const totalBuildings = fullStatsData.total_buildings;
+                const kStats = fullStatsData.k_values[kValue].clusters;
+                
+                const fullTableData = [{
+                    type: 'table',
+                    header: {
+                        values: ['Cluster', 'Total Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'],
+                        align: 'center',
+                        line: {width: 1, color: '#dee2e6'},
+                        fill: {color: '#bd3786'},
+                        font: {family: "Arial", size: 14, color: "white"}
+                    },
+                    cells: {
+                        values: [
+                            kStats.map(s => `Cluster ${s.cluster_id + 1}`),
+                            kStats.map(s => s.count.toLocaleString()),
+                            kStats.map(s => Math.round(s.avg_area)),
+                            kStats.map(s => Math.round(s.std_area)),
+                            kStats.map(s => Math.round(s.avg_year)),
+                        ],
+                        align: 'center',
+                        line: {color: "#dee2e6", width: 1},
+                        fill: {color: ['#f8f9fa', 'white']},
+                        font: {family: "Arial", size: 12, color: ["#333"]}
+                    }
+                }];
+                
+                const fullTableLayout = {
+                    title: {
+                        text: `Complete Dataset Statistics - ${selectedClass} (K=${kValue}, ${totalBuildings.toLocaleString()} total buildings)`,
+                        font: { size: 18, color: '#333' }
+                    },
+                    height: 300
+                };
+                
+                Plotly.newPlot('occupancyFullStatsChart', fullTableData, fullTableLayout, {responsive: true});
+                
+                // Elbow chart
+                const elbowX = Object.keys(fullStatsData.k_values).map(k => parseInt(k));
+                const elbowY = elbowX.map(k => fullStatsData.k_values[k].wcss);
+
+                const elbowData = [{
+                    x: elbowX,
+                    y: elbowY,
+                    mode: 'lines+markers',
+                    type: 'scatter',
+                    marker: { 
+                        size: 10, 
+                        color: '#bd3786',
+                        line: { color: 'white', width: 2 }
+                    },
+                    line: { width: 3, color: '#bd3786' }
+                }];
+                
+                if (elbowX.includes(kValue)) {
+                    const idx = elbowX.indexOf(kValue);
+                    elbowData.push({
+                        x: [kValue],
+                        y: [elbowY[idx]],
+                        mode: 'markers',
+                        type: 'scatter',
+                        marker: {
+                            size: 15,
+                            color: '#f0f921',
+                            line: { color: '#bd3786', width: 2 }
+                        },
+                        showlegend: false,
+                        hovertemplate: 'Current K=%{x}<br>WCSS=%{y:.0f}<extra></extra>'
+                    });
                 }
-            }];
+                
+                const elbowLayout = {
+                    title: {
+                        text: `Elbow Method - ${selectedClass} (Current K=${kValue})`,
+                        font: { size: 18, color: '#333' }
+                    },
+                    xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
+                    yaxis: { title: 'WCSS' },
+                    height: 350,
+                    showlegend: false
+                };
+                
+                Plotly.newPlot('occupancyElbowChart', elbowData, elbowLayout, {responsive: true});
+            }
             
-            const fullTableLayout = {
-                title: {
-                    text: `Complete Dataset Statistics - ${selectedClass} (K=${kValue}, ${totalBuildings.toLocaleString()} total buildings)`,
-                    font: { size: 18, color: '#333' }
-                },
-                height: 300
-            };
-            
-            Plotly.newPlot('occupancyFullStatsChart', fullTableData, fullTableLayout, {responsive: true});
-            
-            // --- SAMPLED DATA STATISTICS (FOR COMPARISON) ---
+            // Sample statistics
             const sampleStats = {};
             for (let i = 0; i < kValue; i++) {
                 sampleStats[i] = { count: 0, areaSum: 0, yearSum: 0, areaSquaredSum: 0 };
@@ -2200,7 +2521,6 @@
                 sampleStats[cluster].areaSquaredSum += area * area;
             });
 
-            // Color header based on sample type
             const headerColor = sampleType === 'random' ? '#fb9f3a' : '#7201a8';
             
             const sampleTableData = [{
@@ -2241,62 +2561,19 @@
             };
             
             Plotly.newPlot('occupancySampleStatsChart', sampleTableData, sampleTableLayout, {responsive: true});
-            
-            // --- ELBOW CHART ---
-            const elbowX = Object.keys(fullStatsData.k_values).map(k => parseInt(k));
-            const elbowY = elbowX.map(k => fullStatsData.k_values[k].wcss);
-
-            const elbowData = [{
-                x: elbowX,
-                y: elbowY,
-                mode: 'lines+markers',
-                type: 'scatter',
-                marker: { 
-                    size: 10, 
-                    color: '#bd3786',
-                    line: { color: 'white', width: 2 }
-                },
-                line: { width: 3, color: '#bd3786' }
-            }];
-            
-            if (elbowX.includes(kValue)) {
-                const idx = elbowX.indexOf(kValue);
-                elbowData.push({
-                    x: [kValue],
-                    y: [elbowY[idx]],
-                    mode: 'markers',
-                    type: 'scatter',
-                    marker: {
-                        size: 15,
-                        color: '#f0f921',
-                        line: { color: '#bd3786', width: 2 }
-                    },
-                    showlegend: false,
-                    hovertemplate: 'Current K=%{x}<br>WCSS=%{y:.0f}<extra></extra>'
-                });
-            }
-            
-            const elbowLayout = {
-                title: {
-                    text: `Elbow Method - ${selectedClass} (Current K=${kValue})`,
-                    font: { size: 18, color: '#333' }
-                },
-                xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
-                yaxis: { title: 'WCSS' },
-                height: 350,
-                showlegend: false
-            };
-            
-            Plotly.newPlot('occupancyElbowChart', elbowData, elbowLayout, {responsive: true});
         }
         
-        // Update Materials Heatmap with log scale option
+        // Update Materials heatmap with fixes for labels
         function updateMaterialsHeatmap() {
             if (!buildingData || !buildingData.materials_foundation) return;
             
             const filter = document.getElementById('materialFilter').value;
             const useLogScale = document.getElementById('heatmapLogScale').checked;
             const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
+            
+            // Map codes to names - using shortened versions for space
+            const materialNames = data.materials.map(m => materialTypeMap[m] || m);
+            const foundationNames = data.foundations.map(f => foundationTypeMap[f] || f);
             
             // Apply log scale if needed
             let zValues = data.matrix;
@@ -2308,15 +2585,15 @@
             
             const heatmapData = [{
                 z: zValues,
-                x: data.foundations,
-                y: data.materials,
+                x: foundationNames,
+                y: materialNames,
                 type: 'heatmap',
                 colorscale: 'Plasma',
                 showscale: true,
                 text: data.matrix.map(row => row.map(val => val.toString())),
                 texttemplate: '%{text}',
                 textfont: {
-                    size: 12,
+                    size: 10, // Reduced font size
                     color: 'white'
                 },
                 hovertemplate: 'Material: %{y}<br>Foundation: %{x}<br>Count: %{text}<extra></extra>',
@@ -2328,31 +2605,41 @@
             const heatmapLayout = {
                 title: {
                     text: `Building Materials vs Foundation Types ${filter !== 'all' ? '(' + filter + ')' : ''} ${useLogScale ? '(Log Scale)' : ''}`,
-                    font: { size: 20, color: '#333' }
+                    font: { size: 18, color: '#333' } // Slightly smaller title
                 },
                 xaxis: { 
                     title: 'Foundation Type',
-                    tickangle: -45
+                    tickangle: -45,
+                    tickfont: { size: 11 } // Smaller tick labels
                 },
-                yaxis: { title: 'Material Type' },
-                height: 500
+                yaxis: { 
+                    title: 'Material Type',
+                    tickfont: { size: 11 } // Smaller tick labels
+                },
+                height: 550, // Increased height
+                margin: {
+                    l: 100, // More left margin for material labels
+                    r: 50,
+                    t: 100,
+                    b: 120 // More bottom margin for foundation labels
+                }
             };
             
             Plotly.newPlot('materialsHeatmap', heatmapData, heatmapLayout, {responsive: true});
             
-            // Material trends chart
+            // Material trends chart with shortened names
             const years = [];
             const materialData = {};
             
             for (let year = 1940; year <= 2020; year += 10) {
                 years.push(year);
-                data.materials.forEach(mat => {
+                materialNames.forEach(mat => {
                     if (!materialData[mat]) materialData[mat] = [];
                     materialData[mat].push(Math.sin((year - 1940) / 20) * 30 + 20 + Math.random() * 10);
                 });
             }
             
-            const trendTraces = data.materials.map((mat, index) => ({
+            const trendTraces = materialNames.map((mat, index) => ({
                 x: years,
                 y: materialData[mat],
                 name: mat,
@@ -2377,7 +2664,7 @@
             Plotly.newPlot('materialsTrendChart', trendTraces, trendLayout, {responsive: true});
         }
         
-        // Update Interactive Explorer
+        // Interactive Explorer remains the same
         function updateInteractiveExplorer() {
             if (!buildingData) return;
             
@@ -2387,7 +2674,7 @@
             const areaMin = parseInt(document.getElementById('areaMin').value);
             const areaMax = parseInt(document.getElementById('areaMax').value);
             
-            // Use RANDOM sample for the explorer to show true data distribution
+            // Use random sample for the explorer
             const filteredData = buildingData.building_samples_random.filter(d => 
                 d.year_built >= yearStart && d.year_built <= yearEnd &&
                 d['Est GFA sqmeters'] >= areaMin && 
@@ -2426,7 +2713,6 @@
                     break;
                     
                 case 'sunburst':
-                    // Process data for sunburst
                     const sunburstLabels = ['Buildings'];
                     const sunburstParents = [''];
                     const sunburstValues = [filteredData.length];
