@@ -36,66 +36,6 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
-        /* Theme Toggle Button */
-        .theme-toggle {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: white;
-            padding: 10px 15px;
-            border-radius: 30px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-        }
-        
-        .theme-toggle:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-        }
-        
-        .theme-toggle label {
-            font-size: 14px;
-            font-weight: 600;
-            color: #333;
-            cursor: pointer;
-            user-select: none;
-        }
-        
-        .theme-switch {
-            position: relative;
-            width: 60px;
-            height: 30px;
-            background: #ddd;
-            border-radius: 15px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        
-        .theme-switch.active {
-            background: #667eea;
-        }
-        
-        .theme-switch::after {
-            content: '';
-            position: absolute;
-            width: 26px;
-            height: 26px;
-            border-radius: 50%;
-            background: white;
-            top: 2px;
-            left: 2px;
-            transition: left 0.3s;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-        }
-        
-        .theme-switch.active::after {
-            left: 32px;
-        }
-        
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -823,12 +763,6 @@
         }
         
         @media (max-width: 768px) {
-            .theme-toggle {
-                top: 10px;
-                right: 10px;
-                padding: 8px 12px;
-            }
-            
             .header h1 {
                 font-size: 1.8em;
             }
@@ -861,13 +795,7 @@
         }
     </style>
 </head>
-<body>
-    <!-- Theme Toggle Button -->
-    <div class="theme-toggle">
-        <label for="themeSwitch">Professional</label>
-        <div class="theme-switch" id="themeSwitchButton" onclick="toggleTheme()">
-        </div>
-    </div>
+<body class="professional-theme">
     
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
@@ -1043,7 +971,7 @@
                         </select>
                         
                         <div class="toggle-switch">
-                            <label></label>
+                            <label>:</label>
                             <input type="checkbox" id="pre1940Normalize" onchange="updatePre1940Charts()">
                         </div>
                     </div>
@@ -1312,38 +1240,6 @@
     </div>
     
     <script>
-        // Theme toggle function
-        function toggleTheme() {
-            const body = document.body;
-            const themeSwitch = document.getElementById('themeSwitchButton');
-            
-            if (body.classList.contains('professional-theme')) {
-                body.classList.remove('professional-theme');
-                themeSwitch.classList.add('active');
-                localStorage.setItem('theme', 'modern');
-            } else {
-                body.classList.add('professional-theme');
-                themeSwitch.classList.remove('active');
-                localStorage.setItem('theme', 'professional');
-            }
-            
-            // Trigger chart resize for proper rendering
-            window.dispatchEvent(new Event('resize'));
-        }
-        
-        // Load saved theme preference
-        function loadThemePreference() {
-            const savedTheme = localStorage.getItem('theme');
-            const themeSwitch = document.getElementById('themeSwitchButton');
-            
-            if (savedTheme === 'professional') {
-                document.body.classList.add('professional-theme');
-                themeSwitch.classList.remove('active');
-            } else {
-                themeSwitch.classList.add('active');
-            }
-        }
-        
         // Global variables for data
         let buildingData = null;
         let isDataLoaded = false;
@@ -1421,9 +1317,8 @@
             }
         };
 
-        // Initialize dashboard with theme preference
+        // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
-            loadThemePreference();
             loadData();
         });
         
