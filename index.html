@@ -1712,16 +1712,41 @@
             }
             
             // Pie chart for ALL buildings
+            const total = Object.values(occupancyCounts).reduce((a, b) => a + b, 0);
+            const pieValues = Object.values(occupancyCounts);
+            const pieLabels = Object.keys(occupancyCounts);
+
+            // Create text array with smart labeling based on percentage
+            const textArray = pieLabels.map((label, i) => {
+                const percentage = (pieValues[i] / total * 100);
+                
+                if (percentage > 10) {
+                    return `${label}<br>${percentage.toFixed(1)}%`;
+                } else if (percentage > 5) {
+                    return `${percentage.toFixed(1)}%`;
+                } else if (percentage > 2) {
+                    return `${percentage.toFixed(0)}%`;
+                } else {
+                    return '';
+                }
+            });
+
             const pieData = [{
-                values: Object.values(occupancyCounts),
-                labels: Object.keys(occupancyCounts),
+                values: pieValues,
+                labels: pieLabels,
                 type: 'pie',
                 hole: 0.4,
                 marker: {
                     colors: plasmaColors
                 },
-                textposition: 'none',
-                textinfo: 'none',
+                text: textArray,
+                textinfo: 'text',
+                textposition: 'auto',
+                textfont: {
+                    size: 12,
+                    color: 'white'
+                },
+                insidetextorientation: 'radial',
                 hovertemplate: '%{label}<br>Count: %{value:,}<br>%{percent}<extra></extra>',
                 showlegend: true
             }];
@@ -2367,16 +2392,41 @@
             }
             
             // Pie chart
+            const pieValues = Object.values(occupancyCounts);
+            const pieLabels = Object.keys(occupancyCounts);
+            const total = pieValues.reduce((a, b) => a + b, 0);
+
+            // Create text array with smart labeling based on percentage
+            const textArray = pieLabels.map((label, i) => {
+                const percentage = (pieValues[i] / total * 100);
+                
+                if (percentage > 10) {
+                    return `${label}<br>${percentage.toFixed(1)}%`;
+                } else if (percentage > 5) {
+                    return `${percentage.toFixed(1)}%`;
+                } else if (percentage > 2) {
+                    return `${percentage.toFixed(0)}%`;
+                } else {
+                    return '';
+                }
+            });
+
             const pieData = [{
-                values: Object.values(occupancyCounts),
-                labels: Object.keys(occupancyCounts),
+                values: pieValues,
+                labels: pieLabels,
                 type: 'pie',
                 hole: 0.4,
                 marker: {
                     colors: plasmaColors
                 },
-                textposition: 'none',
-                textinfo: 'none',
+                text: textArray,
+                textinfo: 'text',
+                textposition: 'auto',
+                textfont: {
+                    size: 12,
+                    color: 'white'
+                },
+                insidetextorientation: 'radial',
                 hovertemplate: '%{label}<br>Count: %{value:,}<br>%{percent}<extra></extra>',
                 showlegend: true
             }];
