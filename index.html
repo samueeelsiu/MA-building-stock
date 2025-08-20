@@ -992,7 +992,7 @@
                 
                 <div class="warning-box">
                     <h4>Data Quality Note</h4>
-                    <p>Some years may have missing or incomplete data. Years with notably low counts may indicate data collection gaps rather than actual construction patterns.</p>
+                    <p>Some years may have missing or incomplete data (2006, 2009, 2010, 2011, 2013, 2014, 2015, 2016). Years with notably low counts may indicate data collection gaps rather than actual construction patterns. We are currently working on addressing and correcting these gaps. </p>
                 </div>
                 
                 <div class="controls">
@@ -1043,7 +1043,7 @@
                         </select>
                         
                         <div class="toggle-switch">
-                            <label>Normalize Area Data:</label>
+                            <label></label>
                             <input type="checkbox" id="pre1940Normalize" onchange="updatePre1940Charts()">
                         </div>
                     </div>
@@ -1221,8 +1221,8 @@
                         </select>
                         
                         <div class="toggle-switch">
-                            <label>Log Scale:</label>
-                            <input type="checkbox" id="heatmapLogScale" onchange="updateMaterialsHeatmap()">
+                            <label>Log Scale (Heatmap Only):</label>
+                            <input type="checkbox" id="heatmapLogScale" onchange="updateHeatmapOnly()">
                         </div>
                         
                         <label style="margin-left: 20px;">Breakdown Chart Type:</label>
@@ -1238,7 +1238,7 @@
                     <h3>Material & Foundation Type Codes</h3>
                     <p><strong>Material Types:</strong> M = Masonry, W = Wood, H = Manufactured, S = Steel, C = Concrete<br>
                     <strong>Foundation Types:</strong> C = Crawl Space, B = Basement, S = Slab, P = Pier, I = Pile, F = Fill, W = Solid Wall<br>
-                    <strong style="color: #667eea;">💡 Click on any cell in the heatmap to see the occupancy class distribution for that combination</strong></p>
+                    <strong style="color: #667eea;">👉 Click on any cell in the heatmap to see the occupancy class distribution for that combination</strong></p>
                 </div>
                 
                 <div class="chart-container">
@@ -3005,6 +3005,28 @@
             const materialNames = data.materials.map(m => materialTypeMap[m] || m);
             const foundationNames = data.foundations.map(f => foundationTypeMap[f] || f);
             
+            // Update both heatmap and trends
+            updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale);
+            createMaterialTrendsChart(materialNames);
+        }
+        
+        // New function to update only the heatmap when log scale changes
+        function updateHeatmapOnly() {
+            if (!buildingData || !buildingData.materials_foundation) return;
+            
+            const filter = document.getElementById('materialFilter').value;
+            const useLogScale = document.getElementById('heatmapLogScale').checked;
+            const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
+            
+            const materialNames = data.materials.map(m => materialTypeMap[m] || m);
+            const foundationNames = data.foundations.map(f => foundationTypeMap[f] || f);
+            
+            // Only update the heatmap, not the trends
+            updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale);
+        }
+        
+        // Separate function for heatmap chart
+        function updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale) {
             // Apply log scale if needed
             let zValues = data.matrix;
             if (useLogScale) {
@@ -3084,15 +3106,19 @@
                 // Show occupancy breakdown for this combination
                 showOccupancyBreakdown(material, foundation, count, filter);
             });
-            
-            // Material trends chart with shortened names - NOT affected by log scale
+        }
+        
+        // Separate function for Material Trends to ensure complete independence from log scale
+        function createMaterialTrendsChart(materialNames) {
             const years = [];
             const materialData = {};
             
+            // Generate sample trend data
             for (let year = 1940; year <= 2020; year += 10) {
                 years.push(year);
                 materialNames.forEach(mat => {
                     if (!materialData[mat]) materialData[mat] = [];
+                    // Sample data generation - always the same regardless of log scale
                     materialData[mat].push(Math.sin((year - 1940) / 20) * 30 + 20 + Math.random() * 10);
                 });
             }
@@ -3106,25 +3132,38 @@
                 line: { 
                     width: 2,
                     color: plasmaColors[index % plasmaColors.length]
+                },
+                marker: {
+                    size: 6,
+                    color: plasmaColors[index % plasmaColors.length]
                 }
             }));
             
+            // Explicitly set all layout options to prevent any log scale inheritance
             const trendLayout = {
                 title: {
-                    text: 'Material Usage Trends Over Time',
+                    text: 'Material Usage Trends Over Time (Always Linear Scale)',
                     font: { size: 20, color: '#333' }
                 },
-                xaxis: { title: 'Year' },
+                xaxis: { 
+                    title: 'Year',
+                    type: 'linear'
+                },
                 yaxis: { 
                     title: 'Percentage of New Construction (%)',
-                    type: 'linear'  // Always linear scale, not affected by log scale checkbox
+                    type: 'linear',  // Explicitly force linear
+                    autorange: true
                 },
-                height: 400
+                height: 400,
+                showlegend: true
             };
             
+            // Clear any existing chart and create fresh
+            const chartDiv = document.getElementById('materialsTrendChart');
+            Plotly.purge(chartDiv);
             Plotly.newPlot('materialsTrendChart', trendTraces, trendLayout, {responsive: true});
         }
-
+        
         // Show occupancy breakdown for selected material/foundation combination
         function showOccupancyBreakdown(material, foundation, totalCount, filter) {
             console.log('showOccupancyBreakdown called with:', material, foundation, totalCount, filter); // Debug log
