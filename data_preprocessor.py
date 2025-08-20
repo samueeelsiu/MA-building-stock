@@ -1,5 +1,5 @@
 """
-Massachusetts Building Data Processor - Updated Version
+Massachusetts Building Data Processor - Updated Version with Material/Foundation Occupancy Breakdown
 This script processes the building data and exports it to JSON for the updated web dashboard
 """
 
@@ -231,7 +231,6 @@ class BuildingDataProcessor:
 
         return decade_data
 
-
     def process_occupancy_clusters(self):
         """Process clustering for each occupancy class with multiple k values"""
         print("Processing occupancy-specific clusters...")
@@ -263,13 +262,41 @@ class BuildingDataProcessor:
         return occupancy_clusters
 
     def process_materials_foundation(self):
-        """Process building materials and foundation data"""
-        print("Processing materials and foundation data...")
+        """Process building materials and foundation data with occupancy breakdown"""
+        print("Processing materials and foundation data with occupancy breakdown...")
 
         # Check if these columns exist in the dataset
         if 'material_type' not in self.df_cleaned.columns or 'foundation_type' not in self.df_cleaned.columns:
             print("Warning: material_type or foundation_type columns not found. Using sample data.")
-            # Return sample data if columns don't exist
+            
+            # Generate sample data with occupancy breakdown
+            sample_occupancy_breakdown = {}
+            materials = ['W', 'M', 'C', 'S', 'H']
+            foundations = ['S', 'B', 'C', 'P', 'F']
+            occupancy_classes = ['Residential', 'Commercial', 'Industrial', 'Agriculture', 
+                               'Government', 'Assembly', 'Education', 'Utility and Misc', 'Unclassified']
+            
+            for mat in materials:
+                for found in foundations:
+                    key = f"{mat}_{found}"
+                    # Generate random distribution
+                    values = np.random.exponential(scale=1000, size=len(occupancy_classes))
+                    values = values / values.sum()  # Normalize to percentages
+                    
+                    # Make residential dominant for most combinations
+                    if np.random.random() > 0.3:
+                        values[0] = 0.4 + np.random.random() * 0.4  # Residential 40-80%
+                        remaining = 1 - values[0]
+                        values[1:] = values[1:] / values[1:].sum() * remaining
+                    
+                    sample_occupancy_breakdown[key] = {
+                        'total': int(1000 + np.random.random() * 5000),
+                        'occupancy_counts': {
+                            occ: int(values[i] * (1000 + np.random.random() * 5000))
+                            for i, occ in enumerate(occupancy_classes)
+                        }
+                    }
+            
             return {
                 'all': {
                     'matrix': [[1000, 800, 600, 400, 200],
@@ -277,8 +304,9 @@ class BuildingDataProcessor:
                               [600, 500, 900, 200, 150],
                               [400, 300, 200, 800, 100],
                               [200, 100, 150, 100, 500]],
-                    'materials': ['W', 'M', 'C', 'S', 'H'],  # Wood, Masonry, Concrete, Steel, Manufactured
-                    'foundations': ['S', 'B', 'C', 'P', 'F']  # Slab, Basement, Crawl, Pier, Fill
+                    'materials': materials,
+                    'foundations': foundations,
+                    'occupancy_breakdown': sample_occupancy_breakdown
                 },
                 'pre1940': {
                     'matrix': [[500, 400, 300, 200, 100],
@@ -286,8 +314,9 @@ class BuildingDataProcessor:
                               [300, 250, 450, 100, 75],
                               [200, 150, 100, 400, 50],
                               [100, 50, 75, 50, 250]],
-                    'materials': ['W', 'M', 'C', 'S', 'H'],
-                    'foundations': ['S', 'B', 'C', 'P', 'F']
+                    'materials': materials,
+                    'foundations': foundations,
+                    'occupancy_breakdown': sample_occupancy_breakdown
                 },
                 'post1940': {
                     'matrix': [[500, 400, 300, 200, 100],
@@ -295,46 +324,51 @@ class BuildingDataProcessor:
                               [300, 250, 450, 100, 75],
                               [200, 150, 100, 400, 50],
                               [100, 50, 75, 50, 250]],
-                    'materials': ['W', 'M', 'C', 'S', 'H'],
-                    'foundations': ['S', 'B', 'C', 'P', 'F']
+                    'materials': materials,
+                    'foundations': foundations,
+                    'occupancy_breakdown': sample_occupancy_breakdown
                 }
             }
 
-        # Create contingency tables
-        all_buildings = pd.crosstab(
-            self.df_cleaned['material_type'],
-            self.df_cleaned['foundation_type']
-        )
-
-        df_pre1940 = self.df_cleaned[self.df_cleaned['year_built'] < 1940]
-        pre1940_matrix = pd.crosstab(
-            df_pre1940['material_type'],
-            df_pre1940['foundation_type']
-        )
-
-        df_post1940 = self.df_cleaned[self.df_cleaned['year_built'] >= 1940]
-        post1940_matrix = pd.crosstab(
-            df_post1940['material_type'],
-            df_post1940['foundation_type']
-        )
-
-        materials_data = {
-            'all': {
-                'matrix': all_buildings.values.tolist(),
-                'materials': all_buildings.index.tolist(),
-                'foundations': all_buildings.columns.tolist()
-            },
-            'pre1940': {
-                'matrix': pre1940_matrix.values.tolist(),
-                'materials': pre1940_matrix.index.tolist(),
-                'foundations': pre1940_matrix.columns.tolist()
-            },
-            'post1940': {
-                'matrix': post1940_matrix.values.tolist(),
-                'materials': post1940_matrix.index.tolist(),
-                'foundations': post1940_matrix.columns.tolist()
+        # Process real data with occupancy breakdown
+        materials_data = {}
+        
+        for filter_type, df_filtered in [
+            ('all', self.df_cleaned),
+            ('pre1940', self.df_cleaned[self.df_cleaned['year_built'] < 1940]),
+            ('post1940', self.df_cleaned[self.df_cleaned['year_built'] >= 1940])
+        ]:
+            # Create contingency table
+            contingency = pd.crosstab(
+                df_filtered['material_type'],
+                df_filtered['foundation_type']
+            )
+            
+            # Calculate occupancy breakdown for each material/foundation combination
+            occupancy_breakdown = {}
+            
+            for mat in contingency.index:
+                for found in contingency.columns:
+                    # Get all buildings with this material/foundation combo
+                    mask = (df_filtered['material_type'] == mat) & (df_filtered['foundation_type'] == found)
+                    combo_buildings = df_filtered[mask]
+                    
+                    if len(combo_buildings) > 0:
+                        # Get occupancy counts for this combination
+                        occ_counts = combo_buildings['OCC_CLS'].value_counts()
+                        
+                        key = f"{mat}_{found}"
+                        occupancy_breakdown[key] = {
+                            'total': len(combo_buildings),
+                            'occupancy_counts': occ_counts.to_dict()
+                        }
+            
+            materials_data[filter_type] = {
+                'matrix': contingency.values.tolist(),
+                'materials': contingency.index.tolist(),
+                'foundations': contingency.columns.tolist(),
+                'occupancy_breakdown': occupancy_breakdown
             }
-        }
 
         return materials_data
 
@@ -379,7 +413,7 @@ class BuildingDataProcessor:
         # Pre-calculate occupancy clusters which is the most intensive part
         occupancy_clusters_data = self.process_occupancy_clusters()
 
-        # Get overview occupancy counts (NEW!)
+        # Get overview occupancy counts
         overview_occupancy_counts = self.get_overview_occupancy_counts()
 
         # Prepare export data
@@ -397,7 +431,7 @@ class BuildingDataProcessor:
                 'max_year': int(self.df_cleaned['year_built'].max()),
                 'occupancy_classes': sorted(self.df_cleaned['OCC_CLS'].unique().tolist())
             },
-            'overview_occupancy_counts': overview_occupancy_counts,  # NEW FIELD!
+            'overview_occupancy_counts': overview_occupancy_counts,
             'clustering': {
                 'elbow_k_values': k_range,
                 'elbow_wcss_values': wcss,
@@ -407,7 +441,7 @@ class BuildingDataProcessor:
             'pre1940': self.process_pre1940_data(),
             'post1940': self.process_post1940_data(),
             'occupancy_clusters': occupancy_clusters_data,
-            'materials_foundation': self.process_materials_foundation()
+            'materials_foundation': self.process_materials_foundation()  # Now includes occupancy_breakdown
         }
 
         # --- Create TWO samples for visualization ---
@@ -420,8 +454,6 @@ class BuildingDataProcessor:
         # Add multiple K cluster assignments to random sample
         for k in range(5, 10):  # K = 5 to 9 for clustering update feature
             print(f"  Adding cluster assignments for k={k} to random sample...")
-            # Simple random assignment for demonstration
-            # In production, you might want to do actual clustering
             random_sample_df[f'cluster_k{k}'] = np.random.randint(0, k, size=len(random_sample_df))
 
         export_data['building_samples_random'] = random_sample_df.to_dict(orient='records')
@@ -478,6 +510,7 @@ def main():
     print(f"Overview occupancy classes: {len(export_data['overview_occupancy_counts'])} types")
     print(f"Temporal data points: {len(export_data['temporal_data'])}")
     print(f"Occupancy-specific clusters: {len(export_data['occupancy_clusters'])} classes")
+    print(f"Material/Foundation combinations with occupancy data: {len(export_data['materials_foundation']['all'].get('occupancy_breakdown', {}))} combinations")
     print("\nData exported to: building_data.json")
     print("You can now open the updated HTML dashboard to visualize the data")
 

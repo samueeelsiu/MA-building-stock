@@ -887,7 +887,7 @@
             <div id="materials" class="section">
                 <div class="section-header">
                     <h2>Building Materials & Foundation Analysis</h2>
-                    <p>Correlation between material types and foundation types</p>
+                    <p>Correlation between material types and foundation types - Click on any cell to see occupancy breakdown</p>
                 </div>
                 
                 <div class="controls">
@@ -903,17 +903,33 @@
                             <label>Log Scale:</label>
                             <input type="checkbox" id="heatmapLogScale" onchange="updateMaterialsHeatmap()">
                         </div>
+                        
+                        <label style="margin-left: 20px;">Breakdown Chart Type:</label>
+                        <select id="breakdownChartType" onchange="updateOccupancyBreakdown()">
+                            <option value="pie">Pie Chart</option>
+                            <option value="bar">Bar Chart</option>
+                            <option value="horizontal-bar">Horizontal Bar</option>
+                        </select>
                     </div>
                 </div>
                 
                 <div class="info-box">
                     <h3>Material & Foundation Type Codes</h3>
                     <p><strong>Material Types:</strong> M = Masonry, W = Wood, H = Manufactured, S = Steel, C = Concrete<br>
-                    <strong>Foundation Types:</strong> C = Crawl Space, B = Basement, S = Slab, P = Pier, I = Pile, F = Fill, W = Solid Wall</p>
+                    <strong>Foundation Types:</strong> C = Crawl Space, B = Basement, S = Slab, P = Pier, I = Pile, F = Fill, W = Solid Wall<br>
+                    <strong style="color: #667eea;">💡 Click on any cell in the heatmap to see the occupancy class distribution for that combination</strong></p>
                 </div>
                 
                 <div class="chart-container">
                     <div id="materialsHeatmap"></div>
+                </div>
+                
+                <div class="chart-container" id="occupancyBreakdownContainer" style="display: none;">
+                    <div class="section-header" style="margin-top: 0; padding-top: 20px;">
+                        <h3 id="breakdownTitle">Occupancy Class Distribution</h3>
+                        <p id="breakdownSubtitle">Click on a heatmap cell to see the breakdown</p>
+                    </div>
+                    <div id="occupancyBreakdownChart"></div>
                 </div>
                 
                 <div class="chart-container">
@@ -979,6 +995,10 @@
         let buildingData = null;
         let isDataLoaded = false;
         let currentClusterK = 7; // Track current cluster number
+        
+        // NEW: Global variables for material selection
+        let currentMaterialSelection = null;
+        let currentOccupancyData = null;
         
         // True Plasma colorscale matching Python's matplotlib
         const plasmaColorscale = 'Plasma';
@@ -1161,6 +1181,34 @@
                 'Unclassified': 5000
             };
             
+            // Generate sample occupancy breakdown for materials
+            const materials = ['W', 'M', 'C', 'S', 'H'];
+            const foundations = ['S', 'B', 'C', 'P', 'F'];
+            const sampleOccupancyBreakdown = {};
+            
+            for (let mat of materials) {
+                for (let found of foundations) {
+                    const key = `${mat}_${found}`;
+                    const total = Math.floor(Math.random() * 5000) + 1000;
+                    
+                    // Generate random distribution
+                    const distribution = {};
+                    let remaining = total;
+                    
+                    for (let i = 0; i < occupancyClasses.length - 1; i++) {
+                        const share = Math.floor(Math.random() * remaining * 0.5);
+                        distribution[occupancyClasses[i]] = share;
+                        remaining -= share;
+                    }
+                    distribution[occupancyClasses[occupancyClasses.length - 1]] = remaining;
+                    
+                    sampleOccupancyBreakdown[key] = {
+                        total: total,
+                        occupancy_counts: distribution
+                    };
+                }
+            }
+            
             return {
                 metadata: {
                     total_buildings: 2500000,
@@ -1214,8 +1262,9 @@
                 materials_foundation: {
                     all: {
                         matrix: [[1000, 800, 600, 400, 200], [800, 1200, 500, 300, 100], [600, 500, 900, 200, 150], [400, 300, 200, 800, 100], [200, 100, 150, 100, 500]],
-                        materials: ['W', 'M', 'C', 'S', 'H'],
-                        foundations: ['S', 'B', 'C', 'P', 'F']
+                        materials: materials,
+                        foundations: foundations,
+                        occupancy_breakdown: sampleOccupancyBreakdown
                     }
                 },
                 building_samples_random: buildingSamples,
@@ -2563,13 +2612,16 @@
             Plotly.newPlot('occupancySampleStatsChart', sampleTableData, sampleTableLayout, {responsive: true});
         }
         
-        // Update Materials heatmap with fixes for labels
+        // UPDATED: Materials heatmap with click handling for occupancy breakdown
         function updateMaterialsHeatmap() {
             if (!buildingData || !buildingData.materials_foundation) return;
             
             const filter = document.getElementById('materialFilter').value;
             const useLogScale = document.getElementById('heatmapLogScale').checked;
             const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
+            
+            // Store raw materials and foundations for click handling
+            window.currentMaterialsData = data;
             
             // Map codes to names - using shortened versions for space
             const materialNames = data.materials.map(m => materialTypeMap[m] || m);
@@ -2590,13 +2642,13 @@
                 type: 'heatmap',
                 colorscale: 'Plasma',
                 showscale: true,
-                text: data.matrix.map(row => row.map(val => val.toString())),
+                text: data.matrix.map(row => row.map(val => val.toLocaleString())),
                 texttemplate: '%{text}',
                 textfont: {
-                    size: 10, // Reduced font size
+                    size: 10,
                     color: 'white'
                 },
-                hovertemplate: 'Material: %{y}<br>Foundation: %{x}<br>Count: %{text}<extra></extra>',
+                hovertemplate: 'Material: %{y}<br>Foundation: %{x}<br>Count: %{text}<br><b>Click to see occupancy breakdown</b><extra></extra>',
                 colorbar: {
                     title: useLogScale ? 'Log(Count)' : 'Count'
                 }
@@ -2605,27 +2657,55 @@
             const heatmapLayout = {
                 title: {
                     text: `Building Materials vs Foundation Types ${filter !== 'all' ? '(' + filter + ')' : ''} ${useLogScale ? '(Log Scale)' : ''}`,
-                    font: { size: 18, color: '#333' } // Slightly smaller title
+                    font: { size: 18, color: '#333' }
                 },
                 xaxis: { 
                     title: 'Foundation Type',
                     tickangle: -45,
-                    tickfont: { size: 11 } // Smaller tick labels
+                    tickfont: { size: 11 }
                 },
                 yaxis: { 
                     title: 'Material Type',
-                    tickfont: { size: 11 } // Smaller tick labels
+                    tickfont: { size: 11 }
                 },
-                height: 550, // Increased height
+                height: 550,
                 margin: {
-                    l: 100, // More left margin for material labels
+                    l: 100,
                     r: 50,
                     t: 100,
-                    b: 120 // More bottom margin for foundation labels
+                    b: 120
                 }
             };
             
+            // Create the plot first
             Plotly.newPlot('materialsHeatmap', heatmapData, heatmapLayout, {responsive: true});
+            
+            // FIXED: Correct way to bind click event - must be AFTER newPlot
+            var heatmapElement = document.getElementById('materialsHeatmap');
+            heatmapElement.on('plotly_click', function(eventData) {
+                console.log('Heatmap clicked!', eventData); // Debug log
+                
+                if (!eventData || !eventData.points || eventData.points.length === 0) {
+                    console.error('No point data in click event');
+                    return;
+                }
+                
+                const point = eventData.points[0];
+                console.log('Point data:', point); // Debug log
+                
+                // Get the indices - note that in heatmap, pointIndex gives us the indices
+                const materialIdx = point.pointIndex[0];  // row index (y)
+                const foundationIdx = point.pointIndex[1]; // column index (x)
+                
+                const material = data.materials[materialIdx];
+                const foundation = data.foundations[foundationIdx];
+                const count = data.matrix[materialIdx][foundationIdx];
+                
+                console.log(`Clicked on: Material=${material}, Foundation=${foundation}, Count=${count}`); // Debug log
+                
+                // Show occupancy breakdown for this combination
+                showOccupancyBreakdown(material, foundation, count, filter);
+            });
             
             // Material trends chart with shortened names
             const years = [];
@@ -2662,6 +2742,267 @@
             };
             
             Plotly.newPlot('materialsTrendChart', trendTraces, trendLayout, {responsive: true});
+        }
+
+        // 同时，也需要确保 showOccupancyBreakdown 函数存在并且正确
+        function showOccupancyBreakdown(material, foundation, totalCount, filter) {
+            console.log('showOccupancyBreakdown called with:', material, foundation, totalCount, filter); // Debug log
+            
+            const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
+            const key = `${material}_${foundation}`;
+            
+            // Get occupancy breakdown data
+            const breakdownData = data.occupancy_breakdown && data.occupancy_breakdown[key];
+            
+            if (!breakdownData || !breakdownData.occupancy_counts) {
+                // If no breakdown data, generate sample data for testing
+                console.log('No real data found, using sample data for demonstration');
+                
+                // Generate sample data for demonstration
+                const sampleOccupancyCounts = {
+                    'Residential': Math.floor(Math.random() * 5000) + 1000,
+                    'Commercial': Math.floor(Math.random() * 2000) + 500,
+                    'Industrial': Math.floor(Math.random() * 1500) + 300,
+                    'Agriculture': Math.floor(Math.random() * 800) + 100,
+                    'Government': Math.floor(Math.random() * 500) + 50,
+                    'Assembly': Math.floor(Math.random() * 300) + 20,
+                    'Education': Math.floor(Math.random() * 200) + 10,
+                    'Utility and Misc': Math.floor(Math.random() * 100) + 5
+                };
+                
+                currentOccupancyData = sampleOccupancyCounts;
+            } else {
+                currentOccupancyData = breakdownData.occupancy_counts;
+            }
+            
+            // Store current selection
+            currentMaterialSelection = {
+                material: materialTypeMap[material] || material,
+                foundation: foundationTypeMap[foundation] || foundation,
+                totalCount: totalCount,
+                filter: filter
+            };
+            
+            // Update title
+            document.getElementById('breakdownTitle').textContent = 
+                `Occupancy Distribution: ${currentMaterialSelection.material} / ${currentMaterialSelection.foundation}`;
+            document.getElementById('breakdownSubtitle').textContent = 
+                `Total Buildings: ${totalCount.toLocaleString()} ${filter !== 'all' ? '(' + filter + ')' : ''}`;
+            
+            // Show the container with animation
+            const container = document.getElementById('occupancyBreakdownContainer');
+            container.style.display = 'block';
+            container.style.opacity = '0';
+            setTimeout(() => {
+                container.style.transition = 'opacity 0.5s ease';
+                container.style.opacity = '1';
+            }, 10);
+            
+            // Update the chart
+            updateOccupancyBreakdown();
+            
+            // Scroll to the breakdown chart
+            setTimeout(() => {
+                container.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+            }, 100);
+        }
+        // NEW: Show occupancy breakdown for selected material/foundation combination
+        function showOccupancyBreakdown(material, foundation, totalCount, filter) {
+            const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
+            const key = `${material}_${foundation}`;
+            
+            // Get occupancy breakdown data
+            const breakdownData = data.occupancy_breakdown && data.occupancy_breakdown[key];
+            
+            if (!breakdownData || !breakdownData.occupancy_counts) {
+                // If no breakdown data, show message
+                alert('No occupancy breakdown data available for this combination. Please run the updated Python script to generate the breakdown data.');
+                return;
+            }
+            
+            // Store current selection
+            currentMaterialSelection = {
+                material: materialTypeMap[material] || material,
+                foundation: foundationTypeMap[foundation] || foundation,
+                totalCount: totalCount,
+                filter: filter
+            };
+            currentOccupancyData = breakdownData.occupancy_counts;
+            
+            // Update title
+            document.getElementById('breakdownTitle').textContent = 
+                `Occupancy Distribution: ${currentMaterialSelection.material} / ${currentMaterialSelection.foundation}`;
+            document.getElementById('breakdownSubtitle').textContent = 
+                `Total Buildings: ${totalCount.toLocaleString()} ${filter !== 'all' ? '(' + filter + ')' : ''}`;
+            
+            // Show the container
+            document.getElementById('occupancyBreakdownContainer').style.display = 'block';
+            
+            // Update the chart
+            updateOccupancyBreakdown();
+            
+            // Scroll to the breakdown chart
+            document.getElementById('occupancyBreakdownContainer').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        }
+        
+        // NEW: Update occupancy breakdown chart based on selected type
+        function updateOccupancyBreakdown() {
+            if (!currentOccupancyData) return;
+            
+            const chartType = document.getElementById('breakdownChartType').value;
+            
+            // Sort occupancy data by count
+            const sortedData = Object.entries(currentOccupancyData)
+                .sort((a, b) => b[1] - a[1]);
+            
+            const labels = sortedData.map(([k, v]) => k);
+            const values = sortedData.map(([k, v]) => v);
+            const percentages = values.map(v => (v / values.reduce((a, b) => a + b, 0) * 100).toFixed(1));
+            
+            let plotData, layout;
+            
+            if (chartType === 'pie') {
+                const total = values.reduce((a, b) => a + b, 0);
+
+                const textArray = labels.map((label, i) => {
+                    const percentage = (values[i] / total * 100);
+                    
+                    if (percentage > 10) {
+                        return `${label}<br>${percentage.toFixed(1)}%`;
+                    } else if (percentage > 5) {
+                        return `${percentage.toFixed(1)}%`;
+                    } else if (percentage > 2) {
+                        return `${percentage.toFixed(0)}%`;
+                    } else {
+                        return '';
+                    }
+                });
+                
+                plotData = [{
+                    values: values,
+                    labels: labels,
+                    type: 'pie',
+                    hole: 0.4,
+                    marker: {
+                        colors: getPlasmaColors(labels.length),
+
+                        line: {
+                            color: 'white',
+                            width: 1
+                        }
+                    },
+
+                    text: textArray,
+                    textinfo: 'text',  
+                    textposition: 'auto',  
+                    
+
+                    textfont: {
+                        size: 12,
+                        color: 'white'  
+                    },
+                    
+
+                    insidetextorientation: 'radial',  
+                    
+
+                    hovertemplate: '%{label}<br>Count: %{value:,}<br>Percentage: %{percent}<extra></extra>',
+                    
+                }];
+                
+                layout = {
+                    title: {
+                        text: 'Occupancy Class Distribution',
+                        font: { size: 18, color: '#333' }
+                    },
+                    height: 500,
+                    showlegend: true,
+                    legend: {
+                        orientation: 'v',
+                        yanchor: 'middle',
+                        y: 0.5,
+                        xanchor: 'left',
+                        x: 1.02
+                    }
+                };
+            } else if (chartType === 'bar') {
+                // Vertical bar chart
+                plotData = [{
+                    x: labels,
+                    y: values,
+                    type: 'bar',
+                    marker: {
+                        color: getPlasmaColors(labels.length),
+                        line: {
+                            color: 'white',
+                            width: 1
+                        }
+                    },
+                    text: percentages.map(p => `${p}%`),
+                    textposition: 'outside',
+                    hovertemplate: '%{x}<br>Count: %{y:,}<br>%{text}<extra></extra>'
+                }];
+                
+                layout = {
+                    title: {
+                        text: 'Occupancy Class Distribution',
+                        font: { size: 18, color: '#333' }
+                    },
+                    xaxis: { 
+                        title: 'Occupancy Class',
+                        tickangle: -45
+                    },
+                    yaxis: { 
+                        title: 'Number of Buildings'
+                    },
+                    height: 500,
+                    showlegend: false
+                };
+            } else {
+                // Horizontal bar chart
+                plotData = [{
+                    x: values,
+                    y: labels,
+                    type: 'bar',
+                    orientation: 'h',
+                    marker: {
+                        color: getPlasmaColors(labels.length),
+                        line: {
+                            color: 'white',
+                            width: 1
+                        }
+                    },
+                    text: values.map((v, i) => `${v.toLocaleString()} (${percentages[i]}%)`),
+                    textposition: 'outside',
+                    hovertemplate: '%{y}<br>Count: %{x:,}<br>%{text}<extra></extra>'
+                }];
+                
+                layout = {
+                    title: {
+                        text: 'Occupancy Class Distribution',
+                        font: { size: 18, color: '#333' }
+                    },
+                    xaxis: { 
+                        title: 'Number of Buildings'
+                    },
+                    yaxis: { 
+                        title: 'Occupancy Class'
+                    },
+                    height: Math.max(400, labels.length * 40), // Dynamic height based on number of categories
+                    margin: {
+                        l: 150 // More space for labels
+                    },
+                    showlegend: false
+                };
+            }
+            
+            Plotly.newPlot('occupancyBreakdownChart', plotData, layout, {responsive: true});
         }
         
         // Interactive Explorer remains the same
