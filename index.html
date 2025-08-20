@@ -20,12 +20,80 @@
             --dark-gradient: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
         }
         
+        /* Modern Theme (Default) */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: var(--primary-gradient);
             min-height: 100vh;
             padding: 20px;
             color: #333;
+            transition: all 0.3s ease;
+        }
+        
+        /* Professional Theme */
+        body.professional-theme {
+            background: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        /* Theme Toggle Button */
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        }
+        
+        .theme-toggle label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .theme-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            background: #ddd;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .theme-switch.active {
+            background: #667eea;
+        }
+        
+        .theme-switch::after {
+            content: '';
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: left 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        
+        .theme-switch.active::after {
+            left: 32px;
         }
         
         .loading-overlay {
@@ -69,6 +137,14 @@
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
             overflow: hidden;
             animation: slideIn 0.6s ease;
+            transition: all 0.3s ease;
+        }
+        
+        .professional-theme .container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            animation: none;
         }
         
         @keyframes slideIn {
@@ -89,6 +165,12 @@
             text-align: center;
             position: relative;
             overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .professional-theme .header {
+            background: #2c3e50;
+            padding: 30px 40px;
         }
         
         .header::before {
@@ -100,6 +182,10 @@
             height: 200%;
             background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
             animation: pulse 4s ease-in-out infinite;
+        }
+        
+        .professional-theme .header::before {
+            display: none;
         }
         
         @keyframes pulse {
@@ -115,11 +201,22 @@
             z-index: 1;
         }
         
+        .professional-theme .header h1 {
+            font-size: 2.2em;
+            text-shadow: none;
+            font-weight: 400;
+        }
+        
         .header p {
             font-size: 1.2em;
             opacity: 0.95;
             position: relative;
             z-index: 1;
+        }
+        
+        .professional-theme .header p {
+            font-size: 1em;
+            opacity: 0.9;
         }
         
         .dataset-badge {
@@ -132,6 +229,12 @@
             backdrop-filter: blur(10px);
         }
         
+        .professional-theme .dataset-badge {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            backdrop-filter: none;
+        }
+        
         .nav-container {
             background: white;
             padding: 25px 20px;
@@ -140,6 +243,12 @@
             top: 0;
             z-index: 100;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .professional-theme .nav-container {
+            padding: 15px 20px;
+            border-bottom: 1px solid #ddd;
+            box-shadow: none;
         }
         
         .nav-tabs {
@@ -163,6 +272,14 @@
             overflow: hidden;
         }
         
+        .professional-theme .nav-tab {
+            padding: 10px 20px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
         .nav-tab::before {
             content: '';
             position: absolute;
@@ -175,9 +292,19 @@
             z-index: -1;
         }
         
+        .professional-theme .nav-tab::before {
+            display: none;
+        }
+        
         .nav-tab:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .professional-theme .nav-tab:hover {
+            transform: none;
+            background: #f8f9fa;
+            box-shadow: none;
         }
         
         .nav-tab:hover::before {
@@ -188,10 +315,21 @@
             color: white;
         }
         
+        .professional-theme .nav-tab:hover {
+            color: #333;
+        }
+        
         .nav-tab.active {
             background: var(--primary-gradient);
             color: white;
             box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .professional-theme .nav-tab.active {
+            background: #2c3e50;
+            color: white;
+            box-shadow: none;
+            border-color: #2c3e50;
         }
         
         .content {
@@ -202,6 +340,10 @@
         .section {
             display: none;
             animation: fadeIn 0.5s ease;
+        }
+        
+        .professional-theme .section {
+            animation: none;
         }
         
         .section.active {
@@ -226,6 +368,10 @@
             position: relative;
         }
         
+        .professional-theme .section-header {
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
         .section-header::after {
             content: '';
             position: absolute;
@@ -236,10 +382,21 @@
             background: var(--primary-gradient);
         }
         
+        .professional-theme .section-header::after {
+            background: #2c3e50;
+            height: 2px;
+            bottom: -2px;
+        }
+        
         .section-header h2 {
             color: #333;
             font-size: 2.2em;
             margin-bottom: 12px;
+        }
+        
+        .professional-theme .section-header h2 {
+            font-size: 1.8em;
+            font-weight: 500;
         }
         
         .section-header p {
@@ -248,12 +405,24 @@
             line-height: 1.6;
         }
         
+        .professional-theme .section-header p {
+            font-size: 1em;
+        }
+        
         .controls {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             padding: 25px;
             border-radius: 15px;
             margin-bottom: 30px;
             box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
+        }
+        
+        .professional-theme .controls {
+            background: #f8f9fa;
+            border-radius: 4px;
+            padding: 20px;
+            box-shadow: none;
+            border: 1px solid #dee2e6;
         }
         
         .control-group {
@@ -274,6 +443,10 @@
             min-width: 120px;
         }
         
+        .professional-theme .control-group label {
+            font-weight: 600;
+        }
+        
         .control-group select,
         .control-group input {
             padding: 10px 18px;
@@ -285,11 +458,24 @@
             min-width: 150px;
         }
         
+        .professional-theme .control-group select,
+        .professional-theme .control-group input {
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 8px 12px;
+        }
+        
         .control-group select:focus,
         .control-group input:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .professional-theme .control-group select:focus,
+        .professional-theme .control-group input:focus {
+            border-color: #2c3e50;
+            box-shadow: none;
         }
         
         .control-button {
@@ -305,9 +491,23 @@
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
         
+        .professional-theme .control-button {
+            background: #2c3e50;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-weight: 600;
+            box-shadow: none;
+        }
+        
         .control-button:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .professional-theme .control-button:hover {
+            transform: none;
+            background: #34495e;
+            box-shadow: none;
         }
         
         .control-button:active {
@@ -335,6 +535,10 @@
             background: #667eea;
         }
         
+        .professional-theme .toggle-switch input[type="checkbox"]:checked {
+            background: #2c3e50;
+        }
+        
         .toggle-switch input[type="checkbox"]::after {
             content: '';
             position: absolute;
@@ -360,9 +564,20 @@
             transition: transform 0.3s ease;
         }
         
+        .professional-theme .chart-container {
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+        }
+        
         .chart-container:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        }
+        
+        .professional-theme .chart-container:hover {
+            transform: none;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
         
         .stats-grid {
@@ -383,6 +598,14 @@
             overflow: hidden;
         }
         
+        .professional-theme .stat-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 25px;
+            color: #333;
+        }
+        
         .stat-card::before {
             content: '';
             position: absolute;
@@ -392,6 +615,10 @@
             height: 200%;
             background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
             animation: rotate 10s linear infinite;
+        }
+        
+        .professional-theme .stat-card::before {
+            display: none;
         }
         
         @keyframes rotate {
@@ -404,16 +631,33 @@
             box-shadow: 0 12px 30px rgba(102, 126, 234, 0.3);
         }
         
+        .professional-theme .stat-card:hover {
+            transform: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
         .stat-card:nth-child(2) {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .professional-theme .stat-card:nth-child(2) {
+            background: white;
         }
         
         .stat-card:nth-child(3) {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
         
+        .professional-theme .stat-card:nth-child(3) {
+            background: white;
+        }
+        
         .stat-card:nth-child(4) {
             background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .professional-theme .stat-card:nth-child(4) {
+            background: white;
         }
         
         .stat-value {
@@ -425,12 +669,25 @@
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         }
         
+        .professional-theme .stat-value {
+            font-size: 2.5em;
+            font-weight: 600;
+            text-shadow: none;
+            color: #2c3e50;
+        }
+        
         .stat-label {
             font-size: 1.1em;
             opacity: 0.95;
             position: relative;
             z-index: 1;
             font-weight: 600;
+        }
+        
+        .professional-theme .stat-label {
+            opacity: 1;
+            font-weight: 500;
+            color: #6c757d;
         }
         
         .info-box {
@@ -443,15 +700,31 @@
             overflow: hidden;
         }
         
+        .professional-theme .info-box {
+            background: #f0f8ff;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+            padding: 20px;
+        }
+        
         .info-box h3 {
             color: #1565c0;
             margin-bottom: 12px;
             font-size: 1.3em;
         }
         
+        .professional-theme .info-box h3 {
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+        
         .info-box p {
             color: #0d47a1;
             line-height: 1.6;
+        }
+        
+        .professional-theme .info-box p {
+            color: #333;
         }
         
         .warning-box {
@@ -462,14 +735,28 @@
             margin: 20px 0;
         }
         
+        .professional-theme .warning-box {
+            background: #fff9e6;
+            border-radius: 4px;
+            border-left: 4px solid #ff9800;
+        }
+        
         .warning-box h4 {
             color: #e65100;
             margin-bottom: 10px;
         }
         
+        .professional-theme .warning-box h4 {
+            font-weight: 600;
+        }
+        
         .warning-box p {
             color: #bf360c;
             line-height: 1.5;
+        }
+        
+        .professional-theme .warning-box p {
+            color: #666;
         }
         
         .error-box {
@@ -481,9 +768,19 @@
             display: none;
         }
         
+        .professional-theme .error-box {
+            background: #ffebee;
+            border-radius: 4px;
+            border-left: 4px solid #f44336;
+        }
+        
         .error-box.show {
             display: block;
             animation: shake 0.5s ease;
+        }
+        
+        .professional-theme .error-box.show {
+            animation: none;
         }
         
         @keyframes shake {
@@ -509,12 +806,29 @@
             transition: all 0.3s ease;
         }
         
+        .professional-theme .export-button {
+            background: #34495e;
+            border-radius: 4px;
+        }
+        
         .export-button:hover {
             transform: scale(1.05);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
         
+        .professional-theme .export-button:hover {
+            transform: none;
+            background: #2c3e50;
+            box-shadow: none;
+        }
+        
         @media (max-width: 768px) {
+            .theme-toggle {
+                top: 10px;
+                right: 10px;
+                padding: 8px 12px;
+            }
+            
             .header h1 {
                 font-size: 1.8em;
             }
@@ -548,6 +862,13 @@
     </style>
 </head>
 <body>
+    <!-- Theme Toggle Button -->
+    <div class="theme-toggle">
+        <label for="themeSwitch">Professional</label>
+        <div class="theme-switch" id="themeSwitchButton" onclick="toggleTheme()">
+        </div>
+    </div>
+    
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
     </div>
@@ -991,6 +1312,38 @@
     </div>
     
     <script>
+        // Theme toggle function
+        function toggleTheme() {
+            const body = document.body;
+            const themeSwitch = document.getElementById('themeSwitchButton');
+            
+            if (body.classList.contains('professional-theme')) {
+                body.classList.remove('professional-theme');
+                themeSwitch.classList.add('active');
+                localStorage.setItem('theme', 'modern');
+            } else {
+                body.classList.add('professional-theme');
+                themeSwitch.classList.remove('active');
+                localStorage.setItem('theme', 'professional');
+            }
+            
+            // Trigger chart resize for proper rendering
+            window.dispatchEvent(new Event('resize'));
+        }
+        
+        // Load saved theme preference
+        function loadThemePreference() {
+            const savedTheme = localStorage.getItem('theme');
+            const themeSwitch = document.getElementById('themeSwitchButton');
+            
+            if (savedTheme === 'professional') {
+                document.body.classList.add('professional-theme');
+                themeSwitch.classList.remove('active');
+            } else {
+                themeSwitch.classList.add('active');
+            }
+        }
+        
         // Global variables for data
         let buildingData = null;
         let isDataLoaded = false;
@@ -1068,8 +1421,9 @@
             }
         };
 
-        // Initialize dashboard
+        // Initialize dashboard with theme preference
         document.addEventListener('DOMContentLoaded', function() {
+            loadThemePreference();
             loadData();
         });
         
@@ -2165,7 +2519,7 @@
             Plotly.newPlot('pre1940AreaChart', areaChartData, areaChartLayout, {responsive: true});
         }
         
-        // Post-1940 and other functions remain the same...
+        // Post-1940 - FIXED: Now shows normalized stacked area when normalize is checked
         function updatePost1940() {
             if (!buildingData) return;
             
@@ -2203,39 +2557,51 @@
                 occupancyTypes.delete('Residential');
             }
             
-            // Create traces for annual building count data - Fixed stacked area
+            // Create traces for annual building count data - FIXED normalized stacked area
             const traces = [];
             const years = Object.keys(annualData).sort((a, b) => a - b);
             const occupancyColors = getPlasmaColors(occupancyTypes.size);
             
-            Array.from(occupancyTypes).forEach((occ, index) => {
-                let yValues = years.map(year => annualData[year][occ] || 0);
-                
-                if (normalize) {
-                    yValues = years.map((year, i) => {
-                        const total = Array.from(occupancyTypes).reduce((sum, o) => 
-                            sum + (annualData[year][o] || 0), 0);
-                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+            if (normalize) {
+                // Normalized stacked area - using stackgroup with groupnorm
+                Array.from(occupancyTypes).forEach((occ, index) => {
+                    const yValues = years.map(year => annualData[year][occ] || 0);
+                    
+                    traces.push({
+                        x: years,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        groupnorm: 'percent',  // This makes it normalized to 100%
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>`
                     });
-                }
-                
-                traces.push({
-                    x: years,
-                    y: yValues,
-                    name: occ,
-                    type: 'scatter',
-                    mode: 'lines',
-                    stackgroup: normalize ? undefined : 'one',
-                    fill: normalize ? 'none' : (index === 0 ? 'tozeroy' : 'tonexty'),
-                    fillcolor: occupancyColors[index] + '80',
-                    line: { color: occupancyColors[index], width: normalize ? 2 : 1 },
-                    hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Count: %{y:.0f}${normalize ? '%' : ''}<extra></extra>`
                 });
-            });
+            } else {
+                // Regular stacked area
+                Array.from(occupancyTypes).forEach((occ, index) => {
+                    const yValues = years.map(year => annualData[year][occ] || 0);
+                    
+                    traces.push({
+                        x: years,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Count: %{y:,}<extra></extra>`
+                    });
+                });
+            }
             
             const layout = {
                 title: {
-                    text: `Post-1940 Annual Building Construction (${buildingTypeFilter})${normalize ? ' - Normalized' : ''}`,
+                    text: `Post-1940 Annual Building Construction (${buildingTypeFilter})${normalize ? ' - Normalized 100%' : ''}`,
                     font: { size: 20, color: '#333' }
                 },
                 xaxis: { 
@@ -2261,37 +2627,49 @@
             
             Plotly.newPlot('post1940Chart', traces, layout, {responsive: true});
             
-            // Area traces (similar fix)
+            // Area traces - FIXED normalized stacked area
             const areaTraces = [];
             
-            Array.from(occupancyTypes).forEach((occ, index) => {
-                let yValues = years.map(year => annualAreaData[year][occ] || 0);
-                
-                if (normalize) {
-                    yValues = years.map((year, i) => {
-                        const total = Array.from(occupancyTypes).reduce((sum, o) => 
-                            sum + (annualAreaData[year][o] || 0), 0);
-                        return total > 0 ? (yValues[i] / total) * 100 : 0;
+            if (normalize) {
+                // Normalized stacked area for floor area
+                Array.from(occupancyTypes).forEach((occ, index) => {
+                    const yValues = years.map(year => annualAreaData[year][occ] || 0);
+                    
+                    areaTraces.push({
+                        x: years,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        groupnorm: 'percent',  // This makes it normalized to 100%
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>`
                     });
-                }
-                
-                areaTraces.push({
-                    x: years,
-                    y: yValues,
-                    name: occ,
-                    type: 'scatter',
-                    mode: 'lines',
-                    stackgroup: normalize ? undefined : 'one',
-                    fill: normalize ? 'none' : (index === 0 ? 'tozeroy' : 'tonexty'),
-                    fillcolor: occupancyColors[index] + '80',
-                    line: { color: occupancyColors[index], width: normalize ? 2 : 1 },
-                    hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Area: %{y:.0f}${normalize ? '%' : ' sqm'}<extra></extra>`
                 });
-            });
+            } else {
+                // Regular stacked area for floor area
+                Array.from(occupancyTypes).forEach((occ, index) => {
+                    const yValues = years.map(year => annualAreaData[year][occ] || 0);
+                    
+                    areaTraces.push({
+                        x: years,
+                        y: yValues,
+                        name: occ,
+                        type: 'scatter',
+                        mode: 'lines',
+                        stackgroup: 'one',
+                        fillcolor: occupancyColors[index],
+                        line: { color: occupancyColors[index], width: 0.5 },
+                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Area: %{y:,.0f} sqm<extra></extra>`
+                    });
+                });
+            }
             
             const areaLayout = {
                 title: {
-                    text: `Post-1940 Total Est GFA sqmeters (${buildingTypeFilter})${normalize ? ' - Normalized' : ''}`,
+                    text: `Post-1940 Total Est GFA sqmeters (${buildingTypeFilter})${normalize ? ' - Normalized 100%' : ''}`,
                     font: { size: 20, color: '#333' }
                 },
                 xaxis: { 
@@ -2707,7 +3085,7 @@
                 showOccupancyBreakdown(material, foundation, count, filter);
             });
             
-            // Material trends chart with shortened names
+            // Material trends chart with shortened names - NOT affected by log scale
             const years = [];
             const materialData = {};
             
@@ -2737,14 +3115,17 @@
                     font: { size: 20, color: '#333' }
                 },
                 xaxis: { title: 'Year' },
-                yaxis: { title: 'Percentage of New Construction (%)' },
+                yaxis: { 
+                    title: 'Percentage of New Construction (%)',
+                    type: 'linear'  // Always linear scale, not affected by log scale checkbox
+                },
                 height: 400
             };
             
             Plotly.newPlot('materialsTrendChart', trendTraces, trendLayout, {responsive: true});
         }
 
-        // 同时，也需要确保 showOccupancyBreakdown 函数存在并且正确
+        // Show occupancy breakdown for selected material/foundation combination
         function showOccupancyBreakdown(material, foundation, totalCount, filter) {
             console.log('showOccupancyBreakdown called with:', material, foundation, totalCount, filter); // Debug log
             
@@ -2809,49 +3190,8 @@
                 });
             }, 100);
         }
-        // NEW: Show occupancy breakdown for selected material/foundation combination
-        function showOccupancyBreakdown(material, foundation, totalCount, filter) {
-            const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
-            const key = `${material}_${foundation}`;
-            
-            // Get occupancy breakdown data
-            const breakdownData = data.occupancy_breakdown && data.occupancy_breakdown[key];
-            
-            if (!breakdownData || !breakdownData.occupancy_counts) {
-                // If no breakdown data, show message
-                alert('No occupancy breakdown data available for this combination. Please run the updated Python script to generate the breakdown data.');
-                return;
-            }
-            
-            // Store current selection
-            currentMaterialSelection = {
-                material: materialTypeMap[material] || material,
-                foundation: foundationTypeMap[foundation] || foundation,
-                totalCount: totalCount,
-                filter: filter
-            };
-            currentOccupancyData = breakdownData.occupancy_counts;
-            
-            // Update title
-            document.getElementById('breakdownTitle').textContent = 
-                `Occupancy Distribution: ${currentMaterialSelection.material} / ${currentMaterialSelection.foundation}`;
-            document.getElementById('breakdownSubtitle').textContent = 
-                `Total Buildings: ${totalCount.toLocaleString()} ${filter !== 'all' ? '(' + filter + ')' : ''}`;
-            
-            // Show the container
-            document.getElementById('occupancyBreakdownContainer').style.display = 'block';
-            
-            // Update the chart
-            updateOccupancyBreakdown();
-            
-            // Scroll to the breakdown chart
-            document.getElementById('occupancyBreakdownContainer').scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center' 
-            });
-        }
         
-        // NEW: Update occupancy breakdown chart based on selected type
+        // Update occupancy breakdown chart based on selected type
         function updateOccupancyBreakdown() {
             if (!currentOccupancyData) return;
             
@@ -2891,29 +3231,20 @@
                     hole: 0.4,
                     marker: {
                         colors: getPlasmaColors(labels.length),
-
                         line: {
                             color: 'white',
                             width: 1
                         }
                     },
-
                     text: textArray,
                     textinfo: 'text',  
                     textposition: 'auto',  
-                    
-
                     textfont: {
                         size: 12,
                         color: 'white'  
                     },
-                    
-
                     insidetextorientation: 'radial',  
-                    
-
                     hovertemplate: '%{label}<br>Count: %{value:,}<br>Percentage: %{percent}<extra></extra>',
-                    
                 }];
                 
                 layout = {
@@ -3005,7 +3336,7 @@
             Plotly.newPlot('occupancyBreakdownChart', plotData, layout, {responsive: true});
         }
         
-        // Interactive Explorer remains the same
+        // Interactive Explorer
         function updateInteractiveExplorer() {
             if (!buildingData) return;
             
