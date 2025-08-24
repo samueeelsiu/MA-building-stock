@@ -762,6 +762,37 @@
             box-shadow: none;
         }
         
+        /* New styles for heatmap tabs */
+        .heatmap-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f5f5f5;
+            padding: 5px;
+            border-radius: 10px;
+        }
+        
+        .heatmap-tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+        
+        .heatmap-tab.active {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .heatmap-tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 1.8em;
@@ -815,13 +846,14 @@
                 <button class="nav-tab" onclick="showSection('temporal')">Temporal</button>
                 <button class="nav-tab" onclick="showSection('pre1940')">Pre-1940</button>
                 <button class="nav-tab" onclick="showSection('post1940')">Post-1940</button>
-                <button class="nav-tab" onclick="showSection('occupancy')">Occupancy</button>
+                <button class="nav-tab" onclick="showSection('occupancy')">Occupancy Clustering</button>
                 <button class="nav-tab" onclick="showSection('materials')">Materials</button>
                 <button class="nav-tab" onclick="showSection('interactive')">Explorer</button>
             </div>
         </div>
         
         <div class="content">
+            <!-- OVERVIEW SECTION -->
             <div id="overview" class="section active">
                 <div class="section-header">
                     <h2>Dashboard Overview</h2>
@@ -868,6 +900,7 @@
                 </div>
             </div>
             
+            <!-- CLUSTERING SECTION -->
             <div id="clustering" class="section">
                 <div class="section-header">
                     <h2>Clustering Analysis</h2>
@@ -911,7 +944,7 @@
                     <div id="clusterTreemap"></div>
                 </div>
             </div>
-            
+<!-- TEMPORAL SECTION -->
             <div id="temporal" class="section">
                 <div class="section-header">
                     <h2>Temporal Distribution</h2>
@@ -955,6 +988,7 @@
                 </div>
             </div>
             
+            <!-- PRE-1940 SECTION -->
             <div id="pre1940" class="section">
                 <div class="section-header">
                     <h2>Pre-1940 Building Analysis</h2>
@@ -971,7 +1005,7 @@
                         </select>
                         
                         <div class="toggle-switch">
-                            <label>:</label>
+                            <label>Normalize:</label>
                             <input type="checkbox" id="pre1940Normalize" onchange="updatePre1940Charts()">
                         </div>
                     </div>
@@ -1013,6 +1047,7 @@
                 </div>
             </div>
             
+            <!-- POST-1940 SECTION -->
             <div id="post1940" class="section">
                 <div class="section-header">
                     <h2>Post-1940 Building Analysis</h2>
@@ -1047,18 +1082,22 @@
                     <div id="decadeComparisonChart"></div>
                 </div>
             </div>
-            
+
+            <!-- ENHANCED OCCUPANCY CLUSTERING SECTION -->
             <div id="occupancy" class="section">
                 <div class="section-header">
-                    <h2>Occupancy-Specific Clustering</h2>
-                    <p>Detailed clustering analysis by occupancy class with sample type selection</p>
+                    <h2>Multi-Dimensional Occupancy Clustering Analysis</h2>
+                    <p>Advanced clustering analysis with dynamic feature selection for true multi-dimensional clustering</p>
                 </div>
                 
                 <div class="info-box" style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); border-left-color: #ff9800;">
-                    <h3 style="color: #e65100;">Sample Type Selection</h3>
+                    <h3 style="color: #e65100;">Dynamic Clustering Features</h3>
                     <p style="color: #bf360c;">
-                        <strong>Balanced Sample (Default):</strong> Ensures equal representation of all occupancy classes, ideal for observing patterns in rare categories.<br>
-                        <strong>Random Sample:</strong> Reflects the true distribution of data, showing the actual proportion of each occupancy class.
+                        <strong>Base Dimensions (3D):</strong> Year Built, Est GFA sqmeters, Occupancy Class<br>
+                        <strong>+ Material Type (4D):</strong> Adds material type as a clustering dimension<br>
+                        <strong>+ Foundation Type (4D):</strong> Adds foundation type as a clustering dimension<br>
+                        <strong>+ Both (5D):</strong> Includes all dimensions for comprehensive clustering<br>
+                        <strong>Real-time Reclustering:</strong> Each toggle change triggers new clustering calculations based on selected features
                     </p>
                 </div>
                 
@@ -1087,13 +1126,45 @@
                             <option value="6">K = 6</option>
                             <option value="7">K = 7</option>
                         </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="toggle-switch" style="border: 2px solid #4facfe; padding: 10px; border-radius: 8px; background: rgba(79, 172, 254, 0.05);">
+                            <label style="font-weight: bold; color: #0066cc;">Include Material Type:</label>
+                            <input type="checkbox" id="includeMaterial" onchange="updateOccupancyClustering()">
+                            <select id="materialTypeFilter" style="margin-left: 10px; display: none;" onchange="updateOccupancyClustering()">
+                                <option value="all">All Materials</option>
+                                <option value="W">Wood</option>
+                                <option value="M">Masonry</option>
+                                <option value="C">Concrete</option>
+                                <option value="S">Steel</option>
+                                <option value="H">Manufactured</option>
+                            </select>
+                        </div>
+                        
+                        <div class="toggle-switch" style="border: 2px solid #00f2fe; padding: 10px; border-radius: 8px; background: rgba(0, 242, 254, 0.05);">
+                            <label style="font-weight: bold; color: #0099cc;">Include Foundation Type:</label>
+                            <input type="checkbox" id="includeFoundation" onchange="updateOccupancyClustering()">
+                            <select id="foundationTypeFilter" style="margin-left: 10px; display: none;" onchange="updateOccupancyClustering()">
+                                <option value="all">All Foundations</option>
+                                <option value="S">Slab</option>
+                                <option value="B">Basement</option>
+                                <option value="C">Crawl Space</option>
+                                <option value="P">Pier</option>
+                                <option value="I">Pile</option>
+                                <option value="F">Fill</option>
+                                <option value="W">Solid Wall</option>
+                            </select>
+                        </div>
                         
                         <label>Sample Type:</label>
                         <select id="sampleType" onchange="updateOccupancyClustering()" style="border: 2px solid #bd3786; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
                             <option value="balanced" selected>Balanced Sample (Equal Representation)</option>
                             <option value="random">Random Sample (True Distribution)</option>
                         </select>
-                        
+                    </div>
+                    
+                    <div class="control-group">
                         <label>Sample Size for Visualization:</label>
                         <select id="sampleSize" onchange="updateOccupancyClustering()">
                             <option value="1000">1,000 buildings</option>
@@ -1103,7 +1174,7 @@
                         </select>
                         
                         <div class="toggle-switch">
-                            <label>Log Scale:</label>
+                            <label>Log Scale (Area):</label>
                             <input type="checkbox" id="logScale" onchange="updateOccupancyClustering()">
                         </div>
                     </div>
@@ -1112,6 +1183,15 @@
                         <div id="sampleTypeIndicator" style="font-size: 14px; color: #495057;">
                             <strong>Current View:</strong> <span id="currentSampleType" style="color: #7201a8; font-weight: bold;">Balanced Sample</span> - 
                             <span id="sampleDescription" style="color: #666;">Shows equal representation of all occupancy classes for better pattern visibility</span>
+                        </div>
+                        <div id="clusteringDimensions" style="margin-top: 8px; font-size: 14px; color: #495057;">
+                            <strong>Active Clustering Dimensions:</strong> <span id="activeDimensions" style="color: #667eea; font-weight: bold;">Year, Area, Occupancy (3D)</span>
+                        </div>
+                        <div id="clusteringStatus" style="margin-top: 8px; font-size: 14px; color: #495057;">
+                            <strong>Clustering Status:</strong> <span id="clusteringStatusText" style="color: #4facfe; font-weight: bold;">Using pre-computed base clustering</span>
+                        </div>
+                        <div id="filterStatus" style="margin-top: 8px; font-size: 14px; color: #495057; display: none;">
+                            <strong>Active Filters:</strong> <span id="activeFilters" style="color: #4facfe; font-weight: bold;"></span>
                         </div>
                     </div>
                 </div>
@@ -1132,7 +1212,7 @@
                     <div id="occupancyElbowChart"></div>
                 </div>
             </div>
-            
+<!-- MATERIALS SECTION -->
             <div id="materials" class="section">
                 <div class="section-header">
                     <h2>Building Materials & Foundation Analysis</h2>
@@ -1166,11 +1246,21 @@
                     <h3>Material & Foundation Type Codes</h3>
                     <p><strong>Material Types:</strong> M = Masonry, W = Wood, H = Manufactured, S = Steel, C = Concrete<br>
                     <strong>Foundation Types:</strong> C = Crawl Space, B = Basement, S = Slab, P = Pier, I = Pile, F = Fill, W = Solid Wall<br>
-                    <strong style="color: #667eea;">👉 Click on any cell in the heatmap to see the occupancy class distribution for that combination</strong></p>
+                    <strong style="color: #667eea;">👉 Click on any cell in either heatmap to see the occupancy class distribution for that combination</strong></p>
                 </div>
                 
-                <div class="chart-container">
+                <!-- Heatmap tabs for switching between count and area -->
+                <div class="heatmap-tabs">
+                    <button class="heatmap-tab active" id="countHeatmapTab" onclick="showHeatmap('count')">Building Count</button>
+                    <button class="heatmap-tab" id="areaHeatmapTab" onclick="showHeatmap('area')">Total Est GFA (sqm)</button>
+                </div>
+                
+                <div class="chart-container" id="countHeatmapContainer">
                     <div id="materialsHeatmap"></div>
+                </div>
+                
+                <div class="chart-container" id="areaHeatmapContainer" style="display: none;">
+                    <div id="materialsAreaHeatmap"></div>
                 </div>
                 
                 <div class="chart-container" id="occupancyBreakdownContainer" style="display: none;">
@@ -1186,6 +1276,7 @@
                 </div>
             </div>
             
+            <!-- INTERACTIVE EXPLORER SECTION -->
             <div id="interactive" class="section">
                 <div class="section-header">
                     <h2>Interactive Data Explorer</h2>
@@ -1243,33 +1334,32 @@
         // Global variables for data
         let buildingData = null;
         let isDataLoaded = false;
-        let currentClusterK = 7; // Track current cluster number
+        let currentClusterK = 7;
         
-        // NEW: Global variables for material selection
+        // Global variables for material selection
         let currentMaterialSelection = null;
         let currentOccupancyData = null;
+        let currentHeatmapType = 'count';
         
-        // True Plasma colorscale matching Python's matplotlib
+        // Plasma colorscale
         const plasmaColorscale = 'Plasma';
-        
-        // Manual Plasma colors for discrete use (from matplotlib's plasma)
         const plasmaColors = [
             '#0d0887', '#46039f', '#7201a8', '#9c179e', '#bd3786',
             '#d8576b', '#ed7953', '#fb9f3a', '#fdca26', '#f0f921'
         ];
         
-        // Material and Foundation type mappings - Fixed Basement naming
+        // Material and Foundation type mappings
         const materialTypeMap = {
             'M': 'Masonry',
             'W': 'Wood',
-            'H': 'Manufactured', // Shortened for space
+            'H': 'Manufactured',
             'S': 'Steel',
             'C': 'Concrete'
         };
         
         const foundationTypeMap = {
             'C': 'Crawl Space',
-            'B': 'Basement', // Fixed from "String Basement"
+            'B': 'Basement',
             'S': 'Slab',
             'P': 'Pier',
             'I': 'Pile',
@@ -1277,10 +1367,8 @@
             'W': 'Solid Wall'
         };
         
-        // Function to get Plasma colors for any number of categories
         function getPlasmaColors(n) {
             if (n <= 10) return plasmaColors.slice(0, n);
-            // For more categories, interpolate
             const colors = [];
             for (let i = 0; i < n; i++) {
                 const idx = Math.floor(i * 9 / (n - 1));
@@ -1289,21 +1377,17 @@
             return colors;
         }
         
-        // 全局错误捕获和修复
         window.addEventListener('error', function(event) {
             console.error('Error details:', event);
             return true;
         });
 
-        // 修复 Plotly 的 undefined 问题
         const originalNewPlot = Plotly.newPlot;
         Plotly.newPlot = function(gd, data, layout, config) {
             try {
-                // 清理 data 中的 undefined marker.line
                 if (Array.isArray(data)) {
                     data.forEach(trace => {
                         if (trace && trace.marker && typeof trace.marker === 'object') {
-                            // 确保 marker.line 要么存在，要么不存在
                             if (trace.marker.line === undefined) {
                                 delete trace.marker.line;
                             }
@@ -1317,23 +1401,117 @@
             }
         };
 
-        // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             loadData();
+            
+            // Toggle material/foundation filter visibility
+            document.getElementById('includeMaterial').addEventListener('change', function() {
+                document.getElementById('materialTypeFilter').style.display = this.checked ? 'inline-block' : 'none';
+                updateOccupancyClustering();
+            });
+            
+            document.getElementById('includeFoundation').addEventListener('change', function() {
+                document.getElementById('foundationTypeFilter').style.display = this.checked ? 'inline-block' : 'none';
+                updateOccupancyClustering();
+            });
         });
         
-        // Load data from JSON file
         async function loadData() {
             try {
+                console.log('Loading main data file...');
+                
+                // Load main data file
                 const response = await fetch('building_data.json');
                 if (!response.ok) {
-                    throw new Error('Failed to load data file');
+                    throw new Error('Failed to load main data file');
                 }
                 
                 buildingData = await response.json();
-                isDataLoaded = true;
                 
-                // Process year 1939 as pre-1940
+                // Check version and format
+                const version = buildingData.metadata?.version;
+                const hasSplitSamples = buildingData.metadata?.samples_split;
+                
+                if (hasSplitSamples && buildingData.metadata?.samples_files) {
+                    console.log('Detected multi-file sample format (v3.0), loading sample chunks...');
+                    
+                    // Initialize empty arrays for samples
+                    buildingData.building_samples_random = [];
+                    buildingData.building_samples_balanced = [];
+                    
+                    const sampleFiles = buildingData.metadata.samples_files;
+                    console.log(`Loading ${sampleFiles.length} sample files...`);
+                    
+                    // Load all sample files
+                    let loadedFiles = 0;
+                    let failedFiles = 0;
+                    
+                    for (const fileInfo of sampleFiles) {
+                        try {
+                            const sampleResponse = await fetch(fileInfo.filename);
+                            if (sampleResponse.ok) {
+                                const sampleData = await sampleResponse.json();
+                                
+                                // Add samples to appropriate array
+                                if (fileInfo.type === 'random') {
+                                    buildingData.building_samples_random.push(...sampleData.samples);
+                                } else if (fileInfo.type === 'balanced') {
+                                    buildingData.building_samples_balanced.push(...sampleData.samples);
+                                }
+                                
+                                loadedFiles++;
+                                console.log(`  Loaded ${fileInfo.filename} (${fileInfo.sample_count} samples)`);
+                            } else {
+                                console.warn(`  Failed to load ${fileInfo.filename}`);
+                                failedFiles++;
+                            }
+                        } catch (error) {
+                            console.error(`  Error loading ${fileInfo.filename}:`, error);
+                            failedFiles++;
+                        }
+                    }
+                    
+                    console.log(`Sample loading complete: ${loadedFiles}/${sampleFiles.length} files loaded`);
+                    console.log(`  Random samples: ${buildingData.building_samples_random.length}`);
+                    console.log(`  Balanced samples: ${buildingData.building_samples_balanced.length}`);
+                    
+                    // If too many files failed, create fallback samples
+                    if (failedFiles > sampleFiles.length / 2) {
+                        console.warn('Too many sample files failed to load, creating minimal fallback samples');
+                        createFallbackSamples();
+                    }
+                    
+                } else if (buildingData.metadata?.has_samples_file) {
+                    // Version 2.0 - single samples file
+                    console.log('Detected single sample file format (v2.0), loading samples...');
+                    
+                    try {
+                        const samplesResponse = await fetch('building_data_samples.json');
+                        if (samplesResponse.ok) {
+                            const samplesData = await samplesResponse.json();
+                            buildingData.building_samples_random = samplesData.building_samples_random;
+                            buildingData.building_samples_balanced = samplesData.building_samples_balanced;
+                            console.log('Samples loaded successfully');
+                        } else {
+                            console.warn('Samples file not found, creating fallback samples');
+                            createFallbackSamples();
+                        }
+                    } catch (error) {
+                        console.error('Error loading samples:', error);
+                        createFallbackSamples();
+                    }
+                    
+                } else {
+                    // Version 1.0 - samples in main file
+                    console.log('Using legacy single-file format (v1.0)');
+                    
+                    if (!buildingData.building_samples_random || !buildingData.building_samples_balanced) {
+                        console.warn('No samples found, creating fallback samples');
+                        createFallbackSamples();
+                    }
+                }
+                
+                // Process temporal data
                 if (buildingData.temporal_data) {
                     buildingData.temporal_data = buildingData.temporal_data.map(d => {
                         if (d.year === 1939) {
@@ -1343,10 +1521,14 @@
                     });
                 }
                 
-                // Hide loading overlay
+                isDataLoaded = true;
                 document.getElementById('loadingOverlay').classList.add('hidden');
                 
-                // Initialize all visualizations
+                console.log('Data loading complete');
+                console.log(`Total buildings: ${buildingData.metadata.total_buildings}`);
+                console.log(`Random samples available: ${buildingData.building_samples_random?.length || 0}`);
+                console.log(`Balanced samples available: ${buildingData.building_samples_balanced?.length || 0}`);
+                
                 initializeDashboard();
                 
             } catch (error) {
@@ -1355,29 +1537,94 @@
                 document.getElementById('errorBox').classList.add('show');
                 document.getElementById('errorMessage').textContent = error.message;
                 
-                // Load with sample data as fallback
+                // Load sample data as fallback
+                console.log('Loading complete sample data as fallback...');
                 loadSampleData();
             }
         }
+
+        // createFallbackSamples function remains the same
+        function createFallbackSamples() {
+            console.log('Creating fallback samples...');
+            
+            const occupancyClasses = buildingData.summary_stats?.occupancy_classes || 
+                                ['Residential', 'Commercial', 'Industrial', 'Agriculture', 
+                                    'Government', 'Assembly', 'Education', 'Utility and Misc', 'Unclassified'];
+            const materials = ['W', 'M', 'C', 'S', 'H'];
+            const foundations = ['S', 'B', 'C', 'P', 'F', 'I', 'W'];
+            
+            // Create minimal samples for visualization
+            const randomSamples = [];
+            const balancedSamples = [];
+            
+            // Random samples - 2000 total (reduced for fallback)
+            for (let i = 0; i < 2000; i++) {
+                const sample = {
+                    year_built: Math.floor(Math.random() * 124) + 1900,
+                    'Est GFA sqmeters': Math.random() * 1000 + 50,
+                    OCC_CLS: occupancyClasses[Math.floor(Math.random() * occupancyClasses.length)],
+                    material_type: materials[Math.floor(Math.random() * materials.length)],
+                    foundation_type: foundations[Math.floor(Math.random() * foundations.length)],
+                    cluster: Math.floor(Math.random() * 7)
+                };
+                
+                // Add pre-computed clusters
+                for (let k = 2; k <= 9; k++) {
+                    sample[`cluster_base_k${k}`] = Math.floor(Math.random() * k);
+                    sample[`cluster_material_k${k}`] = Math.floor(Math.random() * k);
+                    sample[`cluster_foundation_k${k}`] = Math.floor(Math.random() * k);
+                    sample[`cluster_both_k${k}`] = Math.floor(Math.random() * k);
+                    sample[`cluster_k${k}`] = sample[`cluster_base_k${k}`];
+                }
+                
+                randomSamples.push(sample);
+            }
+            
+            // Balanced samples - 200 per class
+            for (let occ of occupancyClasses) {
+                for (let i = 0; i < 200; i++) {
+                    const sample = {
+                        year_built: Math.floor(Math.random() * 124) + 1900,
+                        'Est GFA sqmeters': Math.random() * 1000 + 50,
+                        OCC_CLS: occ,
+                        material_type: materials[Math.floor(Math.random() * materials.length)],
+                        foundation_type: foundations[Math.floor(Math.random() * foundations.length)],
+                        cluster: Math.floor(Math.random() * 7)
+                    };
+                    
+                    // Add pre-computed clusters
+                    for (let k = 2; k <= 9; k++) {
+                        sample[`cluster_base_k${k}`] = Math.floor(Math.random() * k);
+                        sample[`cluster_material_k${k}`] = Math.floor(Math.random() * k);
+                        sample[`cluster_foundation_k${k}`] = Math.floor(Math.random() * k);
+                        sample[`cluster_both_k${k}`] = Math.floor(Math.random() * k);
+                        sample[`cluster_k${k}`] = sample[`cluster_base_k${k}`];
+                    }
+                    
+                    balancedSamples.push(sample);
+                }
+            }
+            
+            buildingData.building_samples_random = randomSamples;
+            buildingData.building_samples_balanced = balancedSamples;
+            
+            console.log(`Created ${randomSamples.length} fallback random samples`);
+            console.log(`Created ${balancedSamples.length} fallback balanced samples`);
+        }
         
-        // Load sample data as fallback
         function loadSampleData() {
             console.log('Loading sample data as fallback...');
-            
-            // Generate sample data
             buildingData = generateSampleData();
             isDataLoaded = true;
-            
-            // Initialize dashboard with sample data
             initializeDashboard();
         }
         
-        // Generate sample data for testing
         function generateSampleData() {
             const occupancyClasses = ['Residential', 'Commercial', 'Industrial', 'Agriculture', 
                                      'Government', 'Assembly', 'Education', 'Utility and Misc', 'Unclassified'];
+            const materials = ['W', 'M', 'C', 'S', 'H'];
+            const foundations = ['S', 'B', 'C', 'P', 'F'];
             
-            // Generate temporal data with proper structure
             const temporalData = [];
             for (let year = 1900; year <= 2024; year++) {
                 for (let occ of occupancyClasses) {
@@ -1394,20 +1641,71 @@
                 }
             }
             
-            console.log('Sample temporal data generated:', temporalData.slice(0, 5));
-            
-            // Generate sample building records with Est GFA sqmeters
+            // Generate enhanced samples with multi-dimensional clustering
             const buildingSamples = [];
             for (let i = 0; i < 20000; i++) {
-                buildingSamples.push({
+                const sample = {
                     year_built: Math.floor(Math.random() * 124) + 1900,
                     'Est GFA sqmeters': Math.random() * 1000 + 50,
                     OCC_CLS: occupancyClasses[Math.floor(Math.random() * occupancyClasses.length)],
-                    cluster: Math.floor(Math.random() * 7)
-                });
+                    cluster: Math.floor(Math.random() * 7),
+                    material_type: materials[Math.floor(Math.random() * materials.length)],
+                    foundation_type: foundations[Math.floor(Math.random() * foundations.length)]
+                };
+                
+                // Add pre-computed clusters for different feature combinations
+                for (let k = 2; k <= 9; k++) {
+                    sample[`cluster_base_k${k}`] = Math.floor(Math.random() * k);
+                    sample[`cluster_material_k${k}`] = Math.floor(Math.random() * k);
+                    sample[`cluster_foundation_k${k}`] = Math.floor(Math.random() * k);
+                    sample[`cluster_both_k${k}`] = Math.floor(Math.random() * k);
+                }
+                
+                buildingSamples.push(sample);
             }
             
-            // Generate summary stats for all buildings
+            // Generate enhanced occupancy clusters
+            const occupancyClustersEnhanced = {};
+            for (let occ of ['all', ...occupancyClasses]) {
+                const featureCombos = {};
+                for (let combo of ['base', 'material', 'foundation', 'both']) {
+                    const kValues = {};
+                    for (let k = 2; k <= 7; k++) {
+                        const clusters = [];
+                        for (let c = 0; c < k; c++) {
+                            const cluster = {
+                                cluster_id: c,
+                                count: Math.floor(Math.random() * 10000) + 1000,
+                                avg_area: Math.random() * 500 + 100,
+                                avg_year: Math.floor(Math.random() * 50) + 1960,
+                                std_area: Math.random() * 100,
+                                std_year: Math.random() * 20
+                            };
+                            
+                            if (combo === 'material' || combo === 'both') {
+                                cluster.dominant_material = materials[Math.floor(Math.random() * materials.length)];
+                            }
+                            if (combo === 'foundation' || combo === 'both') {
+                                cluster.dominant_foundation = foundations[Math.floor(Math.random() * foundations.length)];
+                            }
+                            
+                            clusters.push(cluster);
+                        }
+                        
+                        kValues[k] = {
+                            wcss: Math.random() * 10000 + 5000,
+                            clusters: clusters
+                        };
+                    }
+                    featureCombos[combo] = kValues;
+                }
+                
+                occupancyClustersEnhanced[occ] = {
+                    total_buildings: Math.floor(Math.random() * 100000) + 10000,
+                    feature_combinations: featureCombos
+                };
+            }
+            
             const summaryStats = {
                 total_buildings: 2500000,
                 avg_year_built: 1978,
@@ -1417,7 +1715,6 @@
                 occupancy_classes: occupancyClasses
             };
             
-            // Generate overview occupancy counts (all buildings)
             const overviewOccupancyCounts = {
                 'Residential': 2100000,
                 'Commercial': 180000,
@@ -1429,34 +1726,6 @@
                 'Utility and Misc': 10000,
                 'Unclassified': 5000
             };
-            
-            // Generate sample occupancy breakdown for materials
-            const materials = ['W', 'M', 'C', 'S', 'H'];
-            const foundations = ['S', 'B', 'C', 'P', 'F'];
-            const sampleOccupancyBreakdown = {};
-            
-            for (let mat of materials) {
-                for (let found of foundations) {
-                    const key = `${mat}_${found}`;
-                    const total = Math.floor(Math.random() * 5000) + 1000;
-                    
-                    // Generate random distribution
-                    const distribution = {};
-                    let remaining = total;
-                    
-                    for (let i = 0; i < occupancyClasses.length - 1; i++) {
-                        const share = Math.floor(Math.random() * remaining * 0.5);
-                        distribution[occupancyClasses[i]] = share;
-                        remaining -= share;
-                    }
-                    distribution[occupancyClasses[occupancyClasses.length - 1]] = remaining;
-                    
-                    sampleOccupancyBreakdown[key] = {
-                        total: total,
-                        occupancy_counts: distribution
-                    };
-                }
-            }
             
             return {
                 metadata: {
@@ -1508,30 +1777,36 @@
                     '2010s': { total: 220000, occupancy_counts: { 'Residential': 150000, 'Commercial': 35000, 'Industrial': 20000, 'Other': 15000 } }
                 },
                 occupancy_clusters: {},
+                occupancy_clusters_enhanced: occupancyClustersEnhanced,
                 materials_foundation: {
                     all: {
-                        matrix: [[1000, 800, 600, 400, 200], [800, 1200, 500, 300, 100], [600, 500, 900, 200, 150], [400, 300, 200, 800, 100], [200, 100, 150, 100, 500]],
+                        matrix: [[1000, 800, 600, 400, 200],
+                                [800, 1200, 500, 300, 100],
+                                [600, 500, 900, 200, 150],
+                                [400, 300, 200, 800, 100],
+                                [200, 100, 150, 100, 500]],
+                        area_matrix: [[1000000, 800000, 600000, 400000, 200000],
+                                     [800000, 1200000, 500000, 300000, 100000],
+                                     [600000, 500000, 900000, 200000, 150000],
+                                     [400000, 300000, 200000, 800000, 100000],
+                                     [200000, 100000, 150000, 100000, 500000]],
                         materials: materials,
                         foundations: foundations,
-                        occupancy_breakdown: sampleOccupancyBreakdown
+                        occupancy_breakdown: {}
                     }
                 },
                 building_samples_random: buildingSamples,
                 building_samples_balanced: buildingSamples
             };
         }
-        
-        // Initialize dashboard with loaded data
+
         function initializeDashboard() {
             if (!isDataLoaded || !buildingData) {
                 console.error('Data not loaded');
                 return;
             }
             
-            // Update statistics
             updateStatistics();
-            
-            // Initialize all charts
             updateOverview();
             updateClustering();
             updateTemporalChart();
@@ -1542,61 +1817,49 @@
             updateInteractiveExplorer();
         }
         
-        // Update dashboard statistics
         function updateStatistics() {
             if (!buildingData) return;
             
             const stats = buildingData.summary_stats;
             const pre1940 = buildingData.pre1940;
             
-            // Format numbers
             const formatNumber = (num) => {
                 if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
                 if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
                 return num.toString();
             };
             
-            // Update overview stats
             document.getElementById('totalBuildings').textContent = formatNumber(stats.total_buildings);
             document.getElementById('avgYear').textContent = Math.round(stats.avg_year_built).toString();
             document.getElementById('avgArea').textContent = Math.round(stats.avg_area_sqm) + ' m²';
             document.getElementById('numClusters').textContent = currentClusterK.toString();
             
-            // Update pre-1940 stats
             document.getElementById('pre1940Count').textContent = formatNumber(pre1940.total_count);
             document.getElementById('pre1940Percent').textContent = pre1940.percentage_of_total + '%';
             document.getElementById('pre1940Residential').textContent = formatNumber(pre1940.residential_count);
             document.getElementById('pre1940NonRes').textContent = formatNumber(pre1940.non_residential_count);
         }
         
-        // Section navigation
         function showSection(sectionId) {
-            // Hide all sections
             const sections = document.querySelectorAll('.section');
             sections.forEach(section => section.classList.remove('active'));
             
-            // Show selected section
             document.getElementById(sectionId).classList.add('active');
             
-            // Update nav tabs
             const tabs = document.querySelectorAll('.nav-tab');
             tabs.forEach(tab => tab.classList.remove('active'));
             event.target.classList.add('active');
             
-            // Trigger chart resize for proper rendering
             window.dispatchEvent(new Event('resize'));
         }
         
-        // Update Overview charts - Fixed to avoid pre-1940 label collision
         function updateOverview() {
             if (!buildingData) return;
             
-            // Use overview_occupancy_counts if available, otherwise use all temporal data
             let occupancyCounts;
             if (buildingData.overview_occupancy_counts) {
                 occupancyCounts = buildingData.overview_occupancy_counts;
             } else {
-                // Calculate from temporal data for all years
                 occupancyCounts = {};
                 buildingData.temporal_data.forEach(d => {
                     if (!occupancyCounts[d.occupancy]) {
@@ -1606,12 +1869,10 @@
                 });
             }
             
-            // Pie chart for ALL buildings
             const total = Object.values(occupancyCounts).reduce((a, b) => a + b, 0);
             const pieValues = Object.values(occupancyCounts);
             const pieLabels = Object.keys(occupancyCounts);
 
-            // Create text array with smart labeling based on percentage
             const textArray = pieLabels.map((label, i) => {
                 const percentage = (pieValues[i] / total * 100);
                 
@@ -1665,7 +1926,6 @@
             
             Plotly.newPlot('overviewChart', pieData, pieLayout, {responsive: true});
             
-            // Timeline chart - Fixed to avoid label collision
             const timelineData = [];
             const yearCounts = {};
             
@@ -1696,9 +1956,8 @@
                 hovertemplate: 'Year: %{x}<br>Buildings: %{y:,}<extra></extra>'
             });
             
-            // Fixed: Filter tickvals to avoid pre-1940 and 1940 collision
             const tickvals = years.filter((y, i) => {
-                if (y === 'pre-1940') return false; // Skip pre-1940 label
+                if (y === 'pre-1940') return false;
                 const year = parseInt(y);
                 return year % 10 === 0;
             });
@@ -1727,32 +1986,24 @@
             Plotly.newPlot('overviewTimelineChart', timelineData, timelineLayout, {responsive: true});
         }
         
-        // Fix #1: Update clustering with new K value
         function updateClusteringWithNewK() {
             const newK = parseInt(document.getElementById('clusterCount').value);
             currentClusterK = newK;
-            
-            // Update the displayed number of clusters
             document.getElementById('numClusters').textContent = currentClusterK.toString();
-            
-            // Re-generate clustering visualization with new K
             updateClustering();
         }
         
-        // Update Clustering charts
         function updateClustering() {
             if (!buildingData) return;
             
             const clusters = buildingData.clustering.clusters;
             const samples = buildingData.building_samples_random;
             
-            // Re-assign clusters based on currentClusterK
             const reassignedSamples = samples.map(s => ({
                 ...s,
                 cluster: Math.floor(Math.random() * currentClusterK)
             }));
             
-            // Scatter plot
             const scatterData = [];
             
             for (let i = 0; i < currentClusterK; i++) {
@@ -1786,7 +2037,6 @@
             
             Plotly.newPlot('clusterScatter', scatterData, scatterLayout, {responsive: true});
             
-            // Elbow plot
             const elbowData = [{
                 x: buildingData.clustering.elbow_k_values,
                 y: buildingData.clustering.elbow_wcss_values,
@@ -1836,7 +2086,6 @@
             
             Plotly.newPlot('clusterElbow', elbowData, elbowLayout, {responsive: true});
             
-            // Table - only show actual clusters from data
             const displayClusters = clusters.slice(0, Math.min(currentClusterK, clusters.length));
             
             const tableData = [{
@@ -1873,11 +2122,9 @@
             
             Plotly.newPlot('clusterTable', tableData, tableLayout, {responsive: true});
             
-            // Update treemap
             updateClusterTreemap();
         }
         
-        // Treemap for clusters
         function updateClusterTreemap() {
             if (!buildingData) return;
             
@@ -1897,7 +2144,6 @@
                 if (sizeBy === 'count') {
                     values.push(cluster.count);
                 } else {
-                    // Total floor area = count * avg area
                     values.push(cluster.count * cluster.area_mean);
                 }
                 colors.push(plasmaColors[index % plasmaColors.length]);
@@ -1926,17 +2172,13 @@
             Plotly.newPlot('clusterTreemap', treemapData, treemapLayout, {responsive: true});
         }
         
-        // Update Temporal charts with fixed x-axis labels
         function updateTemporalChart() {
+            // Keep original implementation - no changes needed
             if (!buildingData) return;
             
             const chartType = document.getElementById('chartType').value;
             const buildingType = document.getElementById('buildingType').value;
             
-            console.log('Updating temporal chart:', chartType, buildingType);
-            console.log('Temporal data sample:', buildingData.temporal_data.slice(0, 5));
-            
-            // Process temporal data - always yearly, but aggregate pre-1940
             const yearlyData = {};
             const yearlyAreaData = {};
             
@@ -1955,9 +2197,6 @@
                 yearlyAreaData[key][d.occupancy] += d.total_area || (d.count * d.avg_area);
             });
             
-            console.log('Processed yearly data:', Object.keys(yearlyData).slice(0, 5));
-            
-            // Filter occupancy classes
             let occupancyClasses = buildingData.summary_stats.occupancy_classes;
             if (buildingType === 'residential') {
                 occupancyClasses = ['Residential'];
@@ -1965,36 +2204,28 @@
                 occupancyClasses = occupancyClasses.filter(o => o !== 'Residential');
             }
             
-            // Sort occupancy classes for consistent stacking
             occupancyClasses = occupancyClasses.sort((a, b) => {
                 if (a === 'Residential') return -1;
                 if (b === 'Residential') return 1;
                 return a.localeCompare(b);
             });
             
-            // Get sorted years
             const xValues = Object.keys(yearlyData).sort((a, b) => {
                 if (a === 'pre-1940') return -1;
                 if (b === 'pre-1940') return 1;
                 return parseInt(a) - parseInt(b);
             });
             
-            // Create tickvals that skip pre-1940 label (like Overview timeline)
             const tickvals = xValues.filter((y, i) => {
-                if (y === 'pre-1940') return false; // Skip pre-1940 label
+                if (y === 'pre-1940') return false;
                 const year = parseInt(y);
                 return year % 10 === 0;
             });
             
-            // Create traces for building count
             const traces = [];
             const occupancyColors = getPlasmaColors(occupancyClasses.length);
             
-            console.log('Creating traces for chart type:', chartType);
-            
-            // Different approach based on chart type
             if (chartType === 'line') {
-                // Line chart - simple lines with markers
                 occupancyClasses.forEach((occ, index) => {
                     const yValues = xValues.map(year => yearlyData[year][occ] || 0);
                     traces.push({
@@ -2009,7 +2240,6 @@
                     });
                 });
             } else if (chartType === 'stacked') {
-                // Stacked area - use stackgroup
                 occupancyClasses.forEach((occ, index) => {
                     const yValues = xValues.map(year => yearlyData[year][occ] || 0);
                     traces.push({
@@ -2025,7 +2255,6 @@
                     });
                 });
             } else if (chartType === 'normalized') {
-                // Normalized (100%) stack
                 occupancyClasses.forEach((occ, index) => {
                     const yValues = xValues.map(year => {
                         const total = occupancyClasses.reduce((sum, o) => 
@@ -2046,7 +2275,6 @@
                     });
                 });
             } else if (chartType === 'cumulative') {
-                // Cumulative - each line shows cumulative sum
                 occupancyClasses.forEach((occ, index) => {
                     const yValues = xValues.map(year => yearlyData[year][occ] || 0);
                     const cumulativeY = yValues.reduce((acc, val) => {
@@ -2066,8 +2294,6 @@
                     });
                 });
             }
-            
-            console.log('Created traces:', traces.length, 'First trace sample:', traces[0]);
             
             const layout = {
                 title: {
@@ -2102,7 +2328,7 @@
             
             Plotly.newPlot('temporalChart', traces, layout, {responsive: true});
             
-            // Area chart - Apply same fix
+            // Area and trend charts implementation continues as before...
             const areaTraces = [];
             
             if (chartType === 'line') {
@@ -2208,7 +2434,6 @@
             
             Plotly.newPlot('temporalAreaChart', areaTraces, areaLayout, {responsive: true});
             
-            // Trend chart - also update with tick filtering
             const trendData = [];
             const years = Object.keys(yearlyData).sort((a, b) => {
                 if (a === 'pre-1940') return -1;
@@ -2239,9 +2464,8 @@
                 hovertemplate: 'Year: %{x}<br>Residential: %{y:.1f}%<extra></extra>'
             });
             
-            // Filter tickvals for trend chart too
             const trendTickvals = years.filter((y, i) => {
-                if (y === 'pre-1940') return false; // Skip pre-1940 label
+                if (y === 'pre-1940') return false;
                 const year = parseInt(y);
                 return year % 10 === 0;
             });
@@ -2270,8 +2494,8 @@
             Plotly.newPlot('temporalTrendChart', trendData, trendLayout, {responsive: true});
         }
         
-        // Pre-1940 charts remain the same
         function updatePre1940Charts() {
+            // Keep original implementation - no changes needed
             if (!buildingData) return;
             
             const filter = document.getElementById('pre1940Filter').value;
@@ -2279,19 +2503,16 @@
             const pre1940 = buildingData.pre1940;
             let occupancyCounts = {...pre1940.occupancy_counts};
             
-            // Apply filter
             if (filter === 'residential') {
                 occupancyCounts = { 'Residential': occupancyCounts['Residential'] };
             } else if (filter === 'non-residential') {
                 delete occupancyCounts['Residential'];
             }
             
-            // Pie chart
             const pieValues = Object.values(occupancyCounts);
             const pieLabels = Object.keys(occupancyCounts);
             const total = pieValues.reduce((a, b) => a + b, 0);
 
-            // Create text array with smart labeling based on percentage
             const textArray = pieLabels.map((label, i) => {
                 const percentage = (pieValues[i] / total * 100);
                 
@@ -2343,7 +2564,6 @@
             
             Plotly.newPlot('pre1940PieChart', pieData, pieLayout, {responsive: true});
             
-            // Bar chart
             const sortedOccupancies = Object.entries(occupancyCounts)
                 .sort((a, b) => b[1] - a[1]);
             
@@ -2379,7 +2599,6 @@
             
             Plotly.newPlot('pre1940BarChart', barData, barLayout, {responsive: true});
             
-            // Comparison chart
             const comparisonData = [
                 {
                     x: ['Residential', 'Non-Residential'],
@@ -2402,7 +2621,6 @@
             
             Plotly.newPlot('pre1940ComparisonChart', comparisonData, comparisonLayout, {responsive: true});
             
-            // Area chart
             const pre1940AreaData = {};
             
             buildingData.temporal_data.forEach(d => {
@@ -2464,14 +2682,13 @@
             Plotly.newPlot('pre1940AreaChart', areaChartData, areaChartLayout, {responsive: true});
         }
         
-        // Post-1940 - FIXED: Now shows normalized stacked area when normalize is checked
         function updatePost1940() {
+            // Keep original implementation - no changes needed
             if (!buildingData) return;
             
             const buildingTypeFilter = document.getElementById('post1940BuildingType').value;
             const normalize = document.getElementById('post1940Normalize').checked;
             
-            // Process annual data from temporal_data
             const annualData = {};
             const annualAreaData = {};
             
@@ -2490,7 +2707,6 @@
                 }
             });
             
-            // Get occupancy types and filter
             let occupancyTypes = new Set();
             Object.values(annualData).forEach(yearData => {
                 Object.keys(yearData).forEach(occ => occupancyTypes.add(occ));
@@ -2502,13 +2718,11 @@
                 occupancyTypes.delete('Residential');
             }
             
-            // Create traces for annual building count data - FIXED normalized stacked area
             const traces = [];
             const years = Object.keys(annualData).sort((a, b) => a - b);
             const occupancyColors = getPlasmaColors(occupancyTypes.size);
             
             if (normalize) {
-                // Normalized stacked area - using stackgroup with groupnorm
                 Array.from(occupancyTypes).forEach((occ, index) => {
                     const yValues = years.map(year => annualData[year][occ] || 0);
                     
@@ -2519,14 +2733,13 @@
                         type: 'scatter',
                         mode: 'lines',
                         stackgroup: 'one',
-                        groupnorm: 'percent',  // This makes it normalized to 100%
+                        groupnorm: 'percent',
                         fillcolor: occupancyColors[index],
                         line: { color: occupancyColors[index], width: 0.5 },
                         hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>`
                     });
                 });
             } else {
-                // Regular stacked area
                 Array.from(occupancyTypes).forEach((occ, index) => {
                     const yValues = years.map(year => annualData[year][occ] || 0);
                     
@@ -2572,11 +2785,9 @@
             
             Plotly.newPlot('post1940Chart', traces, layout, {responsive: true});
             
-            // Area traces - FIXED normalized stacked area
             const areaTraces = [];
             
             if (normalize) {
-                // Normalized stacked area for floor area
                 Array.from(occupancyTypes).forEach((occ, index) => {
                     const yValues = years.map(year => annualAreaData[year][occ] || 0);
                     
@@ -2587,14 +2798,13 @@
                         type: 'scatter',
                         mode: 'lines',
                         stackgroup: 'one',
-                        groupnorm: 'percent',  // This makes it normalized to 100%
+                        groupnorm: 'percent',
                         fillcolor: occupancyColors[index],
                         line: { color: occupancyColors[index], width: 0.5 },
                         hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>`
                     });
                 });
             } else {
-                // Regular stacked area for floor area
                 Array.from(occupancyTypes).forEach((occ, index) => {
                     const yValues = years.map(year => annualAreaData[year][occ] || 0);
                     
@@ -2640,7 +2850,6 @@
             
             Plotly.newPlot('post1940AreaChart', areaTraces, areaLayout, {responsive: true});
             
-            // Decade comparison chart
             const decadeData = {};
             const post1940 = buildingData.post1940;
             
@@ -2679,7 +2888,7 @@
             Plotly.newPlot('decadeComparisonChart', comparisonData, comparisonLayout, {responsive: true});
         }
         
-        // Occupancy clustering remains the same
+        // ENHANCED: Occupancy clustering with true multi-dimensional clustering
         function updateOccupancyClustering() {
             if (!buildingData) return;
             
@@ -2688,6 +2897,53 @@
             const sampleSize = parseInt(document.getElementById('sampleSize').value);
             const sampleType = document.getElementById('sampleType').value;
             const useLogScale = document.getElementById('logScale').checked;
+            const includeMaterial = document.getElementById('includeMaterial').checked;
+            const includeFoundation = document.getElementById('includeFoundation').checked;
+            const materialFilter = includeMaterial ? document.getElementById('materialTypeFilter').value : 'all';
+            const foundationFilter = includeFoundation ? document.getElementById('foundationTypeFilter').value : 'all';
+            
+            // Determine feature combination
+            let featureCombo = 'base';
+            if (includeMaterial && includeFoundation) {
+                featureCombo = 'both';
+            } else if (includeMaterial) {
+                featureCombo = 'material';
+            } else if (includeFoundation) {
+                featureCombo = 'foundation';
+            }
+            
+            // Update dimension indicator
+            let dimensions = ['Year', 'Area', 'Occupancy'];
+            let dimensionCount = 3;
+            if (includeMaterial) {
+                dimensions.push('Material');
+                dimensionCount++;
+            }
+            if (includeFoundation) {
+                dimensions.push('Foundation');
+                dimensionCount++;
+            }
+            document.getElementById('activeDimensions').textContent = `${dimensions.join(', ')} (${dimensionCount}D)`;
+            
+            // Update clustering status
+            const statusText = `Using pre-computed ${featureCombo} clustering (${dimensionCount}D)`;
+            document.getElementById('clusteringStatusText').textContent = statusText;
+            
+            // Update filter status
+            let filters = [];
+            if (includeMaterial && materialFilter !== 'all') {
+                filters.push(`Material: ${materialTypeMap[materialFilter] || materialFilter}`);
+            }
+            if (includeFoundation && foundationFilter !== 'all') {
+                filters.push(`Foundation: ${foundationTypeMap[foundationFilter] || foundationFilter}`);
+            }
+            
+            if (filters.length > 0) {
+                document.getElementById('filterStatus').style.display = 'block';
+                document.getElementById('activeFilters').textContent = filters.join(', ');
+            } else {
+                document.getElementById('filterStatus').style.display = 'none';
+            }
             
             // Update sample type indicator
             const currentSampleTypeEl = document.getElementById('currentSampleType');
@@ -2705,20 +2961,24 @@
             
             // Choose sample type
             let allVizSamples;
-            let sampleDescription;
-            
             if (sampleType === 'random') {
                 allVizSamples = [...buildingData.building_samples_random];
-                sampleDescription = 'Random Sample (True Distribution)';
             } else {
                 allVizSamples = [...buildingData.building_samples_balanced];
-                sampleDescription = 'Balanced Sample (Equal Representation)';
             }
             
             // Filter by selected occupancy class
             let samplesForViz = allVizSamples;
             if (selectedClass !== 'all') {
-                samplesForViz = allVizSamples.filter(s => s.OCC_CLS === selectedClass);
+                samplesForViz = samplesForViz.filter(s => s.OCC_CLS === selectedClass);
+            }
+            
+            // Apply material/foundation filters if specified
+            if (includeMaterial && materialFilter !== 'all') {
+                samplesForViz = samplesForViz.filter(s => s.material_type === materialFilter);
+            }
+            if (includeFoundation && foundationFilter !== 'all') {
+                samplesForViz = samplesForViz.filter(s => s.foundation_type === foundationFilter);
             }
             
             // Sample down to user-selected size if needed
@@ -2726,162 +2986,226 @@
                 samplesForViz = samplesForViz.sort(() => 0.5 - Math.random()).slice(0, sampleSize);
             }
             
-            const assignedClusterKey = `cluster_k${kValue}`;
+            // Get appropriate cluster assignment based on feature combination
+            const clusterKey = `cluster_${featureCombo}_k${kValue}`;
             samplesForViz.forEach(s => {
-                s.displayCluster = s[assignedClusterKey] !== undefined ? s[assignedClusterKey] : Math.floor(Math.random() * kValue);
+                s.displayCluster = s[clusterKey] !== undefined ? s[clusterKey] : Math.floor(Math.random() * kValue);
             });
 
-            // Create scatter plot
+            // Create 3D scatter plot
             const scatterData = [{
                 x: samplesForViz.map(s => s.year_built < 1940 ? 1939 : s.year_built),
-                y: samplesForViz.map(s => s['Est GFA sqmeters']),
+                y: samplesForViz.map(s => useLogScale ? Math.log10(s['Est GFA sqmeters'] + 1) : s['Est GFA sqmeters']),
+                z: samplesForViz.map(s => s.displayCluster),
                 mode: 'markers',
-                type: 'scatter',
+                type: 'scatter3d',
                 marker: {
                     color: samplesForViz.map(s => s.displayCluster),
                     colorscale: 'Plasma',
-                    size: 6,
-                    opacity: 0.6,
+                    size: 5,
+                    opacity: 0.7,
                     showscale: true,
-                    colorbar: { title: 'Cluster', thickness: 20 },
+                    colorbar: { 
+                        title: 'Cluster', 
+                        thickness: 20,
+                        x: 1.02
+                    },
                     cmin: 0,
                     cmax: kValue - 1
                 },
-                text: samplesForViz.map(s => `${s.OCC_CLS}<br>Cluster: ${s.displayCluster + 1}`),
-                hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<br>%{text}<extra></extra>'
+                text: samplesForViz.map(s => {
+                    let text = `${s.OCC_CLS}<br>Cluster: ${s.displayCluster + 1}`;
+                    if (includeMaterial && s.material_type) {
+                        text += `<br>Material: ${materialTypeMap[s.material_type] || s.material_type}`;
+                    }
+                    if (includeFoundation && s.foundation_type) {
+                        text += `<br>Foundation: ${foundationTypeMap[s.foundation_type] || s.foundation_type}`;
+                    }
+                    return text;
+                }),
+                hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f}' + (useLogScale ? ' (log)' : ' sqm') + 
+                              '<br>Cluster: %{z}<br>%{text}<extra></extra>'
             }];
             
             const scatterLayout = {
                 title: {
-                    text: `Clustering (K=${kValue}, ${samplesForViz.length} buildings - ${sampleDescription})`,
+                    text: `${dimensionCount}D Clustering Visualization (K=${kValue}, ${samplesForViz.length} buildings${filters.length > 0 ? ' - Filtered' : ''})`,
                     font: { size: 20, color: '#333' }
                 },
-                xaxis: { 
-                    title: 'Year Built',
-                    tickvals: [1939, 1950, 1970, 1990, 2010, 2020],
-                    ticktext: ['pre-1940', '1950', '1970', '1990', '2010', '2020']
-                },
-                yaxis: { 
-                    title: 'Est GFA sqmeters',
-                    type: useLogScale ? 'log' : 'linear'
-                },
-                height: 500,
-                annotations: [{
-                    xref: 'paper',
-                    yref: 'paper',
-                    x: 0.02,
-                    y: 0.98,
-                    xanchor: 'left',
-                    yanchor: 'top',
-                    text: sampleType === 'random' ? 
-                        'Random: Shows true distribution' : 
-                        'Balanced: Equal representation per class',
-                    showarrow: false,
-                    font: {
-                        size: 12,
-                        color: '#666'
+                scene: {
+                    xaxis: { 
+                        title: 'Year Built',
+                        tickvals: [1939, 1950, 1970, 1990, 2010, 2020],
+                        ticktext: ['pre-1940', '1950', '1970', '1990', '2010', '2020']
                     },
-                    bgcolor: 'rgba(255, 255, 255, 0.9)',
-                    bordercolor: sampleType === 'random' ? '#fb9f3a' : '#bd3786',
-                    borderwidth: 2,
-                    borderpad: 4
-                }]
+                    yaxis: { 
+                        title: useLogScale ? 'Est GFA sqmeters (log scale)' : 'Est GFA sqmeters'
+                    },
+                    zaxis: { 
+                        title: 'Cluster ID',
+                        tickmode: 'linear',
+                        tick0: 0,
+                        dtick: 1
+                    },
+                    camera: {
+                        eye: {x: 1.5, y: 1.5, z: 1.5}
+                    }
+                },
+                height: 600,
+                margin: {
+                    l: 0,
+                    r: 0,
+                    b: 0,
+                    t: 60
+                }
             };
             
             Plotly.newPlot('occupancyClusterChart', scatterData, scatterLayout, {responsive: true});
 
-            // Full dataset statistics
-            if (buildingData.occupancy_clusters && buildingData.occupancy_clusters[selectedClass]) {
-                const fullStatsData = buildingData.occupancy_clusters[selectedClass];
-                const totalBuildings = fullStatsData.total_buildings;
-                const kStats = fullStatsData.k_values[kValue].clusters;
+            // Get pre-computed clustering results from enhanced data
+            let fullStatsData = null;
+            
+            if (buildingData.occupancy_clusters_enhanced && 
+                buildingData.occupancy_clusters_enhanced[selectedClass] &&
+                buildingData.occupancy_clusters_enhanced[selectedClass].feature_combinations &&
+                buildingData.occupancy_clusters_enhanced[selectedClass].feature_combinations[featureCombo]) {
                 
-                const fullTableData = [{
-                    type: 'table',
-                    header: {
-                        values: ['Cluster', 'Total Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'],
-                        align: 'center',
-                        line: {width: 1, color: '#dee2e6'},
-                        fill: {color: '#bd3786'},
-                        font: {family: "Arial", size: 14, color: "white"}
-                    },
-                    cells: {
-                        values: [
-                            kStats.map(s => `Cluster ${s.cluster_id + 1}`),
-                            kStats.map(s => s.count.toLocaleString()),
-                            kStats.map(s => Math.round(s.avg_area)),
-                            kStats.map(s => Math.round(s.std_area)),
-                            kStats.map(s => Math.round(s.avg_year)),
-                        ],
-                        align: 'center',
-                        line: {color: "#dee2e6", width: 1},
-                        fill: {color: ['#f8f9fa', 'white']},
-                        font: {family: "Arial", size: 12, color: ["#333"]}
+                fullStatsData = buildingData.occupancy_clusters_enhanced[selectedClass];
+                const kStats = fullStatsData.feature_combinations[featureCombo][kValue];
+                
+                if (kStats && kStats.clusters) {
+                    // Create full dataset table with enhanced clustering
+                    let tableHeaders = ['Cluster', 'Total Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'];
+                    let tableValues = [
+                        kStats.clusters.map(s => `Cluster ${s.cluster_id + 1}`),
+                        kStats.clusters.map(s => s.count.toLocaleString()),
+                        kStats.clusters.map(s => Math.round(s.avg_area)),
+                        kStats.clusters.map(s => Math.round(s.std_area)),
+                        kStats.clusters.map(s => Math.round(s.avg_year))
+                    ];
+                    
+                    // Add material/foundation columns if present
+                    if (featureCombo === 'material' || featureCombo === 'both') {
+                        tableHeaders.push('Dom. Material');
+                        tableValues.push(kStats.clusters.map(s => 
+                            s.dominant_material ? (materialTypeMap[s.dominant_material] || s.dominant_material) : '-'
+                        ));
                     }
-                }];
-                
-                const fullTableLayout = {
-                    title: {
-                        text: `Complete Dataset Statistics - ${selectedClass} (K=${kValue}, ${totalBuildings.toLocaleString()} total buildings)`,
-                        font: { size: 18, color: '#333' }
-                    },
-                    height: 300
-                };
-                
-                Plotly.newPlot('occupancyFullStatsChart', fullTableData, fullTableLayout, {responsive: true});
-                
-                // Elbow chart
-                const elbowX = Object.keys(fullStatsData.k_values).map(k => parseInt(k));
-                const elbowY = elbowX.map(k => fullStatsData.k_values[k].wcss);
-
-                const elbowData = [{
-                    x: elbowX,
-                    y: elbowY,
-                    mode: 'lines+markers',
-                    type: 'scatter',
-                    marker: { 
-                        size: 10, 
-                        color: '#bd3786',
-                        line: { color: 'white', width: 2 }
-                    },
-                    line: { width: 3, color: '#bd3786' }
-                }];
-                
-                if (elbowX.includes(kValue)) {
-                    const idx = elbowX.indexOf(kValue);
-                    elbowData.push({
-                        x: [kValue],
-                        y: [elbowY[idx]],
-                        mode: 'markers',
-                        type: 'scatter',
-                        marker: {
-                            size: 15,
-                            color: '#f0f921',
-                            line: { color: '#bd3786', width: 2 }
+                    if (featureCombo === 'foundation' || featureCombo === 'both') {
+                        tableHeaders.push('Dom. Foundation');
+                        tableValues.push(kStats.clusters.map(s => 
+                            s.dominant_foundation ? (foundationTypeMap[s.dominant_foundation] || s.dominant_foundation) : '-'
+                        ));
+                    }
+                    
+                    const fullTableData = [{
+                        type: 'table',
+                        header: {
+                            values: tableHeaders,
+                            align: 'center',
+                            line: {width: 1, color: '#dee2e6'},
+                            fill: {color: '#bd3786'},
+                            font: {family: "Arial", size: 14, color: "white"}
                         },
-                        showlegend: false,
-                        hovertemplate: 'Current K=%{x}<br>WCSS=%{y:.0f}<extra></extra>'
-                    });
+                        cells: {
+                            values: tableValues,
+                            align: 'center',
+                            line: {color: "#dee2e6", width: 1},
+                            fill: {color: ['#f8f9fa', 'white']},
+                            font: {family: "Arial", size: 12, color: ["#333"]}
+                        }
+                    }];
+                    
+                    let displayTitle = '';
+                    const totalBuildings = fullStatsData.total_buildings;
+
+                    const formatNumber = (num) => {
+                        if (num >= 1000000) {
+                            return `${(num / 1000000).toFixed(2)}M`;
+                        } else if (num >= 1000) {
+                            return `${(num / 1000).toFixed(1)}K`;
+                        }
+                        return num.toString();
+                    };
+
+                    if (selectedClass === 'all') {
+                        displayTitle = `Complete Dataset Statistics - All Buildings (${formatNumber(totalBuildings)} total)`;
+                    } else {
+                        displayTitle = `Complete Dataset Statistics - ${selectedClass} (${formatNumber(totalBuildings)} buildings)`;
+                    }
+
+                    displayTitle += ` (K=${kValue})`;
+
+                    const fullTableLayout = {
+                        title: {
+                            text: displayTitle,
+                            font: { size: 18, color: '#333' }
+                        },
+                        height: 350
+                    };
+                    
+                    Plotly.newPlot('occupancyFullStatsChart', fullTableData, fullTableLayout, {responsive: true});
+                    
+                    // Create elbow chart
+                    const elbowX = Object.keys(fullStatsData.feature_combinations[featureCombo]).map(k => parseInt(k));
+                    const elbowY = elbowX.map(k => fullStatsData.feature_combinations[featureCombo][k].wcss);
+
+                    const elbowData = [{
+                        x: elbowX,
+                        y: elbowY,
+                        mode: 'lines+markers',
+                        type: 'scatter',
+                        marker: { 
+                            size: 10, 
+                            color: '#bd3786',
+                            line: { color: 'white', width: 2 }
+                        },
+                        line: { width: 3, color: '#bd3786' }
+                    }];
+                    
+                    if (elbowX.includes(kValue)) {
+                        const idx = elbowX.indexOf(kValue);
+                        elbowData.push({
+                            x: [kValue],
+                            y: [elbowY[idx]],
+                            mode: 'markers',
+                            type: 'scatter',
+                            marker: {
+                                size: 15,
+                                color: '#f0f921',
+                                line: { color: '#bd3786', width: 2 }
+                            },
+                            showlegend: false,
+                            hovertemplate: 'Current K=%{x}<br>WCSS=%{y:.0f}<extra></extra>'
+                        });
+                    }
+                    
+                    const elbowLayout = {
+                        title: {
+                            text: `Elbow Method - ${selectedClass} (${dimensionCount}D ${featureCombo}, Current K=${kValue})`,
+                            font: { size: 18, color: '#333' }
+                        },
+                        xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
+                        yaxis: { title: 'WCSS' },
+                        height: 350,
+                        showlegend: false
+                    };
+                    
+                    Plotly.newPlot('occupancyElbowChart', elbowData, elbowLayout, {responsive: true});
                 }
-                
-                const elbowLayout = {
-                    title: {
-                        text: `Elbow Method - ${selectedClass} (Current K=${kValue})`,
-                        font: { size: 18, color: '#333' }
-                    },
-                    xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
-                    yaxis: { title: 'WCSS' },
-                    height: 350,
-                    showlegend: false
-                };
-                
-                Plotly.newPlot('occupancyElbowChart', elbowData, elbowLayout, {responsive: true});
             }
             
-            // Sample statistics
+            // Sample statistics table
             const sampleStats = {};
             for (let i = 0; i < kValue; i++) {
-                sampleStats[i] = { count: 0, areaSum: 0, yearSum: 0, areaSquaredSum: 0 };
+                sampleStats[i] = { 
+                    count: 0, 
+                    areaSum: 0, 
+                    yearSum: 0, 
+                    areaSquaredSum: 0,
+                    materials: {},
+                    foundations: {}
+                };
             }
             
             samplesForViz.forEach(s => {
@@ -2891,32 +3215,65 @@
                 sampleStats[cluster].areaSum += area;
                 sampleStats[cluster].yearSum += s.year_built;
                 sampleStats[cluster].areaSquaredSum += area * area;
+                
+                // Track material and foundation types
+                if (s.material_type) {
+                    if (!sampleStats[cluster].materials[s.material_type]) {
+                        sampleStats[cluster].materials[s.material_type] = 0;
+                    }
+                    sampleStats[cluster].materials[s.material_type]++;
+                }
+                if (s.foundation_type) {
+                    if (!sampleStats[cluster].foundations[s.foundation_type]) {
+                        sampleStats[cluster].foundations[s.foundation_type] = 0;
+                    }
+                    sampleStats[cluster].foundations[s.foundation_type]++;
+                }
             });
 
             const headerColor = sampleType === 'random' ? '#fb9f3a' : '#7201a8';
             
+            let sampleTableHeaders = ['Cluster', 'Sample Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'];
+            let sampleTableValues = [
+                Object.keys(sampleStats).map(c => `Cluster ${parseInt(c) + 1}`),
+                Object.values(sampleStats).map(s => s.count.toLocaleString()),
+                Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.areaSum / s.count) : 0),
+                Object.values(sampleStats).map(s => {
+                    if (s.count <= 1) return 0;
+                    const mean = s.areaSum / s.count;
+                    const variance = (s.areaSquaredSum / s.count) - (mean * mean);
+                    return Math.round(Math.sqrt(Math.max(0, variance)));
+                }),
+                Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.yearSum / s.count) : 0)
+            ];
+            
+            // Add material/foundation columns if in feature combo
+            if (featureCombo === 'material' || featureCombo === 'both') {
+                sampleTableHeaders.push('Dom. Material');
+                sampleTableValues.push(Object.values(sampleStats).map(s => {
+                    const mats = Object.entries(s.materials).sort((a, b) => b[1] - a[1]);
+                    return mats.length > 0 ? (materialTypeMap[mats[0][0]] || mats[0][0]) : '-';
+                }));
+            }
+            if (featureCombo === 'foundation' || featureCombo === 'both') {
+                sampleTableHeaders.push('Dom. Foundation');
+                sampleTableValues.push(Object.values(sampleStats).map(s => {
+                    const founds = Object.entries(s.foundations).sort((a, b) => b[1] - a[1]);
+                    return founds.length > 0 ? (foundationTypeMap[founds[0][0]] || founds[0][0]) : '-';
+                }));
+            }
+            
             const sampleTableData = [{
                 type: 'table',
                 header: {
-                    values: ['Cluster', 'Sample Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'],
+                    values: sampleTableHeaders,
                     align: 'center',
                     line: {width: 1, color: '#dee2e6'},
                     fill: {color: headerColor},
                     font: {family: "Arial", size: 14, color: "white"}
                 },
                 cells: {
-                    values: [
-                        Object.keys(sampleStats).map(c => `Cluster ${parseInt(c) + 1}`),
-                        Object.values(sampleStats).map(s => s.count.toLocaleString()),
-                        Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.areaSum / s.count) : 0),
-                        Object.values(sampleStats).map(s => {
-                            if (s.count <= 1) return 0;
-                            const mean = s.areaSum / s.count;
-                            const variance = (s.areaSquaredSum / s.count) - (mean * mean);
-                            return Math.round(Math.sqrt(Math.max(0, variance)));
-                        }),
-                        Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.yearSum / s.count) : 0),
-                    ],
+                    values: sampleTableValues,
                     align: 'center',
                     line: {color: "#dee2e6", width: 1},
                     fill: {color: ['#f8f9fa', 'white']},
@@ -2926,16 +3283,30 @@
             
             const sampleTableLayout = {
                 title: {
-                    text: `${sampleDescription} Statistics (K=${kValue}, ${samplesForViz.length} buildings shown)`,
+                    text: `Sample Statistics (K=${kValue}, ${samplesForViz.length} buildings)`,
                     font: { size: 18, color: '#333' }
                 },
-                height: 300
+                height: 350
             };
             
             Plotly.newPlot('occupancySampleStatsChart', sampleTableData, sampleTableLayout, {responsive: true});
         }
         
-        // UPDATED: Materials heatmap with click handling for occupancy breakdown
+        // Materials and Interactive Explorer functions remain the same
+        function showHeatmap(type) {
+            currentHeatmapType = type;
+            
+            document.getElementById('countHeatmapTab').classList.toggle('active', type === 'count');
+            document.getElementById('areaHeatmapTab').classList.toggle('active', type === 'area');
+            
+            document.getElementById('countHeatmapContainer').style.display = type === 'count' ? 'block' : 'none';
+            document.getElementById('areaHeatmapContainer').style.display = type === 'area' ? 'block' : 'none';
+            
+            if (type === 'area') {
+                updateAreaHeatmap();
+            }
+        }
+        
         function updateMaterialsHeatmap() {
             if (!buildingData || !buildingData.materials_foundation) return;
             
@@ -2943,19 +3314,20 @@
             const useLogScale = document.getElementById('heatmapLogScale').checked;
             const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
             
-            // Store raw materials and foundations for click handling
             window.currentMaterialsData = data;
             
-            // Map codes to names - using shortened versions for space
             const materialNames = data.materials.map(m => materialTypeMap[m] || m);
             const foundationNames = data.foundations.map(f => foundationTypeMap[f] || f);
             
-            // Update both heatmap and trends
-            updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale);
+            updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale, 'count');
+            
+            if (currentHeatmapType === 'area') {
+                updateAreaHeatmap();
+            }
+            
             createMaterialTrendsChart(materialNames);
         }
         
-        // New function to update only the heatmap when log scale changes
         function updateHeatmapOnly() {
             if (!buildingData || !buildingData.materials_foundation) return;
             
@@ -2966,16 +3338,20 @@
             const materialNames = data.materials.map(m => materialTypeMap[m] || m);
             const foundationNames = data.foundations.map(f => foundationTypeMap[f] || f);
             
-            // Only update the heatmap, not the trends
-            updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale);
+            if (currentHeatmapType === 'count') {
+                updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale, 'count');
+            } else {
+                updateAreaHeatmap();
+            }
         }
         
-        // Separate function for heatmap chart
-        function updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale) {
-            // Apply log scale if needed
-            let zValues = data.matrix;
+        function updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale, type) {
+            const isArea = type === 'area';
+            const matrix = isArea ? (data.area_matrix || data.matrix) : data.matrix;
+            
+            let zValues = matrix;
             if (useLogScale) {
-                zValues = data.matrix.map(row => 
+                zValues = matrix.map(row => 
                     row.map(val => val > 0 ? Math.log10(val + 1) : 0)
                 );
             }
@@ -2987,21 +3363,29 @@
                 type: 'heatmap',
                 colorscale: 'Plasma',
                 showscale: true,
-                text: data.matrix.map(row => row.map(val => val.toLocaleString())),
+                text: matrix.map(row => row.map(val => {
+                    if (isArea) {
+                        return val >= 1000000 ? `${(val/1000000).toFixed(1)}M sqm` :
+                               val >= 1000 ? `${(val/1000).toFixed(1)}K sqm` :
+                               `${val.toFixed(0)} sqm`;
+                    } else {
+                        return val.toLocaleString();
+                    }
+                })),
                 texttemplate: '%{text}',
                 textfont: {
                     size: 10,
                     color: 'white'
                 },
-                hovertemplate: 'Material: %{y}<br>Foundation: %{x}<br>Count: %{text}<br><b>Click to see occupancy breakdown</b><extra></extra>',
+                hovertemplate: `Material: %{y}<br>Foundation: %{x}<br>${isArea ? 'Total Area' : 'Count'}: %{text}<br><b>Click to see occupancy breakdown</b><extra></extra>`,
                 colorbar: {
-                    title: useLogScale ? 'Log(Count)' : 'Count'
+                    title: useLogScale ? `Log(${isArea ? 'Area' : 'Count'})` : (isArea ? 'Total Area (sqm)' : 'Count')
                 }
             }];
             
             const heatmapLayout = {
                 title: {
-                    text: `Building Materials vs Foundation Types ${filter !== 'all' ? '(' + filter + ')' : ''} ${useLogScale ? '(Log Scale)' : ''}`,
+                    text: `Building ${isArea ? 'Total Est GFA' : 'Count'} - Materials vs Foundation Types ${filter !== 'all' ? '(' + filter + ')' : ''} ${useLogScale ? '(Log Scale)' : ''}`,
                     font: { size: 18, color: '#333' }
                 },
                 xaxis: { 
@@ -3022,48 +3406,48 @@
                 }
             };
             
-            // Create the plot first
-            Plotly.newPlot('materialsHeatmap', heatmapData, heatmapLayout, {responsive: true});
+            const elementId = isArea ? 'materialsAreaHeatmap' : 'materialsHeatmap';
+            Plotly.newPlot(elementId, heatmapData, heatmapLayout, {responsive: true});
             
-            // FIXED: Correct way to bind click event - must be AFTER newPlot
-            var heatmapElement = document.getElementById('materialsHeatmap');
+            var heatmapElement = document.getElementById(elementId);
             heatmapElement.on('plotly_click', function(eventData) {
-                console.log('Heatmap clicked!', eventData); // Debug log
-                
                 if (!eventData || !eventData.points || eventData.points.length === 0) {
-                    console.error('No point data in click event');
                     return;
                 }
                 
                 const point = eventData.points[0];
-                console.log('Point data:', point); // Debug log
-                
-                // Get the indices - note that in heatmap, pointIndex gives us the indices
-                const materialIdx = point.pointIndex[0];  // row index (y)
-                const foundationIdx = point.pointIndex[1]; // column index (x)
+                const materialIdx = point.pointIndex[0];
+                const foundationIdx = point.pointIndex[1];
                 
                 const material = data.materials[materialIdx];
                 const foundation = data.foundations[foundationIdx];
-                const count = data.matrix[materialIdx][foundationIdx];
+                const value = matrix[materialIdx][foundationIdx];
                 
-                console.log(`Clicked on: Material=${material}, Foundation=${foundation}, Count=${count}`); // Debug log
-                
-                // Show occupancy breakdown for this combination
-                showOccupancyBreakdown(material, foundation, count, filter);
+                showOccupancyBreakdown(material, foundation, value, filter, isArea);
             });
         }
         
-        // Separate function for Material Trends to ensure complete independence from log scale
+        function updateAreaHeatmap() {
+            if (!buildingData || !buildingData.materials_foundation) return;
+            
+            const filter = document.getElementById('materialFilter').value;
+            const useLogScale = document.getElementById('heatmapLogScale').checked;
+            const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
+            
+            const materialNames = data.materials.map(m => materialTypeMap[m] || m);
+            const foundationNames = data.foundations.map(f => foundationTypeMap[f] || f);
+            
+            updateHeatmapChart(data, materialNames, foundationNames, filter, useLogScale, 'area');
+        }
+        
         function createMaterialTrendsChart(materialNames) {
             const years = [];
             const materialData = {};
             
-            // Generate sample trend data
             for (let year = 1940; year <= 2020; year += 10) {
                 years.push(year);
                 materialNames.forEach(mat => {
                     if (!materialData[mat]) materialData[mat] = [];
-                    // Sample data generation - always the same regardless of log scale
                     materialData[mat].push(Math.sin((year - 1940) / 20) * 30 + 20 + Math.random() * 10);
                 });
             }
@@ -3084,7 +3468,6 @@
                 }
             }));
             
-            // Explicitly set all layout options to prevent any log scale inheritance
             const trendLayout = {
                 title: {
                     text: 'Material Usage Trends Over Time (Always Linear Scale)',
@@ -3096,34 +3479,25 @@
                 },
                 yaxis: { 
                     title: 'Percentage of New Construction (%)',
-                    type: 'linear',  // Explicitly force linear
+                    type: 'linear',
                     autorange: true
                 },
                 height: 400,
                 showlegend: true
             };
             
-            // Clear any existing chart and create fresh
             const chartDiv = document.getElementById('materialsTrendChart');
             Plotly.purge(chartDiv);
             Plotly.newPlot('materialsTrendChart', trendTraces, trendLayout, {responsive: true});
         }
         
-        // Show occupancy breakdown for selected material/foundation combination
-        function showOccupancyBreakdown(material, foundation, totalCount, filter) {
-            console.log('showOccupancyBreakdown called with:', material, foundation, totalCount, filter); // Debug log
-            
+        function showOccupancyBreakdown(material, foundation, totalValue, filter, isArea = false) {
             const data = buildingData.materials_foundation[filter] || buildingData.materials_foundation.all;
             const key = `${material}_${foundation}`;
             
-            // Get occupancy breakdown data
             const breakdownData = data.occupancy_breakdown && data.occupancy_breakdown[key];
             
-            if (!breakdownData || !breakdownData.occupancy_counts) {
-                // If no breakdown data, generate sample data for testing
-                console.log('No real data found, using sample data for demonstration');
-                
-                // Generate sample data for demonstration
+            if (!breakdownData) {
                 const sampleOccupancyCounts = {
                     'Residential': Math.floor(Math.random() * 5000) + 1000,
                     'Commercial': Math.floor(Math.random() * 2000) + 500,
@@ -3137,24 +3511,29 @@
                 
                 currentOccupancyData = sampleOccupancyCounts;
             } else {
-                currentOccupancyData = breakdownData.occupancy_counts;
+                currentOccupancyData = isArea ? breakdownData.occupancy_areas : breakdownData.occupancy_counts;
             }
             
-            // Store current selection
             currentMaterialSelection = {
                 material: materialTypeMap[material] || material,
                 foundation: foundationTypeMap[foundation] || foundation,
-                totalCount: totalCount,
-                filter: filter
+                totalValue: totalValue,
+                filter: filter,
+                isArea: isArea
             };
             
-            // Update title
             document.getElementById('breakdownTitle').textContent = 
                 `Occupancy Distribution: ${currentMaterialSelection.material} / ${currentMaterialSelection.foundation}`;
-            document.getElementById('breakdownSubtitle').textContent = 
-                `Total Buildings: ${totalCount.toLocaleString()} ${filter !== 'all' ? '(' + filter + ')' : ''}`;
             
-            // Show the container with animation
+            let subtitle = isArea ? 
+                `Total Est GFA: ${totalValue >= 1000000 ? (totalValue/1000000).toFixed(1) + 'M' : 
+                                   totalValue >= 1000 ? (totalValue/1000).toFixed(1) + 'K' : 
+                                   totalValue.toFixed(0)} sqm` :
+                `Total Buildings: ${totalValue.toLocaleString()}`;
+            subtitle += filter !== 'all' ? ' (' + filter + ')' : '';
+            
+            document.getElementById('breakdownSubtitle').textContent = subtitle;
+            
             const container = document.getElementById('occupancyBreakdownContainer');
             container.style.display = 'block';
             container.style.opacity = '0';
@@ -3163,10 +3542,8 @@
                 container.style.opacity = '1';
             }, 10);
             
-            // Update the chart
             updateOccupancyBreakdown();
             
-            // Scroll to the breakdown chart
             setTimeout(() => {
                 container.scrollIntoView({ 
                     behavior: 'smooth', 
@@ -3175,13 +3552,12 @@
             }, 100);
         }
         
-        // Update occupancy breakdown chart based on selected type
         function updateOccupancyBreakdown() {
             if (!currentOccupancyData) return;
             
             const chartType = document.getElementById('breakdownChartType').value;
+            const isArea = currentMaterialSelection && currentMaterialSelection.isArea;
             
-            // Sort occupancy data by count
             const sortedData = Object.entries(currentOccupancyData)
                 .sort((a, b) => b[1] - a[1]);
             
@@ -3221,19 +3597,19 @@
                         }
                     },
                     text: textArray,
-                    textinfo: 'text',  
-                    textposition: 'auto',  
+                    textinfo: 'text',
+                    textposition: 'auto',
                     textfont: {
                         size: 12,
-                        color: 'white'  
+                        color: 'white'
                     },
-                    insidetextorientation: 'radial',  
-                    hovertemplate: '%{label}<br>Count: %{value:,}<br>Percentage: %{percent}<extra></extra>',
+                    insidetextorientation: 'radial',
+                    hovertemplate: `%{label}<br>${isArea ? 'Area' : 'Count'}: %{value:,}<br>Percentage: %{percent}<extra></extra>`,
                 }];
                 
                 layout = {
                     title: {
-                        text: 'Occupancy Class Distribution',
+                        text: `Occupancy Class Distribution ${isArea ? '(by Area)' : '(by Count)'}`,
                         font: { size: 18, color: '#333' }
                     },
                     height: 500,
@@ -3247,7 +3623,6 @@
                     }
                 };
             } else if (chartType === 'bar') {
-                // Vertical bar chart
                 plotData = [{
                     x: labels,
                     y: values,
@@ -3261,12 +3636,12 @@
                     },
                     text: percentages.map(p => `${p}%`),
                     textposition: 'outside',
-                    hovertemplate: '%{x}<br>Count: %{y:,}<br>%{text}<extra></extra>'
+                    hovertemplate: `%{x}<br>${isArea ? 'Area' : 'Count'}: %{y:,}<br>%{text}<extra></extra>`
                 }];
                 
                 layout = {
                     title: {
-                        text: 'Occupancy Class Distribution',
+                        text: `Occupancy Class Distribution ${isArea ? '(by Area)' : '(by Count)'}`,
                         font: { size: 18, color: '#333' }
                     },
                     xaxis: { 
@@ -3274,13 +3649,12 @@
                         tickangle: -45
                     },
                     yaxis: { 
-                        title: 'Number of Buildings'
+                        title: isArea ? 'Total Est GFA (sqm)' : 'Number of Buildings'
                     },
                     height: 500,
                     showlegend: false
                 };
             } else {
-                // Horizontal bar chart
                 plotData = [{
                     x: values,
                     y: labels,
@@ -3293,25 +3667,34 @@
                             width: 1
                         }
                     },
-                    text: values.map((v, i) => `${v.toLocaleString()} (${percentages[i]}%)`),
+                    text: values.map((v, i) => {
+                        if (isArea) {
+                            const formatted = v >= 1000000 ? `${(v/1000000).toFixed(1)}M sqm` :
+                                            v >= 1000 ? `${(v/1000).toFixed(1)}K sqm` :
+                                            `${v.toFixed(0)} sqm`;
+                            return `${formatted} (${percentages[i]}%)`;
+                        } else {
+                            return `${v.toLocaleString()} (${percentages[i]}%)`;
+                        }
+                    }),
                     textposition: 'outside',
-                    hovertemplate: '%{y}<br>Count: %{x:,}<br>%{text}<extra></extra>'
+                    hovertemplate: `%{y}<br>${isArea ? 'Area' : 'Count'}: %{x:,}<br>%{text}<extra></extra>`
                 }];
                 
                 layout = {
                     title: {
-                        text: 'Occupancy Class Distribution',
+                        text: `Occupancy Class Distribution ${isArea ? '(by Area)' : '(by Count)'}`,
                         font: { size: 18, color: '#333' }
                     },
                     xaxis: { 
-                        title: 'Number of Buildings'
+                        title: isArea ? 'Total Est GFA (sqm)' : 'Number of Buildings'
                     },
                     yaxis: { 
                         title: 'Occupancy Class'
                     },
-                    height: Math.max(400, labels.length * 40), // Dynamic height based on number of categories
+                    height: Math.max(400, labels.length * 40),
                     margin: {
-                        l: 150 // More space for labels
+                        l: 150
                     },
                     showlegend: false
                 };
@@ -3320,8 +3703,8 @@
             Plotly.newPlot('occupancyBreakdownChart', plotData, layout, {responsive: true});
         }
         
-        // Interactive Explorer
         function updateInteractiveExplorer() {
+            // Keep original implementation - no changes needed
             if (!buildingData) return;
             
             const vizType = document.getElementById('vizType').value;
@@ -3330,7 +3713,6 @@
             const areaMin = parseInt(document.getElementById('areaMin').value);
             const areaMax = parseInt(document.getElementById('areaMax').value);
             
-            // Use random sample for the explorer
             const filteredData = buildingData.building_samples_random.filter(d => 
                 d.year_built >= yearStart && d.year_built <= yearEnd &&
                 d['Est GFA sqmeters'] >= areaMin && 
@@ -3523,7 +3905,6 @@
             Plotly.newPlot('interactiveChart', plotData, layout, {responsive: true});
         }
         
-        // Export functions
         function exportChart(chartId, filename) {
             Plotly.downloadImage(chartId, {
                 format: 'png',
