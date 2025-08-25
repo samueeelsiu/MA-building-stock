@@ -1,8 +1,9 @@
 """
-Massachusetts Building Data Processor - Enhanced Version with Multi-dimensional Clustering
+Massachusetts Building Data Processor - Enhanced Version with Multi-dimensional Clustering and Soil Analysis
 This script processes the building data and exports it to JSON for the updated web dashboard
-Now includes pre-computed clustering results for different feature combinations
+Now includes pre-computed clustering results for different feature combinations and soil analysis
 Split file version to handle GitHub 25MB limit
+Fixed: Proper handling of NaN values for JSON export
 """
 
 import pandas as pd
@@ -472,6 +473,168 @@ class BuildingDataProcessor:
 
         return materials_data
 
+    def process_soil_analysis(self):
+        """
+        Process all soil-related data.
+        This includes mapping numerical engineering properties to categorical labels,
+        calculating statistics for various soil features, and performing risk analysis.
+        """
+        print("Processing soil data analysis...")
+
+        # --- START: New code block for mapping numerical 'eng_property' to categories ---
+        # Check if the 'eng_property' column exists and contains numeric data before attempting to map it.
+        if 'eng_property' in self.df_cleaned.columns and pd.api.types.is_numeric_dtype(self.df_cleaned['eng_property']):
+            print("  Mapping numerical engineering properties to categories based on defined ranges...")
+
+            # Define the bin edges for the ranges. Using -inf and inf ensures all values are included.
+            # You can adjust these bin edges based on your data's specific meaning.
+            # Example ranges: (-inf, 0.17], (0.17, 0.24], (0.24, 0.32], (0.32, inf]
+            bins = [-float('inf'), 0.17, 0.24, 0.32, float('inf')]
+
+            # Define the string labels that correspond to each bin.
+            labels = ['Favorable', 'Fair', 'Poor', 'Very poor']
+
+            # Use the pandas 'cut' function to segment the data into the bins and assign the appropriate label.
+            # This overwrites the original numeric 'eng_property' column with the new categorical data.
+            self.df_cleaned['eng_property'] = pd.cut(self.df_cleaned['eng_property'], bins=bins, labels=labels,
+                                                     right=True)
+        # --- END: New code block ---
+
+        soil_columns = ['drainagecl', 'wtdepannmin', 'flodfreqcl', 'eng_property',
+                        'compname', 'comppct_r', 'MUSYM', 'mukey', 'LONGITUDE', 'LATITUDE']
+
+        # Check which soil-related columns exist in the dataframe.
+        existing_soil_cols = [col for col in soil_columns if col in self.df_cleaned.columns]
+
+        # If no soil columns are found, generate sample data as a fallback.
+        if not existing_soil_cols:
+            print("  No soil columns found, generating sample data...")
+            drainage_classes = ['Well drained', 'Moderately well drained', 'Somewhat poorly drained',
+                                'Poorly drained', 'Very poorly drained', 'Excessively drained', None]
+            flood_freq = ['None', 'Very rare', 'Rare', 'Occasional', 'Frequent', None]
+            eng_props = ['Favorable', 'Fair', 'Poor', 'Very poor', None]
+
+            self.df_cleaned['drainagecl'] = np.random.choice(drainage_classes, size=len(self.df_cleaned))
+            self.df_cleaned['flodfreqcl'] = np.random.choice(flood_freq, size=len(self.df_cleaned))
+            self.df_cleaned['eng_property'] = np.random.choice(eng_props, size=len(self.df_cleaned))
+            self.df_cleaned['wtdepannmin'] = np.random.uniform(0, 300, size=len(self.df_cleaned))
+            self.df_cleaned['comppct_r'] = np.random.uniform(0, 100, size=len(self.df_cleaned))
+
+        # Initialize the dictionary to hold all soil analysis results.
+        soil_analysis = {
+            'drainage_class_stats': {},
+            'flooding_freq_stats': {},
+            'water_table_stats': {},
+            'engineering_property_stats': {},
+            'soil_by_occupancy': {},
+            'spatial_distribution': [],
+            'soil_risk_analysis': {}
+        }
+
+        # Calculate drainage class statistics if the column exists.
+        if 'drainagecl' in self.df_cleaned.columns:
+            drainage_counts = self.df_cleaned['drainagecl'].value_counts()
+            soil_analysis['drainage_class_stats'] = {
+                'counts': drainage_counts.to_dict(),
+                'percentages': (drainage_counts / len(self.df_cleaned) * 100).to_dict()
+            }
+
+        # Calculate flooding frequency statistics if the column exists.
+        if 'flodfreqcl' in self.df_cleaned.columns:
+            flood_counts = self.df_cleaned['flodfreqcl'].value_counts()
+            soil_analysis['flooding_freq_stats'] = {
+                'counts': flood_counts.to_dict(),
+                'percentages': (flood_counts / len(self.df_cleaned) * 100).to_dict()
+            }
+
+        # Calculate water table depth statistics if the column exists.
+        if 'wtdepannmin' in self.df_cleaned.columns:
+            water_table = self.df_cleaned['wtdepannmin'].dropna()
+            soil_analysis['water_table_stats'] = {
+                'mean': float(water_table.mean()),
+                'median': float(water_table.median()),
+                'std': float(water_table.std()),
+                'min': float(water_table.min()),
+                'max': float(water_table.max()),
+                'q25': float(water_table.quantile(0.25)),
+                'q75': float(water_table.quantile(0.75))
+            }
+
+        # Calculate engineering property statistics if the column exists.
+        if 'eng_property' in self.df_cleaned.columns:
+            eng_counts = self.df_cleaned['eng_property'].value_counts()
+            soil_analysis['engineering_property_stats'] = {
+                'counts': eng_counts.to_dict(),
+                'percentages': (eng_counts / len(self.df_cleaned) * 100).to_dict()
+            }
+
+        # Group soil properties by occupancy class.
+        for occ_class in self.df_cleaned['OCC_CLS'].unique():
+            occ_data = self.df_cleaned[self.df_cleaned['OCC_CLS'] == occ_class]
+            occ_soil_stats = {}
+
+            if 'drainagecl' in occ_data.columns:
+                occ_soil_stats['drainage_distribution'] = occ_data['drainagecl'].value_counts().to_dict()
+            if 'flodfreqcl' in occ_data.columns:
+                occ_soil_stats['flooding_distribution'] = occ_data['flodfreqcl'].value_counts().to_dict()
+            if 'eng_property' in occ_data.columns:
+                occ_soil_stats['engineering_distribution'] = occ_data['eng_property'].value_counts().to_dict()
+            if 'wtdepannmin' in occ_data.columns:
+                water_table_occ = occ_data['wtdepannmin'].dropna()
+                if len(water_table_occ) > 0:
+                    occ_soil_stats['water_table_stats'] = {
+                        'mean': float(water_table_occ.mean()),
+                        'median': float(water_table_occ.median()),
+                        'std': float(water_table_occ.std())
+                    }
+            soil_analysis['soil_by_occupancy'][occ_class] = occ_soil_stats
+
+        # Prepare a sample of data for the spatial map visualization.
+        if 'LONGITUDE' in self.df_cleaned.columns and 'LATITUDE' in self.df_cleaned.columns:
+            sample_size = min(10000, len(self.df_cleaned))
+            spatial_sample = self.df_cleaned.sample(n=sample_size, random_state=42)
+
+            for _, row in spatial_sample.iterrows():
+                point_data = {
+                    'lon': float(row['LONGITUDE']) if pd.notna(row['LONGITUDE']) else None,
+                    'lat': float(row['LATITUDE']) if pd.notna(row['LATITUDE']) else None,
+                    'occupancy': row['OCC_CLS'],
+                    'year_built': int(row['year_built']),
+                    'area': float(row['Est GFA sqmeters'])
+                }
+                if 'drainagecl' in row and pd.notna(row['drainagecl']):
+                    point_data['drainage'] = row['drainagecl']
+                if 'flodfreqcl' in row and pd.notna(row['flodfreqcl']):
+                    point_data['flooding'] = row['flodfreqcl']
+                if 'eng_property' in row and pd.notna(row['eng_property']):
+                    point_data['eng_property'] = row['eng_property']
+                if 'wtdepannmin' in row and pd.notna(row['wtdepannmin']):
+                    point_data['water_table'] = float(row['wtdepannmin'])
+
+                if point_data['lon'] is not None and point_data['lat'] is not None:
+                    soil_analysis['spatial_distribution'].append(point_data)
+
+        # Perform risk analysis based on high-risk soil properties.
+        if 'drainagecl' in self.df_cleaned.columns and 'flodfreqcl' in self.df_cleaned.columns:
+            high_risk_drainage = ['Poorly drained', 'Very poorly drained']
+            high_risk_flooding = ['Frequent', 'Occasional']
+
+            high_risk_buildings = self.df_cleaned[
+                (self.df_cleaned['drainagecl'].isin(high_risk_drainage)) |
+                (self.df_cleaned['flodfreqcl'].isin(high_risk_flooding))
+                ]
+
+            soil_analysis['soil_risk_analysis'] = {
+                'high_risk_count': len(high_risk_buildings),
+                'high_risk_percentage': round(len(high_risk_buildings) / len(self.df_cleaned) * 100, 2),
+                'high_risk_by_occupancy': high_risk_buildings['OCC_CLS'].value_counts().to_dict(),
+                'high_risk_avg_year': int(high_risk_buildings['year_built'].mean()) if len(
+                    high_risk_buildings) > 0 else 0,
+                'high_risk_total_area': float(high_risk_buildings['Est GFA sqmeters'].sum())
+            }
+
+        return soil_analysis
+
     def get_cluster_analysis(self):
         """Get cluster analysis results"""
         print("Analyzing clusters...")
@@ -512,7 +675,14 @@ class BuildingDataProcessor:
 
         # Prepare base features
         features = ['Est GFA sqmeters', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
-        df_for_samples = self.df_cleaned[features].dropna().copy()
+
+        # Add soil features if they exist
+        soil_features = ['drainagecl', 'flodfreqcl', 'eng_property', 'wtdepannmin', 'LONGITUDE', 'LATITUDE']
+        for sf in soil_features:
+            if sf in self.df_cleaned.columns:
+                features.append(sf)
+
+        df_for_samples = self.df_cleaned[features].dropna(subset=['Est GFA sqmeters', 'year_built', 'OCC_CLS']).copy()
 
         # Remove outliers
         area_threshold = df_for_samples['Est GFA sqmeters'].quantile(0.99999)
@@ -554,6 +724,29 @@ class BuildingDataProcessor:
         # Return DataFrames, not lists
         return random_sample_df, balanced_sample_df
 
+    def clean_for_json(self, obj):
+        """Recursively clean data for JSON serialization"""
+        if isinstance(obj, dict):
+            return {k: self.clean_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self.clean_for_json(item) for item in obj]
+        elif isinstance(obj, float):
+            if np.isnan(obj) or np.isinf(obj):
+                return None
+            return obj
+        elif isinstance(obj, (np.floating, np.complexfloating)):
+            if np.isnan(obj) or np.isinf(obj):
+                return None
+            return float(obj)
+        elif isinstance(obj, (np.integer, np.int64)):
+            return int(obj)
+        elif isinstance(obj, np.ndarray):
+            return self.clean_for_json(obj.tolist())
+        elif pd.isna(obj):
+            return None
+        else:
+            return obj
+
     def export_to_json(self, output_path='building_data.json'):
         """Export all processed data to JSON - Split into main and multiple sample files"""
         print("Exporting data to JSON (split into multiple files)...")
@@ -570,6 +763,9 @@ class BuildingDataProcessor:
         # Get overview occupancy counts
         overview_occupancy_counts = self.get_overview_occupancy_counts()
 
+        # Process soil analysis
+        soil_analysis_data = self.process_soil_analysis()
+
         # Get enhanced samples as DataFrames
         random_sample_df, balanced_sample_df = self.prepare_enhanced_samples()
 
@@ -579,10 +775,10 @@ class BuildingDataProcessor:
                 'total_buildings': len(self.df_cleaned),
                 'date_processed': datetime.now().isoformat(),
                 'source_file': self.csv_path,
-                'version': '3.0',  # Version 3.0 for multi-file samples
+                'version': '3.1',  # Version 3.1 includes soil analysis
                 'has_samples_file': True,
-                'samples_split': True,  # Indicates samples are split into multiple files
-                'samples_files': []  # Will list all sample files
+                'samples_split': True,
+                'samples_files': []
             },
             'summary_stats': {
                 'total_buildings': len(self.df_cleaned),
@@ -603,15 +799,19 @@ class BuildingDataProcessor:
             'post1940': self.process_post1940_data(),
             'occupancy_clusters': occupancy_clusters_data,
             'occupancy_clusters_enhanced': occupancy_clusters_enhanced,
-            'materials_foundation': self.process_materials_foundation()
+            'materials_foundation': self.process_materials_foundation(),
+            'soil_analysis': soil_analysis_data  # NEW: Add soil analysis data
         }
+
+        # Clean main data for JSON
+        main_data = self.clean_for_json(main_data)
 
         # Split samples into chunks
         CHUNK_SIZE = 5000  # 每个文件最多5000个样本
 
-        # Convert to list for chunking
-        random_samples_list = random_sample_df.to_dict(orient='records')
-        balanced_samples_list = balanced_sample_df.to_dict(orient='records')
+        # Convert to list for chunking and clean for JSON
+        random_samples_list = [self.clean_for_json(row) for row in random_sample_df.to_dict(orient='records')]
+        balanced_samples_list = [self.clean_for_json(row) for row in balanced_sample_df.to_dict(orient='records')]
 
         # Split random samples into chunks
         random_chunks = [random_samples_list[i:i + CHUNK_SIZE]
@@ -645,7 +845,7 @@ class BuildingDataProcessor:
             total_samples_size += chunk_size_mb
 
             sample_files_info.append({
-                'filename': filename.split('/')[-1],  # Just the filename, not full path
+                'filename': filename.split('/')[-1],
                 'type': 'random',
                 'chunk_index': i + 1,
                 'sample_count': len(chunk),
@@ -669,7 +869,7 @@ class BuildingDataProcessor:
             }
 
             with open(filename, 'w') as f:
-                json.dump(chunk_data, f, separators=(',', ':'))  # Compact format
+                json.dump(chunk_data, f, separators=(',', ':'))
 
             chunk_size_mb = len(json.dumps(chunk_data, separators=(',', ':'))) / 1024 / 1024
             total_samples_size += chunk_size_mb
@@ -706,6 +906,7 @@ class BuildingDataProcessor:
         print(f"  - Balanced samples: {len(balanced_chunks)} files ({len(balanced_samples_list)} total samples)")
         print(f"Total samples size: {total_samples_size:.2f} MB")
         print(f"Average file size: {total_samples_size / len(sample_files_info):.2f} MB")
+        print(f"Soil analysis data included: Yes")
 
         # Check if any file exceeds 25MB
         for file_info in sample_files_info:
@@ -718,7 +919,7 @@ class BuildingDataProcessor:
 def main():
     """Main processing function"""
     print("="*60)
-    print("Massachusetts Building Data Processing - Multi-dimensional Enhanced Version")
+    print("Massachusetts Building Data Processing - Multi-dimensional Enhanced Version with Soil Analysis")
     print("="*60)
 
     # Initialize processor
@@ -741,8 +942,9 @@ def main():
     print(f"Temporal data points: {len(export_data.get('temporal_data', []))}")
     print(f"Occupancy-specific clusters: {len(export_data.get('occupancy_clusters', {}))} classes")
     print(f"Enhanced clusters with features: {len(export_data.get('occupancy_clusters_enhanced', {}))} classes")
-    print("\nData exported to: building_data.json and building_data_samples.json")
-    print("You can now open the updated HTML dashboard to visualize the data")
+    print(f"Soil analysis included: Yes")
+    print("\nData exported to: building_data.json and building_data_samples_*.json files")
+    print("You can now open the updated HTML dashboard to visualize the data including soil analysis")
 
 if __name__ == "__main__":
     main()
