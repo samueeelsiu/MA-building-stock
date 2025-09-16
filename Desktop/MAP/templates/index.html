@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我们的波士顿地图 💕</title>
+    
+    <!-- Leaflet 地图库 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- 自定义样式（如果没有单独的 style.css 文件，可以使用内联样式） -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+    <!-- 内联样式补充（确保所有样式都有） -->
+    <style>
+        /* ========================================
+           用户卡片样式
+           ======================================== */
+        .user-card-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .avatar-container {
+            animation: float 3s ease-in-out infinite;
+            cursor: pointer;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .avatar-frame {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+            padding: 4px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            position: relative;
+            transition: transform 0.3s ease;
+        }
+
+        .avatar-frame:hover {
+            transform: scale(1.1);
+        }
+
+        .avatar-frame::before,
+        .avatar-frame::after {
+            content: '❤️';
+            position: absolute;
+            font-size: 16px;
+            animation: heartbeat 1.5s ease-in-out infinite;
+        }
+
+        .avatar-frame::before {
+            top: -10px;
+            left: -5px;
+            animation-delay: 0.2s;
+        }
+
+        .avatar-frame::after {
+            top: -10px;
+            right: -5px;
+            animation-delay: 0.4s;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .avatar {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            background: white;
+        }
+
+        .avatar-frame-img {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .user-info-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .user-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #764ba2;
+            margin-bottom: 5px;
+        }
+
+        .user-id {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .user-stats {
+            display: flex;
+            gap: 15px;
+        }
+
+        .user-stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .user-stat-icon {
+            font-size: 16px;
+        }
+
+        .user-stat-number {
+            font-weight: bold;
+            color: #764ba2;
+        }
+
+        /* ========================================
+           地点列表模态框
+           ======================================== */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 5000;
+            display: none;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -60%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .modal-close {
+            font-size: 28px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .modal-close:hover {
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 20px;
+            max-height: calc(80vh - 80px);
+            overflow-y: auto;
+        }
+
+        .places-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .place-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .place-item:hover {
+            background: white;
+            border-color: #f093fb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(240, 147, 251, 0.2);
+        }
+
+        .place-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .place-item h4 {
+            margin: 0;
+            color: #764ba2;
+            font-size: 16px;
+        }
+
+        .place-rating {
+            font-size: 14px;
+        }
+
+        .place-note {
+            color: #666;
+            font-size: 14px;
+            margin: 10px 0;
+            line-height: 1.4;
+        }
+
+        .place-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .place-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .mini-btn {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            background: #f093fb;
+            color: white;
+            transition: opacity 0.3s ease;
+        }
+
+        .mini-btn:hover {
+            opacity: 0.8;
+        }
+
+        .mini-btn.danger {
+            background: #dc3545;
+        }
+
+        /* ========================================
+           快速查看按钮
+           ======================================== */
+        .quick-view-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .view-btn {
+            flex: 1;
+            padding: 10px;
+            background: white;
+            border: 2px solid #f093fb;
+            border-radius: 10px;
+            color: #764ba2;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .view-btn:hover {
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* 自定义图标样式 */
+        .mode-icon {
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+
+        .marker-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .marker-icon {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .emoji-icon {
+            font-size: 24px;
+        }
+
+        .search-container input:focus {
+            outline: none;
+            border-color: #764ba2;
+            box-shadow: 0 0 10px rgba(240, 147, 251, 0.3);
+        }
+
+        .search-container button:hover {
+            transform: scale(1.05);
+        }
+
+        /* 搜索建议项悬停效果 */
+        #searchSuggestions > div:hover {
+            background: #f8f9fa;
+        }
+
+        #searchSuggestions > div:last-child {
+            border-bottom: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- 地图容器 -->
+    <div id="map" style="height: 100vh; width: 100vw;"></div>
+
+    <!-- 用户卡片容器 -->
+    <div class="user-card-container">
+        <!-- 头像容器 -->
+        <div class="avatar-container" onclick="toggleUserInfo()">
+            <div class="avatar-frame" style="width: 150px; height: 150px;">
+                <!-- 给头像框图片加上 style -->
+                <img src="/static/images/avatar-frame.png" alt="头像框" 
+                    style="position: absolute; width: 140%; height: 140%; top: -20%; left: -22%; z-index: 2; pointer-events: none;"
+                    onerror="this.style.display='none'">
+                
+                <!-- 头像也要确保填满容器 -->
+                <img src="/static/images/avatar.png" alt="头像" 
+                    style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"
+                    onerror="this.src='/static/images/avatar-default.png'">
+            </div>
+        </div>
+        
+        <!-- 用户信息面板 -->
+        <div class="user-info-panel" id="userInfoPanel">
+            <div class="user-name">刘等等</div>
+            <div class="user-id">ID: 339233</div>
+            <div class="user-stats">
+                <div class="user-stat-item">
+                    <span class="user-stat-icon">❤️</span>
+                    <span class="user-stat-number" id="userHeartCount">0</span>
+                </div>
+                <div class="user-stat-item">
+                    <span class="user-stat-icon">🐾</span>
+                    <span class="user-stat-number" id="userPawCount">0</span>
+                </div>
+            </div>
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                <div style="font-size: 12px; color: #666;">
+                    加入时间: 2024.10.03<br>
+                    探店等级: 甜柱🍬
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 控制面板 -->
+    <div class="control-panel" style="position: absolute; top: 20px; right: 20px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 20px; padding: 20px; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37); z-index: 1000; max-width: 300px;">
+        <h3 style="color: #764ba2; margin-bottom: 15px; font-size: 18px; text-align: center;">探店地图❣️</h3>
+       
+        <!-- 地址搜索框 -->
+        <div class="search-container" style="margin-bottom: 15px;">
+            <div style="display: flex; gap: 5px;">
+                <input type="text" 
+                    id="addressSearch" 
+                    placeholder="搜索地址 (如: 360 Huntington Ave)" 
+                    style="flex: 1; padding: 10px; border: 2px solid #f093fb; border-radius: 10px; font-size: 14px;"
+                    onkeypress="if(event.key==='Enter') searchAddress()">
+                <button onclick="searchAddress()" 
+                        style="padding: 10px 15px; background: linear-gradient(45deg, #f093fb, #f5576c); color: white; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <img src="/static/images/search-icon.png" 
+                        style="width: 20px; height: 20px;" 
+                        onerror="this.style.display='none'; this.parentElement.innerHTML='🔍'">
+                </button>
+            </div>
+            <!-- 搜索建议列表 -->
+            <div id="searchSuggestions" style="display: none; margin-top: 5px; background: white; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto;">
+            </div>
+        </div>
+
+    <!-- 模式选择器 -->
+    <div class="mode-selector" style="display: flex; gap: 10px; margin-bottom: 15px;">
+        <!-- 查看按钮 -->
+        <button class="mode-btn active" id="mode-view" onclick="setMode('view')" 
+                style="flex: 1; padding: 10px; border: 2px solid #f093fb; background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center;">
+            <img src="/static/images/view-icon.png" class="mode-icon" 
+                onerror="this.style.display='none'; this.parentElement.innerHTML='👀 查看'"
+                style="width: 20px; height: 20px; margin-right: 5px;">
+            <span>查看</span>
+        </button>
+        
+        <!-- 想去按钮 -->
+        <button class="mode-btn" id="mode-heart" onclick="setMode('heart')"
+                style="flex: 1; padding: 10px; border: 2px solid #f093fb; background: white; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center;">
+            <img src="/static/images/heart-icon.png" class="mode-icon" 
+                onerror="this.style.display='none'; this.parentElement.innerHTML='❤️ 想去'"
+                style="width: 20px; height: 20px; margin-right: 5px;">
+            <span>想去</span>
+        </button>
+        
+        <!-- 去过按钮 -->
+        <button class="mode-btn" id="mode-paw" onclick="setMode('paw')"
+                style="flex: 1; padding: 10px; border: 2px solid #f093fb; background: white; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center;">
+            <img src="/static/images/paw-icon.png" class="mode-icon" 
+                onerror="this.style.display='none'; this.parentElement.innerHTML='🐾 去过'"
+                style="width: 20px; height: 20px; margin-right: 5px;">
+            <span>去过</span>
+        </button>
+    </div>
+        
+        <!-- 快速查看按钮 -->
+        <div class="quick-view-buttons">
+            <button class="view-btn" onclick="showPlacesList('heart')">
+                📋 想去🉐️列表
+            </button>
+            <button class="view-btn" onclick="showPlacesList('paw')">
+                📋 去过🉐️列表
+            </button>
+        </div>
+        
+        <!-- 统计信息 -->
+        <div class="stats" style="display: flex; justify-content: space-around; margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+            <div class="stat-item" style="text-align: center;">
+                <div class="stat-number" id="heartCount" style="font-size: 24px; font-weight: bold; color: #764ba2;">0</div>
+                <div class="stat-label" style="font-size: 12px; color: #666;">想去的地方</div>
+            </div>
+            <div class="stat-item" style="text-align: center;">
+                <div class="stat-number" id="pawCount" style="font-size: 24px; font-weight: bold; color: #764ba2;">0</div>
+                <div class="stat-label" style="font-size: 12px; color: #666;">去过的地方</div>
+            </div>
+        </div>
+        
+        <!-- 进度条 -->
+        <div style="margin-top: 15px;">
+            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
+                距离完成...!: <span id="completionRate">0</span>%
+            </div>
+            <div style="background: #e0e0e0; height: 8px; border-radius: 4px; overflow: hidden;">
+                <div id="progressBar" style="background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); 
+                     height: 100%; width: 0%; transition: width 0.5s ease;"></div>
+            </div>
+        </div>
+
+        <!-- 额外功能按钮 -->
+        <!-- 在控制面板的额外功能按钮部分 -->
+        <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <button onclick="exportBackup()" style="flex: 1; padding: 8px; background: #4facfe; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px;">
+                💾 备份
+            </button>
+            <button onclick="showImportDialog()" style="flex: 1; padding: 8px; background: #00f2fe; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px;">
+                📂 恢复
+            </button>
+        </div>
+
+        <!-- 添加隐藏的文件输入 -->
+        <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importBackup(this)">
+    </div>
+
+    <!-- 地点列表弹窗 -->
+    <div id="placesListModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">地点列表</h2>
+                <span class="modal-close" onclick="closePlacesList()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="placesList" class="places-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 音乐控制 -->
+    <div class="music-control" style="position: absolute; bottom: 20px; left: 20px; z-index: 1000;">
+        <button class="music-btn" onclick="toggleMusic()" id="musicBtn" 
+                style="width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 255, 255, 0.9); border: none; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); padding: 0; display: flex; align-items: center; justify-content: center;">
+            <img src="/static/images/music-off.png" 
+                id="musicIcon"
+                style="width: 30px; height: 30px;" 
+                onerror="this.style.display='none'; this.parentElement.innerHTML='🎵'">
+        </button>
+    </div>
+
+    <!-- 时间轴 -->
+    <div class="timeline" id="timeline" style="position: absolute; bottom: 20px; right: 20px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 15px; padding: 15px; z-index: 1000; max-width: 250px; max-height: 200px; overflow-y: auto;">
+        <h4 style="margin-bottom: 10px; color: #764ba2; display: flex; align-items: center; gap: 5px;">
+            <img src="/static/images/calendar-icon.png" 
+                style="width: 20px; height: 20px;" 
+                onerror="this.style.display='none'; this.parentElement.insertBefore(document.createTextNode('📅 '), this.parentElement.firstChild)">
+            最近标记
+        </h4>
+        <div id="timelineContent">
+            <div style="color: #999; font-size: 12px;">暂无标记</div>
+        </div>
+    </div>
+
+    <!-- 成就提示（默认隐藏） -->
+    <div id="achievementPopup" class="achievement-popup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 20px; text-align: center; z-index: 4000; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);">
+        <div class="achievement-icon" style="font-size: 48px; margin-bottom: 10px;">🏆</div>
+        <div class="achievement-title" style="font-size: 24px; color: #764ba2; margin-bottom: 10px;">获得成就！</div>
+        <div class="achievement-description" id="achievementDesc" style="color: #666;">首次标记地点</div>
+    </div>
+
+    <!-- 加载提示 -->
+    <div id="loadingTip" class="loading-tip" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.95); padding: 20px 40px; border-radius: 15px; z-index: 2000; text-align: center; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);">
+        <div>加载中...</div>
+    </div>
+
+    <!-- 音频文件 -->
+    <audio id="bgMusic" loop>
+        <source src="/static/audio/background-music.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="clickSound">
+        <source src="/static/audio/click-sound.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Leaflet 地图库 -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- 主要 JavaScript 文件 -->
+    <script src="/static/js/main.js"></script>
+    
+    <!-- 页面初始化和辅助功能 -->
+    <script>
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', function() {
+            // 显示欢迎消息
+            showWelcomeMessage();
+            
+            // 初始化地图
+            initMap();
+            
+            // 加载数据
+            loadPlaces();
+            
+            // 检查成就
+            checkFirstTimeUser();
+            
+            // 自动播放背景音乐（新增）
+            setTimeout(() => {
+                const music = document.getElementById('bgMusic');
+                if (music) {
+                    music.volume = 0.3; // 设置音量（0.0 到 1.0）
+                    music.play().catch(e => {
+                        console.log('自动播放被浏览器阻止');
+                    });
+                }
+            }, 1000);
+        });
+        
+        // 显示欢迎消息
+        function showWelcomeMessage() {
+            const welcome = document.createElement('div');
+            welcome.className = 'loading-tip';
+            welcome.style.cssText = 'display: block; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255, 255, 255, 0.95); padding: 30px; border-radius: 20px; z-index: 2000; text-align: center; box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);';
+            welcome.innerHTML = `
+                <div style="margin-bottom: 15px;">
+                    <img src="/static/images/welcome-icon.png" 
+                        style="width: 80px; height: 80px;" 
+                        onerror="this.parentElement.innerHTML='💕'; this.parentElement.style.fontSize='48px';">
+                </div>
+                <div style="font-size: 20px; font-weight: bold; color: #764ba2; margin-bottom: 10px;">
+                    欢迎来到我们的探店地图哇！
+                </div>
+                <div style="font-size: 14px; color: #666;">
+                    “我要吃甜的！”
+                </div>
+                <div style="margin-top: 15px; font-size: 12px; color: #999;">
+                    点击地图开始标记你滴目标
+                </div>
+            `;
+            document.body.appendChild(welcome);
+            
+            setTimeout(() => {
+                welcome.style.opacity = '0';
+                welcome.style.transition = 'opacity 0.5s ease';
+                setTimeout(() => welcome.remove(), 500);
+            }, 3000);
+        }
+        
+        // 切换用户信息面板
+        function toggleUserInfo() {
+            const panel = document.getElementById('userInfoPanel');
+            if (panel.style.display === 'none' || !panel.style.display) {
+                panel.style.display = 'block';
+                setTimeout(() => {
+                    panel.style.opacity = '1';
+                    panel.style.transform = 'translateX(0)';
+                }, 10);
+            } else {
+                panel.style.opacity = '0';
+                panel.style.transform = 'translateX(-20px)';
+                setTimeout(() => {
+                    panel.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // 检查是否首次使用
+        function checkFirstTimeUser() {
+            if (!localStorage.getItem('hasVisited')) {
+                localStorage.setItem('hasVisited', 'true');
+                setTimeout(() => {
+                    showAchievement('欢迎！', '开启你们的探店之旅', '🎉');
+                }, 4000);
+            }
+        }
+        
+        // 导出数据功能
+        function exportData() {
+            const data = localStorage.getItem('mapPlaces') || '[]';
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `love-map-data-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            showNotification('📥 数据已导出', 'success');
+        }
+        
+        // 分享地图功能
+        function shareMap() {
+            const shareUrl = window.location.href;
+            if (navigator.share) {
+                navigator.share({
+                    title: '探店地图❣️',
+                    text: '来看看我们的探店记录吧！',
+                    url: shareUrl
+                });
+            } else {
+                // 复制到剪贴板
+                navigator.clipboard.writeText(shareUrl);
+                showNotification('🔗 链接已复制到剪贴板', 'success');
+            }
+        }
+        
+        // 显示成就提示
+        function showAchievement(title, description, icon) {
+            const popup = document.getElementById('achievementPopup');
+            if (popup) {
+                popup.querySelector('.achievement-icon').textContent = icon || '🏆';
+                popup.querySelector('.achievement-title').textContent = title;
+                document.getElementById('achievementDesc').textContent = description;
+                
+                popup.style.display = 'block';
+                popup.style.animation = 'achievementBounce 0.5s ease';
+                
+                setTimeout(() => {
+                    popup.style.opacity = '0';
+                    popup.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => {
+                        popup.style.display = 'none';
+                        popup.style.opacity = '1';
+                    }, 500);
+                }, 3000);
+            }
+        }
+        
+        // 动画效果
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes achievementBounce {
+                0% { transform: translate(-50%, -50%) scale(0); }
+                50% { transform: translate(-50%, -50%) scale(1.1); }
+                100% { transform: translate(-50%, -50%) scale(1); }
+            }
+            
+            .mode-btn.active {
+                background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%) !important;
+                color: white !important;
+            }
+            
+            .mode-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+            }
+            
+            #map {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            
+            .notification {
+                position: fixed;
+                top: 100px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: white;
+                padding: 15px 30px;
+                border-radius: 10px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                z-index: 3000;
+                animation: slideDown 0.3s ease;
+            }
+            
+            @keyframes slideDown {
+                from {
+                    top: -100px;
+                    opacity: 0;
+                }
+                to {
+                    top: 100px;
+                    opacity: 1;
+                }
+            }
+            
+            .notification.success {
+                border-left: 4px solid #4caf50;
+            }
+            
+            .notification.error {
+                border-left: 4px solid #f44336;
+            }
+            
+            .notification.info {
+                border-left: 4px solid #2196f3;
+            }
+            
+            .notification.love {
+                border-left: 4px solid #f093fb;
+                background: linear-gradient(45deg, rgba(240, 147, 251, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%);
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

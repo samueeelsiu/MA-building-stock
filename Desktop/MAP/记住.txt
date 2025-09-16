@@ -1,0 +1,17 @@
+文件结构是这样：
+love-map/
+├── app.py
+├── requirements.txt
+├── run.sh
+├── database.db
+├── templates/
+│   └── index.html
+└── static/
+    ├── css/
+    │   └── style.css
+    ├── js/
+    │   └── main.js
+    ├── images/
+    │   └── ...
+    └── audio/
+        └── 

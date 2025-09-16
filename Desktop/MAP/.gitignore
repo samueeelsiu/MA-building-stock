@@ -1,0 +1,9 @@
+# 这个文件告诉Git哪些文件不要上传
+database.db
+*.db
+.env
+__pycache__/
+*.pyc
+venv/
+static/uploads/photos/*
+!static/uploads/photos/.gitkeep

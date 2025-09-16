@@ -1,0 +1,891 @@
+/* ========================================
+   基础样式重置
+   ======================================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* ========================================
+   地图容器
+   ======================================== */
+#map {
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+    z-index: 1;
+}
+
+/* ========================================
+   用户卡片样式（左上角）
+   ======================================== */
+.user-card-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* 头像容器 - 浮动动画 */
+.avatar-container {
+    cursor: pointer;
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+/* 头像框架 - 调大尺寸，移除爱心 */
+.avatar-frame {
+    width: 120px;      /* 调大的尺寸 */
+    height: 120px;     /* 调大的尺寸 */
+    border-radius: 50%;
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+    padding: 5px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    position: relative;
+    transition: transform 0.3s ease;
+}
+
+.avatar-frame:hover {
+    transform: scale(1.05);
+}
+
+/* 移除爱心装饰 */
+.avatar-frame::before,
+.avatar-frame::after {
+    display: none !important;
+    content: none !important;
+}
+
+/* 头像图片 */
+.avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background: white;
+}
+
+/* 头像框装饰图（可选） */
+.avatar-frame-img {
+    position: absolute;
+    width: 150%;
+    height: 150%;
+    top: -5%;
+    left: -5%;
+    z-index: 2;
+    pointer-events: none;
+}
+
+/* 用户信息面板 */
+.user-info-panel {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 15px 20px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: all 0.3s ease;
+    display: none;
+}
+
+.user-name {
+    font-size: 18px;
+    font-weight: bold;
+    color: #764ba2;
+    margin-bottom: 5px;
+}
+
+.user-id {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.user-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.user-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.user-stat-icon {
+    font-size: 16px;
+}
+
+.user-stat-number {
+    font-weight: bold;
+    color: #764ba2;
+}
+
+/* ========================================
+   控制面板（右上角）
+   ======================================== */
+.control-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    z-index: 1000;
+    max-width: 300px;
+}
+
+.control-panel h3 {
+    color: #764ba2;
+    margin-bottom: 15px;
+    font-size: 18px;
+    text-align: center;
+}
+
+/* ========================================
+   模式选择器按钮
+   ======================================== */
+.mode-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #f093fb;
+    background: white;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.mode-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
+}
+
+.mode-btn.active {
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+/* 模式按钮图标 */
+.mode-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    vertical-align: middle;
+}
+
+/* ========================================
+   快速查看按钮
+   ======================================== */
+.quick-view-buttons {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.view-btn {
+    flex: 1;
+    padding: 10px;
+    background: white;
+    border: 2px solid #f093fb;
+    border-radius: 10px;
+    color: #764ba2;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.view-btn:hover {
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* ========================================
+   统计信息
+   ======================================== */
+.stats {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: bold;
+    color: #764ba2;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #666;
+}
+
+/* ========================================
+   地图标记样式
+   ======================================== */
+.custom-marker {
+    font-size: 24px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    background: none;
+    border: none;
+}
+
+.custom-marker:hover {
+    transform: scale(1.3);
+}
+
+.heart-marker {
+    animation: pulse 2s infinite;
+}
+
+.paw-marker {
+    animation: wiggle 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+@keyframes wiggle {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-5deg); }
+    75% { transform: rotate(5deg); }
+}
+
+/* 标记容器 */
+.marker-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.marker-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.emoji-icon {
+    font-size: 24px;
+}
+
+/* ========================================
+   Leaflet 弹出框样式
+   ======================================== */
+.leaflet-popup-content {
+    text-align: center;
+    min-width: 200px;
+    padding: 10px;
+}
+
+.popup-content {
+    text-align: center;
+    padding: 10px;
+}
+
+.popup-content h3 {
+    color: #764ba2;
+    margin-bottom: 10px;
+}
+
+.popup-content h4 {
+    color: #764ba2;
+    margin-bottom: 10px;
+}
+
+.popup-content img {
+    width: 100%;
+    max-width: 200px;
+    border-radius: 10px;
+    margin: 10px 0;
+}
+
+.popup-content p {
+    margin: 10px 0;
+}
+
+.popup-title {
+    font-weight: bold;
+    color: #764ba2;
+    margin-bottom: 10px;
+}
+
+.popup-input {
+    width: 100%;
+    padding: 8px;
+    border: 2px solid #f093fb;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.popup-textarea {
+    width: 100%;
+    padding: 8px;
+    border: 2px solid #f093fb;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    min-height: 60px;
+    resize: vertical;
+}
+
+.popup-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.popup-btn {
+    padding: 8px 16px;
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 2px;
+    transition: opacity 0.3s ease;
+}
+
+.popup-btn:hover {
+    opacity: 0.9;
+}
+
+.popup-btn.secondary {
+    background: #888;
+}
+
+/* ========================================
+   地点列表模态框
+   ======================================== */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 5000;
+    display: none;
+}
+
+.modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: hidden;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.modal-header {
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.modal-close {
+    font-size: 28px;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+    background: none;
+    border: none;
+    color: white;
+}
+
+.modal-close:hover {
+    transform: rotate(90deg);
+}
+
+.modal-body {
+    padding: 20px;
+    max-height: calc(80vh - 80px);
+    overflow-y: auto;
+}
+
+/* ========================================
+   地点列表项
+   ======================================== */
+.places-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.place-item {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.place-item:hover {
+    background: white;
+    border-color: #f093fb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(240, 147, 251, 0.2);
+}
+
+.place-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.place-item h4 {
+    margin: 0;
+    color: #764ba2;
+    font-size: 16px;
+}
+
+.place-rating {
+    font-size: 14px;
+}
+
+.place-note {
+    color: #666;
+    font-size: 14px;
+    margin: 10px 0;
+    line-height: 1.4;
+}
+
+.place-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.place-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.mini-btn {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    background: #f093fb;
+    color: white;
+    transition: opacity 0.3s ease;
+}
+
+.mini-btn:hover {
+    opacity: 0.8;
+}
+
+.mini-btn.danger {
+    background: #dc3545;
+}
+
+/* ========================================
+   音乐控制（左下角）
+   ======================================== */
+.music-control {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+}
+
+.music-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.music-btn:hover {
+    transform: scale(1.1);
+}
+
+/* ========================================
+   时间轴（右下角）
+   ======================================== */
+.timeline {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 15px;
+    z-index: 1000;
+    max-width: 250px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.timeline h4 {
+    margin-bottom: 10px;
+    color: #764ba2;
+}
+
+.timeline-item {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+    padding-left: 20px;
+    position: relative;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.timeline-item:hover {
+    color: #764ba2;
+}
+
+.timeline-item::before {
+    content: '📍';
+    position: absolute;
+    left: 0;
+}
+
+/* ========================================
+   通知消息
+   ======================================== */
+.notification {
+    position: fixed;
+    top: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 15px 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 3000;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        top: -100px;
+        opacity: 0;
+    }
+    to {
+        top: 100px;
+        opacity: 1;
+    }
+}
+
+.notification.success {
+    border-left: 4px solid #4caf50;
+}
+
+.notification.error {
+    border-left: 4px solid #f44336;
+}
+
+.notification.info {
+    border-left: 4px solid #2196f3;
+}
+
+.notification.love {
+    border-left: 4px solid #f093fb;
+    background: linear-gradient(45deg, rgba(240, 147, 251, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%);
+}
+
+/* ========================================
+   加载提示
+   ======================================== */
+.loading-tip {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.95);
+    padding: 20px 40px;
+    border-radius: 15px;
+    z-index: 2000;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+}
+
+/* ========================================
+   成就弹窗
+   ======================================== */
+.achievement-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 30px;
+    border-radius: 20px;
+    text-align: center;
+    z-index: 4000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    animation: achievementBounce 0.5s ease;
+}
+
+@keyframes achievementBounce {
+    0% { transform: translate(-50%, -50%) scale(0); }
+    50% { transform: translate(-50%, -50%) scale(1.1); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.achievement-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.achievement-title {
+    font-size: 24px;
+    color: #764ba2;
+    margin-bottom: 10px;
+}
+
+.achievement-description {
+    color: #666;
+}
+
+/* ========================================
+   彩纸特效
+   ======================================== */
+.confetti {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    background: #f093fb;
+    animation: confetti-fall 3s linear;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+@keyframes confetti-fall {
+    to {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+/* ========================================
+   评分星星
+   ======================================== */
+.rating-stars {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.star {
+    font-size: 24px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    color: #ddd;
+}
+
+.star:hover {
+    transform: scale(1.2);
+}
+
+.star.filled {
+    color: #ffd700;
+}
+
+/* ========================================
+   留言列表
+   ======================================== */
+.messages-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 10px 0;
+}
+
+.message-item {
+    background: #f5f5f5;
+    padding: 8px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.message-author {
+    font-weight: bold;
+    color: #764ba2;
+    font-size: 12px;
+}
+
+.message-content {
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.message-time {
+    font-size: 10px;
+    color: #999;
+    margin-top: 4px;
+}
+
+/* ========================================
+   文件上传按钮
+   ======================================== */
+.upload-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+}
+
+.upload-btn:hover {
+    opacity: 0.9;
+}
+
+/* ========================================
+   响应式设计
+   ======================================== */
+@media (max-width: 768px) {
+    .control-panel {
+        right: 10px;
+        top: 10px;
+        padding: 15px;
+        max-width: 250px;
+    }
+    
+    .timeline {
+        display: none;
+    }
+    
+    .avatar-container {
+        transform: scale(0.8);
+    }
+    
+    .avatar-frame {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .mode-btn {
+        font-size: 14px;
+        padding: 8px;
+    }
+    
+    .user-info-panel {
+        font-size: 14px;
+        padding: 12px 15px;
+    }
+    
+    .modal-content {
+        width: 95%;
+        max-width: none;
+    }
+}
+
+/* ========================================
+   滚动条样式
+   ======================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, #e083eb 0%, #e54759 100%);
+}
+
+/* ========================================
+   动画优化
+   ======================================== */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+/* 禁用某些元素的文本选择 */
+.mode-btn,
+.view-btn,
+.music-btn,
+.popup-btn,
+.mini-btn {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
