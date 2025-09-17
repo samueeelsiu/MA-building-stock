@@ -1067,6 +1067,7 @@
             }
             /* END: New Map Plot CSS */
 
+            .data-source.boston-permits { background-color: #e0f2f1; border-color: #009688; }
     </style>
 </head>
 <body class="professional-theme">
@@ -1309,7 +1310,7 @@
                             <div class="flow-arrow">▼</div>
                             
                             <div class="flow-box result final-dataset">
-                                <h4>Final Result: NSI-Enhanced USA Structures Dataset</h4>
+                                <h4>Result: NSI Enhanced Structures v2</h4>
                                 <p>2,091,488 Records</p>
                                 <p>57 Total Columns (44 + 13 from Soil)</p>
                                 <small>A final Left Join ensures all buildings are retained, even if some fall outside the soil map coverage.</small>
@@ -1317,7 +1318,49 @@
                         </div>
                     </div>
                 </div>
+                <div class="flow-stage">
+                    <h3 class="stage-title collapsible-trigger">
+                        Stage 3: Enriching with Demolition Permit Data
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div class="collapsible-content">
+                        <div class="flow-content">
+                            <div class="flow-inputs">
+                                <div class="flow-box result final-dataset" style="background-color: #e8f5e9; border-color: #2E7D32;">
+                                <h4>NSI Enhanced Structures v2</h4>
+                                <p>2,091,488 Records</p>
+                                <p>57 Columns</p>
+                                </div>
+                                <div class="plus-icon">+</div>
+                                <div class="flow-box data-source boston-permits">
+                                <h4>Boston Approved Permit Dataset</h4>
+                                <p>Demolition Records</p>
+                                <p>2 Columns Added</p>
+                                </div>
+                            </div>
+                            <div class="flow-arrow">▼</div>
+                            <div class="flow-box operation">
+                                <h4>Operation: Nearest Neighbor Spatial Join</h4>
+                                <ul>
+                                <li><strong>1. Filter & Deduplicate Permits:</strong> Isolate demolition permits ('EXTDEM', 'INTDEM', 'RAZE') and keep only the most recent permit for each unique address.</li>
+                                <li><strong>2. Project to Local CRS:</strong> Convert both building and permit coordinates to a projected CRS (EPSG:2249) to enable accurate distance calculations in meters.</li>
+                                <li><strong>3. Nearest Neighbor Join:</strong> For each building, find the single closest demolition permit within a <strong>30-meter radius</strong> using `gpd.sjoin_nearest`.</li>
+                                <li><strong>4. Attribute Transfer:</strong> If a match is found, transfer the demolition permit's `worktype` and `issued_date` to the building record, renaming them to `DEMOLITION_TYPE` and `DEMOLITION_DATE`.</li>
+                                </ul>
+                            </div>
+                            <div class="flow-arrow">▼</div>
+                            <div class="flow-box data-source nsi-enhanced-input" style="border-color: #2E7D32; background-color: #e8f5e9;">
+                                <h4>Result: Final NSI-Enhanced USA Structures Dataset</h4>
+                                <p>2,091,488 Records</p>
+                                <p>59 Total Columns (57 + 2 from Permits)</p>
+                                <small>A Left Join retains all buildings. <strong>1,236</strong> buildings were successfully matched with demolition data.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+
 
                 <!-- Data Cleaning Sankey -->
                 <div class="chart-container">
@@ -3326,6 +3369,12 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     'mukey', 'comppct_r', 'compname', 'drainagecl', 'wtdepannmin', 
                     'flodfreqcl', 'cokey', 'eng_property'
                 ]
+            },
+            'Boston Approved Permit Dataset*': {
+                color: '#009688', // Teal color matching the CSS
+                icon: '👷‍♂️',
+                description: 'Demolition permit data for Boston',
+                columns: ['DEMOLITION_TYPE', 'DEMOLITION_DATE']
             }
         };
         
@@ -3663,25 +3712,20 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             Plotly.newPlot('overviewMapPlot', mapData, layout, {responsive: true});
         }
 
+        // 用下面的函数完整替换掉旧的 createDataSourcesFlowchart 函数
         function createDataSourcesFlowchart() {
             // Create Sankey diagram to show data flow
             const sourceNames = Object.keys(dataSourceColumns);
-            const labels = [...sourceNames, 'NSI-Enhanced USA Structures Dataset'];
+            const finalDatasetName = 'NSI-Enhanced USA Structures Dataset';
+            const labels = [...sourceNames, finalDatasetName];
             
-            const sources = [0, 1, 2]; // Indices of the three sources
-            const targets = [3, 3, 3]; // All flow to the final dataset (index 3)
-            const values = [
-                dataSourceColumns['USA Structures'].columns.length,
-                dataSourceColumns['NSI'].columns.length,
-                dataSourceColumns['Web Soil Survey'].columns.length
-            ];
+            const sources = sourceNames.map((_, i) => i);
+            const targets = sourceNames.map(() => sourceNames.length);
+            const values = sourceNames.map(name => dataSourceColumns[name].columns.length);
+            const totalColumns = values.reduce((a, b) => a + b, 0);
             
-            const nodeColors = [
-                dataSourceColumns['USA Structures'].color,
-                dataSourceColumns['NSI'].color,
-                dataSourceColumns['Web Soil Survey'].color,
-                '#2c3e50' // Final dataset color
-            ];
+            const nodeColors = sourceNames.map(name => dataSourceColumns[name].color);
+            nodeColors.push('#2c3e50'); // Final dataset color
             
             const sankeyData = [{
                 type: 'sankey',
@@ -3694,11 +3738,11 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         width: 2
                     },
                     label: labels.map((label, i) => {
-                        if (i < 3) {
+                        if (i < sourceNames.length) {
                             const source = dataSourceColumns[label];
                             return `${source.icon} ${label}<br><span style="font-size: 11px;">(${source.columns.length} columns)</span>`;
                         }
-                        return `🎯 ${label}<br><span style="font-size: 11px;">(${values.reduce((a, b) => a + b, 0)} total columns)</span>`;
+                        return `🎯 ${label}<br><span style="font-size: 11px;">(${totalColumns} total columns)</span>`;
                     }),
                     color: nodeColors,
                     customdata: labels.map(label => dataSourceColumns[label]),
@@ -3726,21 +3770,18 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 displayModeBar: false
             });
             
-            // Add click handler for nodes
             document.getElementById('dataSourcesFlowchart').on('plotly_click', function(eventData) {
                 if (eventData.points && eventData.points[0] && eventData.points[0].pointNumber !== undefined) {
                     const pointIndex = eventData.points[0].pointNumber;
-                    if (pointIndex < 3) { // Only for source nodes
+                    if (pointIndex < sourceNames.length) { 
                         const sourceName = labels[pointIndex];
                         showColumnDetails(sourceName);
                     } else {
-                        // Show all columns for the final dataset
                         showAllColumns();
                     }
                 }
             });
             
-            // Also create floating badges for additional visual appeal
             setTimeout(() => {
                 addFloatingBadges();
             }, 500);
@@ -3872,7 +3913,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             // Add summary stats as floating badges
             const stats = [
-                { label: 'Total Columns', value: '57', color: '#2c3e50' },
+                { label: 'Total Columns', value: '59', color: '#2c3e50' },
                 { label: 'Data Sources', value: '3', color: '#667eea' },
                 { label: 'MA Buildings', value: '2.09M+', color: '#764ba2' }
             ];
