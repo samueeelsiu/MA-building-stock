@@ -174,22 +174,13 @@ class BuildingDataProcessor:
         """
         print("Processing hierarchical distribution with shared binning...")
 
-        # If predicted height column is missing, create sample data for it.
-        if 'PRED_HEIGHT' not in self.df_cleaned.columns:
-            print("  Warning: PRED_HEIGHT not found, generating sample data...")
-            self.df_cleaned['PRED_HEIGHT'] = np.random.uniform(2, 50, size=len(self.df_cleaned))
-
         df_work = self.df_cleaned.copy()
 
         # ISSUE #3 FIX: Use original drainage classes instead of grouping them.
         # We use .fillna() to handle missing values, preserving all other categories.
         if 'drainagecl' in df_work.columns:
             df_work['drainage_cat'] = df_work['drainagecl'].fillna('Unknown Drainage')
-        else:
-            # If no drainage data, create sample data with more variety.
-            drainage_classes = ['Well drained', 'Moderately well drained', 'Somewhat excessively drained',
-                                'Poorly drained', 'Very poorly drained', 'Excessively drained', 'Unknown Drainage']
-            df_work['drainage_cat'] = np.random.choice(drainage_classes, size=len(df_work))
+
 
         # Ensure it's treated as a categorical column.
         df_work['drainage_cat'] = df_work['drainage_cat'].astype('category')
@@ -1090,22 +1081,6 @@ class BuildingDataProcessor:
         # Check which soil-related columns exist in the dataframe.
         existing_soil_cols = [col for col in soil_columns if col in self.df_cleaned.columns]
 
-        # If no soil columns are found, generate sample data as a fallback.
-        if not existing_soil_cols:
-            print("  No soil columns found, generating sample data...")
-            drainage_classes = ['Well drained', 'Moderately well drained', 'Somewhat poorly drained',
-                                'Poorly drained', 'Very poorly drained', 'Excessively drained', None]
-            flood_freq = ['Low', 'Moderate', 'High', None]
-            eng_props = ['Favorable', 'Fair', 'Poor', 'Very poor', None]
-            comp_names = ['Paxton', 'Charlton', 'Canton', 'Woodbridge', 'Scituate', 'Hinckley',
-                         'Merrimac', 'Windsor', 'Urban land', 'Udorthents', None]
-
-            self.df_cleaned['drainagecl'] = np.random.choice(drainage_classes, size=len(self.df_cleaned))
-            self.df_cleaned['flodfreqcl'] = np.random.choice(flood_freq, size=len(self.df_cleaned))
-            self.df_cleaned['eng_property'] = np.random.choice(eng_props, size=len(self.df_cleaned))
-            self.df_cleaned['wtdepannmin'] = np.random.uniform(0, 300, size=len(self.df_cleaned))
-            self.df_cleaned['comppct_r'] = np.random.uniform(0, 100, size=len(self.df_cleaned))
-            self.df_cleaned['compname'] = np.random.choice(comp_names, size=len(self.df_cleaned))
 
         # Initialize the dictionary to hold all soil analysis results.
         soil_analysis = {
