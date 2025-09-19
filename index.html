@@ -2227,6 +2227,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             // Helper function to format large numbers for display.
             function formatCount(num) {
+                if (num === undefined || num === null) return 'N/A'; // Prevent error if data is missing
                 if (num >= 1000000) return `${(num/1000000).toFixed(2)}M`;
                 if (num >= 10000) return `${(num/1000).toFixed(1)}K`;
                 if (num >= 1000) return `${(num/1000).toFixed(2)}K`;
@@ -2239,9 +2240,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const afterYearFilter = cleaningData.after_year_filter;
             const missingArea = cleaningData.missing_area_count;
             const afterMissingArea = cleaningData.after_missing_area;
-            const missingOcc = cleaningData.missing_occ_count;
-            const afterMissingOcc = cleaningData.after_missing_occ;
-            //const areaOutliers = cleaningData.area_outliers_count;
             const finalCleaned = cleaningData.final_count;
             
             const sankeyData = [{
@@ -2250,24 +2248,20 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 node: {
                     pad: 15, thickness: 30, line: { color: 'white', width: 2 },
                     label: [
-                        `Raw Data<br>(${formatCount(rawData)} records)`,
-                        `Invalid Year Built(Cleaned year_built <= 0)<br>(${formatCount(invalidYear)} removed)`,
-                        `After Year Filter(Cleaned year_built <= 0)<br>(${formatCount(afterYearFilter)} records)`,
-                        `Missing Area(Cleaned NaN)<br>(${formatCount(missingArea)} removed)`,
-                        //`After Area Filter(Cleaned outlier > 99.99% GFA)<br>(${formatCount(afterMissingArea)} records)`,
-                        `Missing Occupancy(Cleaned NaN)<br>(${formatCount(missingOcc)} removed)`,
-                        `After Occupancy Filter(Cleaned NaN)<br>(${formatCount(afterMissingOcc)} records)`,
-                        
-                        `Final Cleaned Dataset<br>(${formatCount(finalCleaned)} records)`
+                        `Raw Data<br>(${formatCount(rawData)} records)`, // Node 0
+                        `Invalid Year Built(Cleaned year_built <= 0)<br>(${formatCount(invalidYear)} removed)`, // Node 1
+                        `After Year Filter(Cleaned year_built <= 0)<br>(${formatCount(afterYearFilter)} records)`, // Node 2
+                        `Missing Area(Cleaned NaN)<br>(${formatCount(missingArea)} removed)`, // Node 3
+                        `After Missing Area Filter(Cleaned NaN)<br>(${formatCount(afterMissingArea)} records)`, // Node 4
+                        `Final Cleaned Dataset<br>(${formatCount(finalCleaned)} records)` // Node 5
                     ],
-                    //`Area Outliers(Cleaned outlier > 99.99% GFA)<br>(${formatCount(areaOutliers)} removed)`,
-                    color: ['#667eea', '#E53935', '#764ba2', '#E53935', '#bd3786', '#E53935', '#f5576c',  '#2E7D32']//'#E53935',
+                    color: ['#667eea', '#E53935', '#764ba2', '#E53935', '#bd3786', '#2E7D32']
                 },
                 link: {
-                    source: [0, 0, 2, 2, 4, 4, 6],//, 6
-                    target: [1, 2, 3, 4, 5, 6, 7],//7,
-                    value: [invalidYear, afterYearFilter, missingArea, afterMissingArea, missingOcc, afterMissingOcc],//areaOutliers, , finalCleaned
-                    color: ['#E5393540', '#764ba240', '#E5393540', '#bd378640', '#E5393540', '#f5576c40', '#2E7D3240']//'#E5393540',
+                    source: [0, 0, 2, 2, 4],
+                    target: [1, 2, 3, 4, 5],
+                    value:  [invalidYear, afterYearFilter, missingArea, afterMissingArea, finalCleaned],
+                    color:  ['#E5393540', '#764ba240', '#E5393540', '#bd378640', '#2E7D3240']
                 }
             }];
             

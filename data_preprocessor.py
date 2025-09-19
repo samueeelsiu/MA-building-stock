@@ -80,14 +80,6 @@ class BuildingDataProcessor:
             self.df_cleaned = self.df_cleaned[~missing_area_mask].copy()
         cleaning_stats['after_missing_area'] = len(self.df_cleaned)
 
-        # Step 3: Track and remove missing OCC_CLS
-        missing_occ_mask = self.df_cleaned['OCC_CLS'].isna()
-        cleaning_stats['missing_occ_count'] = missing_occ_mask.sum()
-
-        # Remove rows with missing occupancy class
-        if cleaning_stats['missing_occ_count'] > 0:
-            self.df_cleaned = self.df_cleaned[~missing_occ_mask].copy()
-        cleaning_stats['after_missing_occ'] = len(self.df_cleaned)
 
         # Step 4: Track and remove area outliers (optional step)
         cleaning_stats['area_outliers_count'] = 0
@@ -131,7 +123,6 @@ class BuildingDataProcessor:
         print(f"    - Invalid/zero: {cleaning_stats['invalid_year_details']['negative_or_zero']}")
         print(f"    - NaN values: {cleaning_stats['invalid_year_details']['nan_values']}")
         print(f"  Removed {cleaning_stats['missing_area_count']} records with missing area")
-        print(f"  Removed {cleaning_stats['missing_occ_count']} records with missing occupancy")
         print(f"  Removed {cleaning_stats['area_outliers_count']} area outliers")
         if cleaning_stats['area_outlier_threshold']:
             print(f"    - Outlier threshold: {cleaning_stats['area_outlier_threshold']:,.2f} sqm")
@@ -1082,7 +1073,7 @@ class BuildingDataProcessor:
         existing_soil_cols = [col for col in soil_columns if col in self.df_cleaned.columns]
 
 
-        # Initialize the dictionary to hold all soil analysis results.
+        # Initialize the dictionary to hold all so# Step 3: Track and remove missing OCC_CLSl analysis results.
         soil_analysis = {
             'drainage_class_stats': {},
             'flooding_freq_stats': {},
