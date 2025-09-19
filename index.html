@@ -5420,41 +5420,40 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 d.year_built && d.year_built >= 1940 && d.material_type && d['Est GFA sqmeters']
             );
 
-            // 2. Bin data by decade
-            const decadeData = {};
+            // 2. Organize data by year (not decade)
+            const yearData = {};
             const materialTypes = new Set();
 
             trendData.forEach(d => {
-                const decade = Math.floor(d.year_built / 10) * 10;
-                const decadeLabel = `${decade}s`;
+                const year = d.year_built;
 
-                if (!decadeData[decadeLabel]) {
-                    decadeData[decadeLabel] = {};
+                if (!yearData[year]) {
+                    yearData[year] = {};
                 }
-                if (!decadeData[decadeLabel][d.material_type]) {
-                    decadeData[decadeLabel][d.material_type] = { count: 0, gfa: 0 };
+                if (!yearData[year][d.material_type]) {
+                    yearData[year][d.material_type] = { count: 0, gfa: 0 };
                 }
 
-                decadeData[decadeLabel][d.material_type].count++;
-                decadeData[decadeLabel][d.material_type].gfa += d['Est GFA sqmeters'];
+                yearData[year][d.material_type].count++;
+                yearData[year][d.material_type].gfa += d['Est GFA sqmeters'];
                 materialTypes.add(d.material_type);
             });
 
             // 3. Prepare for Plotly
-            const sortedDecades = Object.keys(decadeData).sort();
+            const sortedYears = Object.keys(yearData).sort((a, b) => a - b); // Numerical sort
             const sortedMaterials = Array.from(materialTypes).sort();
             const materialColors = getPlasmaColors(sortedMaterials.length);
 
             const traces = sortedMaterials.map((mat, index) => {
-                const yValues = sortedDecades.map(decade => {
-                    if (decadeData[decade][mat]) {
-                        return normalizeBy === 'gfa' ? decadeData[decade][mat].gfa : decadeData[decade][mat].count;
+                const yValues = sortedYears.map(year => {
+                    if (yearData[year][mat]) {
+                        return normalizeBy === 'gfa' ? yearData[year][mat].gfa : yearData[year][mat].count;
                     }
                     return 0;
                 });
 
                 return {
-                    x: sortedDecades,
+                    x: sortedYears.map(y => parseInt(y)), // Convert to numbers for proper axis handling
                     y: yValues,
                     name: materialTypeMap[mat] || mat,
                     type: 'scatter',
@@ -5464,20 +5463,23 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     fillcolor: materialColors[index],
                     line: { color: materialColors[index], width: 0.5 },
                     hovertemplate: `<b>${materialTypeMap[mat] || mat}</b><br>` +
-                                 `Decade: %{x}<br>` +
-                                 `Percentage: %{y:.2f}%<extra></extra>`
+                                `Year: %{x}<br>` +
+                                `Percentage: %{y:.2f}%<extra></extra>`
                 };
             });
 
-            // 4. Create the plot
+            // 4. Create the plot with yearly x-axis
             const layout = {
                 title: {
-                    text: `Material Usage Trends by Decade (Normalized by ${normalizeBy === 'gfa' ? 'GFA' : 'Count'})`,
+                    text: `Material Usage Trends by Year (Normalized by ${normalizeBy === 'gfa' ? 'GFA' : 'Count'})`,
                     font: { size: 18, color: '#333' }
                 },
                 xaxis: {
-                    title: 'Decade',
-                    type: 'category'
+                    title: 'Year',
+                    type: 'linear',  // Linear scale for years
+                    dtick: 10,  // Show tick every 10 years
+                    tickangle: -45,
+                    range: [1940, Math.max(...sortedYears.map(y => parseInt(y))) + 1]  // Dynamic range based on data
                 },
                 yaxis: {
                     title: 'Percentage of New Construction (%)',
