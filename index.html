@@ -3334,13 +3334,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 icon: '🏢',
                 description: 'Original building footprint and property data',
                 columns: [
-                    'BUILD_ID', 'OCC_CLS', 'PRIM_OCC', 'SEC_OCC', 'PROP_ADDR', 
+                    'Shape_Length', 'Shape_Area','BUILD_ID', 'OCC_CLS', 'PRIM_OCC', 'SEC_OCC', 'PROP_ADDR', 
                     'PROP_CITY', 'PROP_ST', 'PROP_ZIP', 'OUTBLDG', 'HEIGHT', 
                     'SQMETERS', 'SQFEET', 'H_ADJ_ELEV', 'L_ADJ_ELEV', 'FIPS', 
                     'CENSUSCODE', 'PROD_DATE', 'SOURCE', 'USNG', 'LONGITUDE', 
                     'LATITUDE', 'IMAGE_NAME', 'IMAGE_DATE', 'VAL_METHOD', 'REMARKS', 
                     'UUID', 'Est GWP kgCO2e', 'GWP Intensity', 'GWP class', 
-                    'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT'
+                    'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT','geometry'
                 ]
             },
             'NSI': {
@@ -3348,7 +3348,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 icon: '📊',
                 description: 'National Structure Inventory enhancement data',
                 columns: [
-                    'Shape_Length', 'Shape_Area', 'year_built', 'material_type', 
+                     'year_built', 'material_type', 
                     'material_type_desc', 'foundation_type', 'match_type', 
                     'match_method', 'nsi_num_story', 'structure_value', 
                     'nsi_sqft', 'nsi_unit_count'
@@ -3359,7 +3359,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 icon: '🌍',
                 description: 'Soil properties and engineering characteristics',
                 columns: [
-                    'geometry', 'AREASYMBOL', 'SPATIALVER', 'MUSYM', 'MUKEY', 
+                     'AREASYMBOL', 'SPATIALVER', 'MUSYM', 'MUKEY', 
                     'mukey', 'comppct_r', 'compname', 'drainagecl', 'wtdepannmin', 
                     'flodfreqcl', 'cokey', 'eng_property'
                 ]
