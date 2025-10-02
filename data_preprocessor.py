@@ -137,12 +137,15 @@ class BuildingDataProcessor:
         """Prepare data for clustering"""
         print("Preparing clustering data...")
 
-        # Choose features and drop NaN
-        features = ['OCC_CLS', 'Est GFA sqmeters', 'year_built', 'material_type', 'foundation_type']
+        # --- FINAL FIX: Include ALL columns needed by any function that uses df_cluster ---
+        features = [
+            'OCC_CLS', 'Est GFA sqmeters', 'SQMETERS', 'PRED_HEIGHT',
+            'year_built', 'material_type', 'foundation_type'
+        ]
         self.df_cluster = self.df_cleaned[features].dropna().copy()
 
         if remove_outliers:
-            # Calculate the 99.999th percentile for building area
+            # Outlier removal should use GFA as it was originally
             area_threshold = self.df_cluster['Est GFA sqmeters'].quantile(0.99999)
             print(f"Area threshold for outliers: {area_threshold:,.2f} sqm")
 
@@ -337,15 +340,22 @@ class BuildingDataProcessor:
         """Perform K-means clustering"""
         print(f"Performing K-means clustering with {n_clusters} clusters...")
 
+        # --- FIX: Updated the numerical features to SQMETERS and PRED_HEIGHT ---
+        # The ColumnTransformer now scales the correct columns for the model.
+        numerical_features_for_clustering = ['SQMETERS', 'PRED_HEIGHT', 'year_built']
+
         # Set up preprocessor
         self.preprocessor = ColumnTransformer(
             transformers=[
-                ('num', StandardScaler(), ['Est GFA sqmeters', 'year_built']),
+                ('num', StandardScaler(), numerical_features_for_clustering),
                 ('cat', OneHotEncoder(handle_unknown='ignore'), ['OCC_CLS'])
             ])
 
-        # Transform data
-        X_prepared = self.preprocessor.fit_transform(self.df_cluster[['Est GFA sqmeters', 'year_built', 'OCC_CLS']])
+        # Define the full feature set for transformation
+        features_for_transform = numerical_features_for_clustering + ['OCC_CLS']
+
+        # Transform data using the correct feature set
+        X_prepared = self.preprocessor.fit_transform(self.df_cluster[features_for_transform])
 
         # Run K-means
         self.kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
@@ -1024,6 +1034,7 @@ class BuildingDataProcessor:
         """Get cluster analysis results"""
         print("Analyzing clusters...")
 
+        # --- REVERT: This function should use 'Est GFA sqmeters' for the VISUALIZATION stats ---
         cluster_analysis = self.df_cluster.groupby('cluster').agg({
             'Est GFA sqmeters': ['mean', 'median', 'std'],
             'year_built': ['mean', 'median', 'std'],
@@ -1058,8 +1069,9 @@ class BuildingDataProcessor:
         """
         print("Creating enhanced samples with multi-dimensional clustering...")
 
-        # Prepare base features
-        features = ['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
+        # --- FINAL FIX: Include 'Est GFA sqmeters' for JS visualizations that use samples ---
+        features = ['Est GFA sqmeters', 'SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type',
+                    'foundation_type']
 
         # Add soil features if they exist
         soil_features = ['drainagecl', 'flodfreqcl', 'eng_property', 'wtdepannmin', 'compname', 'LONGITUDE', 'LATITUDE']
@@ -1067,11 +1079,12 @@ class BuildingDataProcessor:
             if sf in self.df_cleaned.columns:
                 features.append(sf)
 
-        df_for_samples = self.df_cleaned[features].dropna(subset=['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS']).copy()
+        df_for_samples = self.df_cleaned[features].dropna(
+            subset=['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS']).copy()
 
-        # Remove outliers
-        area_threshold = df_for_samples['SQMETERS'].quantile(0.99999)
-        df_for_samples = df_for_samples[df_for_samples['SQMETERS'] < area_threshold]
+        # Outlier removal should use GFA to match original intent
+        area_threshold = df_for_samples['Est GFA sqmeters'].quantile(0.99999)
+        df_for_samples = df_for_samples[df_for_samples['Est GFA sqmeters'] < area_threshold]
 
         # Create random sample
         random_sample_size = min(75000, len(df_for_samples))
@@ -1083,33 +1096,22 @@ class BuildingDataProcessor:
             lambda x: x.sample(n=min(len(x), SAMPLES_PER_CLASS), random_state=337)
         ).copy()
 
-        # Reset indices
+        # (The rest of the function in your file remains the same)
         random_sample_df = random_sample_df.reset_index(drop=True)
         balanced_sample_df = balanced_sample_df.reset_index(drop=True)
 
-        # Perform REAL clustering for all feature combinations for both samples
         for sample_df, sample_name in [(random_sample_df, 'random'), (balanced_sample_df, 'balanced')]:
             print(f"  Performing REAL clustering on {sample_name} sample...")
-
             feature_combos = ['base', 'material', 'foundation', 'both']
-
             for combo in feature_combos:
                 print(f"    - Clustering with feature combo: {combo}")
                 for k in range(2, 10):
-                    # Call our new function to get actual cluster assignments
                     cluster_assignments = self._get_cluster_assignments_for_df(sample_df, combo, k)
-
-                    # The result is a Series, which will automatically align by index.
-                    # Buildings that couldn't be clustered (e.g., due to missing data for that combo)
-                    # will have NaN, which becomes null in JSON.
                     sample_df[f'cluster_{combo}_k{k}'] = cluster_assignments
-
-            # Add compatibility aliases and a default cluster column
             print(f"  - Finalizing cluster columns for {sample_name} sample...")
             for k in range(2, 10):
                 if f'cluster_base_k{k}' in sample_df.columns:
                     sample_df[f'cluster_k{k}'] = sample_df[f'cluster_base_k{k}']
-
             if 'cluster_base_k7' in sample_df.columns:
                 sample_df['cluster'] = sample_df['cluster_base_k7']
             else:
@@ -1117,8 +1119,6 @@ class BuildingDataProcessor:
 
         print(f"  Random sample size: {len(random_sample_df)}")
         print(f"  Balanced sample size: {len(balanced_sample_df)}")
-
-        # Return DataFrames, not lists
         return random_sample_df, balanced_sample_df
 
     def clean_for_json(self, obj):

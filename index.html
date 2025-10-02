@@ -1962,7 +1962,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     <div id="historicShorelineMapPlot"></div>
                 </div>
             </div>
-            <div id="interactive" class="section">
 
 <!-- INTERACTIVE EXPLORER SECTION -->
             <div id="interactive" class="section">
@@ -4118,48 +4117,35 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             updateClustering();
         }
 
-        function updateClustering() {
+    function updateClustering() {
             if (!buildingData) return;
             
             const clusters = buildingData.clustering.clusters;
             const samples = buildingData.building_samples_random;
             
-            const reassignedSamples = samples.map(s => ({
-                ...s,
-                cluster: Math.floor(Math.random() * currentClusterK)
-            }));
+            const reassignedSamples = samples.map(s => ({ ...s, cluster: Math.floor(Math.random() * currentClusterK) }));
             
             const scatterData = [];
-            
             for (let i = 0; i < currentClusterK; i++) {
                 const clusterSamples = reassignedSamples.filter(s => s.cluster === i);
-                
                 scatterData.push({
                     x: clusterSamples.map(s => s.year_built < 1940 ? 'pre-1940' : s.year_built),
                     y: clusterSamples.map(s => s['Est GFA sqmeters']),
                     mode: 'markers',
                     type: 'scatter',
                     name: `Cluster ${i + 1}`,
-                    marker: {
-                        color: plasmaColors[i % plasmaColors.length],
-                        size: 8,
-                        opacity: 0.6
-                    },
+                    marker: { color: plasmaColors[i % plasmaColors.length], size: 8, opacity: 0.6 },
                     hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<extra></extra>'
                 });
             }
             
             const scatterLayout = {
-                title: {
-                    text: `K-Means Clustering Results (K=${currentClusterK})`,
-                    font: { size: 20, color: '#333' }
-                },
+                title: { text: `K-Means Clustering Results (K=${currentClusterK})`, font: { size: 20, color: '#333' } },
                 xaxis: { title: 'Year Built' },
-                yaxis: { title: 'Est GFA sqmeters' },
+                yaxis: { title: 'Est GFA (sqm)' },
                 height: 500,
                 hovermode: 'closest'
             };
-            
             Plotly.newPlot('clusterScatter', scatterData, scatterLayout, {responsive: true});
             
             const elbowData = [{
@@ -4167,61 +4153,23 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 y: buildingData.clustering.elbow_wcss_values,
                 mode: 'lines+markers',
                 type: 'scatter',
-                marker: { 
-                    size: 10, 
-                    color: plasmaColors[3],
-                    line: {
-                        color: 'white',
-                        width: 2
-                    }
-                },
-                line: { 
-                    width: 3,
-                    color: plasmaColors[3]
-                },
+                marker: { size: 10, color: plasmaColors[3], line: { color: 'white', width: 2 } },
+                line: { width: 3, color: plasmaColors[3] },
                 hovertemplate: 'K: %{x}<br>WCSS: %{y:,.0f}<extra></extra>'
             }];
-            
             const elbowLayout = {
-                title: {
-                    text: 'Elbow Method for Optimal K',
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Number of Clusters (K)',
-                    dtick: 1
-                },
+                title: { text: 'Elbow Method for Optimal K', font: { size: 20, color: '#333' } },
+                xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
                 yaxis: { title: 'Within-Cluster Sum of Squares (WCSS)' },
                 height: 400,
-                annotations: [{
-                    x: 7,
-                    y: buildingData.clustering.elbow_wcss_values[5],
-                    xref: 'x',
-                    yref: 'y',
-                    text: 'Optimal K = 7',
-                    showarrow: true,
-                    arrowhead: 2,
-                    ax: -50,
-                    ay: -40,
-                    bgcolor: 'rgba(255, 255, 255, 0.9)',
-                    bordercolor: plasmaColors[3],
-                    borderwidth: 2
-                }]
+                annotations: [{ x: 7, y: buildingData.clustering.elbow_wcss_values[5], xref: 'x', yref: 'y', text: 'Optimal K = 7', showarrow: true, arrowhead: 2, ax: -50, ay: -40, bgcolor: 'rgba(255, 255, 255, 0.9)', bordercolor: plasmaColors[3], borderwidth: 2 }]
             };
-            
             Plotly.newPlot('clusterElbow', elbowData, elbowLayout, {responsive: true});
             
             const displayClusters = clusters.slice(0, Math.min(currentClusterK, clusters.length));
-            
             const tableData = [{
                 type: 'table',
-                header: {
-                    values: ['Cluster', 'Count', 'Most Common Type', 'Avg Area (m²)', 'Avg Year'],
-                    align: 'center',
-                    line: {width: 1, color: '#dee2e6'},
-                    fill: {color: plasmaColors[3]},
-                    font: {family: "Arial", size: 14, color: "white"}
-                },
+                header: { values: ['Cluster', 'Count', 'Most Common Type', 'Avg Area (m²)', 'Avg Year'], align: 'center', line: {width: 1, color: '#dee2e6'}, fill: {color: plasmaColors[3]}, font: {family: "Arial", size: 14, color: "white"} },
                 cells: {
                     values: [
                         displayClusters.map(c => `Cluster ${c.cluster_id + 1}`),
@@ -4230,27 +4178,16 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         displayClusters.map(c => Math.round(c.area_mean)),
                         displayClusters.map(c => c.year_mean)
                     ],
-                    align: 'center',
-                    line: {color: "#dee2e6", width: 1},
-                    fill: {color: ['#f8f9fa', 'white']},
-                    font: {family: "Arial", size: 12, color: ["#333"]}
+                    align: 'center', line: {color: "#dee2e6", width: 1}, fill: {color: ['#f8f9fa', 'white']}, font: {family: "Arial", size: 12, color: ["#333"]}
                 }
             }];
-            
-            const tableLayout = {
-                title: {
-                    text: `Cluster Statistics (K=${currentClusterK}, Based on Full Dataset)`,
-                    font: { size: 18, color: '#333' }
-                },
-                height: 400
-            };
-            
+            const tableLayout = { title: { text: `Cluster Statistics (K=${currentClusterK}, Based on Full Dataset)`, font: { size: 18, color: '#333' } }, height: 400 };
             Plotly.newPlot('clusterTable', tableData, tableLayout, {responsive: true});
             
             updateClusterTreemap();
         }
 
-        function updateClusterTreemap() {
+    function updateClusterTreemap() {
             if (!buildingData) return;
             
             const sizeBy = document.getElementById('treemapSizeBy').value;
@@ -4279,18 +4216,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 labels: labels,
                 parents: parents,
                 values: values,
-                marker: {
-                    colors: colors
-                },
+                marker: { colors: colors },
                 textinfo: 'label+value+percent parent',
                 hovertemplate: '%{label}<br>Value: %{value:,}<br>%{percentParent}<extra></extra>'
             }];
             
             const treemapLayout = {
-                title: {
-                    text: `Cluster Treemap (Sized by ${sizeBy === 'count' ? 'Building Count' : 'Total Floor Area'})`,
-                    font: { size: 18, color: '#333' }
-                },
+                title: { text: `Cluster Treemap (Sized by ${sizeBy === 'count' ? 'Building Count' : 'Total Floor Area'})`, font: { size: 18, color: '#333' } },
                 height: 500
             };
             
@@ -5573,32 +5505,22 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
             const normalizeBy = document.getElementById('materialTrendNormalizeBy')?.value || 'count';
 
-            // 1. Filter data for post-1940 and required fields
             let trendData = buildingData.building_samples_random.filter(d =>
                 d.year_built && d.year_built >= 1940 && d.material_type && d['Est GFA sqmeters']
             );
 
-            // 2. Organize data by year (not decade)
             const yearData = {};
             const materialTypes = new Set();
-
             trendData.forEach(d => {
                 const year = d.year_built;
-
-                if (!yearData[year]) {
-                    yearData[year] = {};
-                }
-                if (!yearData[year][d.material_type]) {
-                    yearData[year][d.material_type] = { count: 0, gfa: 0 };
-                }
-
+                if (!yearData[year]) yearData[year] = {};
+                if (!yearData[year][d.material_type]) yearData[year][d.material_type] = { count: 0, gfa: 0 };
                 yearData[year][d.material_type].count++;
                 yearData[year][d.material_type].gfa += d['Est GFA sqmeters'];
                 materialTypes.add(d.material_type);
             });
 
-            // 3. Prepare for Plotly
-            const sortedYears = Object.keys(yearData).sort((a, b) => a - b); // Numerical sort
+            const sortedYears = Object.keys(yearData).sort((a, b) => a - b);
             const sortedMaterials = Array.from(materialTypes).sort();
             const materialColors = getPlasmaColors(sortedMaterials.length);
 
@@ -5609,9 +5531,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     }
                     return 0;
                 });
-
                 return {
-                    x: sortedYears.map(y => parseInt(y)), // Convert to numbers for proper axis handling
+                    x: sortedYears.map(y => parseInt(y)),
                     y: yValues,
                     name: materialTypeMap[mat] || mat,
                     type: 'scatter',
@@ -5620,42 +5541,20 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     groupnorm: 'percent',
                     fillcolor: materialColors[index],
                     line: { color: materialColors[index], width: 0.5 },
-                    hovertemplate: `<b>${materialTypeMap[mat] || mat}</b><br>` +
-                                `Year: %{x}<br>` +
-                                `Percentage: %{y:.2f}%<extra></extra>`
+                    hovertemplate: `<b>${materialTypeMap[mat] || mat}</b><br>Year: %{x}<br>Percentage: %{y:.2f}%<extra></extra>`
                 };
             });
-
-            // 4. Create the plot with yearly x-axis
+            
             const layout = {
-                title: {
-                    text: `Material Usage Trends by Year (Normalized by ${normalizeBy === 'gfa' ? 'GFA' : 'Count'})`,
-                    font: { size: 18, color: '#333' }
-                },
-                xaxis: {
-                    title: 'Year',
-                    type: 'linear',  // Linear scale for years
-                    dtick: 10,  // Show tick every 10 years
-                    tickangle: -45,
-                    range: [1940, Math.max(...sortedYears.map(y => parseInt(y))) + 1]  // Dynamic range based on data
-                },
-                yaxis: {
-                    title: 'Percentage of New Construction (%)',
-                    ticksuffix: '%',
-                    range: [0, 100]
-                },
+                title: { text: `Material Usage Trends by Year (Normalized by ${normalizeBy === 'gfa' ? 'GFA' : 'Count'})`, font: { size: 18, color: '#333' } },
+                xaxis: { title: 'Year', type: 'linear', dtick: 10, tickangle: -45, range: [1940, Math.max(...sortedYears.map(y => parseInt(y))) + 1] },
+                yaxis: { title: 'Percentage of New Construction (%)', ticksuffix: '%', range: [0, 100] },
                 height: 500,
                 hovermode: 'x unified',
                 showlegend: true,
-                legend: {
-                    orientation: 'v',
-                    yanchor: 'middle',
-                    y: 0.5,
-                    xanchor: 'left',
-                    x: 1.02
-                }
+                legend: { orientation: 'v', yanchor: 'middle', y: 0.5, xanchor: 'left', x: 1.02 }
             };
-
+            
             const chartDiv = document.getElementById('materialsTrendChart');
             Plotly.purge(chartDiv);
             Plotly.newPlot('materialsTrendChart', traces, layout, {responsive: true});
@@ -5864,7 +5763,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         }
 
 
-        function updateInteractiveExplorer() {
+    function updateInteractiveExplorer() {
             if (!buildingData) return;
             
             const vizType = document.getElementById('vizType').value;
@@ -5896,99 +5795,62 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                             showscale: true
                         },
                         text: filteredData.map(d => d.OCC_CLS),
-                        hovertemplate: 'Year: %{x}<br>Est GFA: %{y}<br>Cluster: %{z}<br>Type: %{text}<extra></extra>'
+                        hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<br>Cluster: %{z}<br>Type: %{text}<extra></extra>'
                     }];
-                    
                     layout = {
                         title: '3D Building Data Visualization',
                         scene: {
                             xaxis: { title: 'Year Built' },
-                            yaxis: { title: 'Est GFA sqmeters' },
+                            yaxis: { title: 'Est GFA (sqm)' },
                             zaxis: { title: 'Cluster' }
                         },
                         height: 600
                     };
                     break;
-                    
                 case 'sunburst':
+                    // ... (Sunburst logic is correct and does not use GFA directly)
                     const sunburstLabels = ['Buildings'];
                     const sunburstParents = [''];
                     const sunburstValues = [filteredData.length];
-                    
                     const occupancyGroups = {};
                     filteredData.forEach(d => {
-                        if (!occupancyGroups[d.OCC_CLS]) {
-                            occupancyGroups[d.OCC_CLS] = {};
-                        }
+                        if (!occupancyGroups[d.OCC_CLS]) occupancyGroups[d.OCC_CLS] = {};
                         const decade = d.year_built < 1940 ? 'pre-1940' : `${Math.floor(d.year_built / 10) * 10}s`;
-                        if (!occupancyGroups[d.OCC_CLS][decade]) {
-                            occupancyGroups[d.OCC_CLS][decade] = 0;
-                        }
+                        if (!occupancyGroups[d.OCC_CLS][decade]) occupancyGroups[d.OCC_CLS][decade] = 0;
                         occupancyGroups[d.OCC_CLS][decade]++;
                     });
-                    
                     Object.keys(occupancyGroups).forEach(occ => {
                         sunburstLabels.push(occ);
                         sunburstParents.push('Buildings');
                         sunburstValues.push(Object.values(occupancyGroups[occ]).reduce((a, b) => a + b, 0));
-                        
                         Object.keys(occupancyGroups[occ]).forEach(decade => {
                             sunburstLabels.push(`${occ} - ${decade}`);
                             sunburstParents.push(occ);
                             sunburstValues.push(occupancyGroups[occ][decade]);
                         });
                     });
-                    
                     plotData = [{
                         type: 'sunburst',
                         labels: sunburstLabels,
                         parents: sunburstParents,
                         values: sunburstValues,
                         branchvalues: 'total',
-                        marker: {
-                            colorscale: 'Plasma'
-                        }
+                        marker: { colorscale: 'Plasma' }
                     }];
-                    
-                    layout = {
-                        title: 'Hierarchical Building Distribution',
-                        height: 600
-                    };
+                    layout = { title: 'Hierarchical Building Distribution', height: 600 };
                     break;
-                    
                 case 'parallel':
                     plotData = [{
                         type: 'parcoords',
                         dimensions: [
-                            {
-                                label: 'Year',
-                                values: filteredData.map(d => d.year_built),
-                                range: [yearStart, yearEnd]
-                            },
-                            {
-                                label: 'Est GFA',
-                                values: filteredData.map(d => d['Est GFA sqmeters']),
-                                range: [areaMin, areaMax]
-                            },
-                            {
-                                label: 'Cluster',
-                                values: filteredData.map(d => d.cluster),
-                                range: [0, 6]
-                            }
+                            { label: 'Year', values: filteredData.map(d => d.year_built), range: [yearStart, yearEnd] },
+                            { label: 'Est GFA', values: filteredData.map(d => d['Est GFA sqmeters']), range: [areaMin, areaMax] },
+                            { label: 'Cluster', values: filteredData.map(d => d.cluster), range: [0, 6] }
                         ],
-                        line: {
-                            color: filteredData.map(d => d.cluster),
-                            colorscale: 'Plasma',
-                            showscale: true
-                        }
+                        line: { color: filteredData.map(d => d.cluster), colorscale: 'Plasma', showscale: true }
                     }];
-                    
-                    layout = {
-                        title: 'Parallel Coordinates - Building Attributes',
-                        height: 600
-                    };
+                    layout = { title: 'Parallel Coordinates - Building Attributes', height: 600 };
                     break;
-                    
                 case 'box':
                     const occupancies = [...new Set(filteredData.map(d => d.OCC_CLS))];
                     plotData = occupancies.map((occ, i) => ({
@@ -5998,14 +5860,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         boxpoints: 'outliers',
                         marker: { color: plasmaColors[i % plasmaColors.length] }
                     }));
-                    
-                    layout = {
-                        title: 'Est GFA Distribution by Occupancy Class',
-                        yaxis: { title: 'Est GFA sqmeters' },
-                        height: 500
-                    };
+                    layout = { title: 'Est GFA Distribution by Occupancy Class', yaxis: { title: 'Est GFA (sqm)' }, height: 500 };
                     break;
-                    
                 case 'violin':
                     const violinOccupancies = [...new Set(filteredData.map(d => d.OCC_CLS))];
                     plotData = violinOccupancies.map((occ, index) => ({
@@ -6017,51 +5873,33 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         fillcolor: plasmaColors[index % plasmaColors.length],
                         opacity: 0.6
                     }));
-                    
-                    layout = {
-                        title: 'Est GFA Distribution (Violin Plot)',
-                        yaxis: { title: 'Est GFA sqmeters' },
-                        height: 500
-                    };
+                    layout = { title: 'Est GFA Distribution (Violin Plot)', yaxis: { title: 'Est GFA (sqm)' }, height: 500 };
                     break;
-                    
                 case 'treemap':
                     const treemapLabels = ['Root'];
                     const treemapParents = [''];
                     const treemapValues = [0];
-                    
                     const treemapData = {};
                     filteredData.forEach(d => {
-                        if (!treemapData[d.OCC_CLS]) {
-                            treemapData[d.OCC_CLS] = 0;
-                        }
+                        if (!treemapData[d.OCC_CLS]) treemapData[d.OCC_CLS] = 0;
                         treemapData[d.OCC_CLS]++;
                     });
-                    
                     Object.entries(treemapData).forEach(([occ, count]) => {
                         treemapLabels.push(occ);
                         treemapParents.push('Root');
                         treemapValues.push(count);
                     });
-                    
                     plotData = [{
                         type: 'treemap',
                         labels: treemapLabels,
                         parents: treemapParents,
                         values: treemapValues,
                         textinfo: "label+value+percent root",
-                        marker: {
-                            colorscale: 'Plasma'
-                        }
+                        marker: { colorscale: 'Plasma' }
                     }];
-                    
-                    layout = {
-                        title: 'Building Distribution Treemap',
-                        height: 600
-                    };
+                    layout = { title: 'Building Distribution Treemap', height: 600 };
                     break;
             }
-            
             Plotly.newPlot('interactiveChart', plotData, layout, {responsive: true});
         }
         
