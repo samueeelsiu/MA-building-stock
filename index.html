@@ -1094,6 +1094,7 @@
                 <button class="nav-tab" onclick="showSection('occupancy')">Occupancy Clustering</button>
                 <button class="nav-tab" onclick="showSection('materials')">Materials</button>
                 <button class="nav-tab soil-tab" onclick="showSection('soilAnalysis')">Soil Analysis</button>
+                <button class="nav-tab" onclick="showSection('historicShoreline')">Boston Historic Shoreline</button>
                 <button class="nav-tab" onclick="showSection('interactive')">Explorer</button>
             </div>
         </div>
@@ -1424,6 +1425,18 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                                 <option value="Unclassified">Unclassified</option>
                             </select>
                         </div>
+
+                        <div class="control-group">
+                            <label style="font-weight: 600; margin-right: 10px;">Sankey Diagram View:</label>
+                            <select id="sankeyViewSelector" onchange="createBuildingDistributionSankey()"
+                                    style="padding: 8px 12px; border: 1px solid #dee2e6; border-radius: 4px; font-size: 14px;">
+                                <option value="by_count" selected>By Building Count</option>
+                                <option value="by_gfa">By Total GFA (sqm)</option>
+                                <option value="by_count_simplified">By Building Count (Simplified)</option>
+                                <option value="by_gfa_simplified">By Total GFA (Simplified)</option>
+                            </select>
+                        </div>
+
                     </div>
                     
                     <div id="buildingDistributionSankey"></div>
@@ -1700,10 +1713,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 <div class="info-box" style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); border-left-color: #ff9800;">
                     <h3 style="color: #e65100;">Dynamic Clustering Features</h3>
                     <p style="color: #bf360c;">
-                        <strong>Base Dimensions (3D):</strong> Year Built, Est GFA sqmeters, Occupancy Class<br>
-                        <strong>+ Material Type (4D):</strong> Adds material type as a clustering dimension<br>
-                        <strong>+ Foundation Type (4D):</strong> Adds foundation type as a clustering dimension<br>
-                        <strong>+ Both (5D):</strong> Includes all dimensions for comprehensive clustering<br>
+                        <strong>Base Dimensions (4D):</strong> Year Built, Footprint Area (SQMETERS), Height (PRED_HEIGHT), Occupancy Class<br>
+                        <strong>+ Material Type (5D):</strong> Adds material type as a clustering dimension<br>
+                        <strong>+ Foundation Type (5D):</strong> Adds foundation type as a clustering dimension<br>
+                        <strong>+ Both (6D):</strong> Includes all dimensions for comprehensive clustering<br>
                         <strong>Real-time Reclustering:</strong> Each toggle change triggers new clustering calculations based on selected features
                     </p>
                 </div>
@@ -1897,6 +1910,60 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 </div>
 
             </div>
+
+
+            <div id="historicShoreline" class="section">
+                <div class="section-header">
+                    <h2>Boston's Historic Shoreline and Filled Land</h2>
+                    <p>Visualizing buildings constructed on land reclaimed since 1630.</p>
+                </div>
+                
+                <div class="info-box">
+                    <h3>The Filling of Boston</h3>
+                    <p>
+                        The map of Boston has changed dramatically since its founding in 1630. Much of what is now considered central Boston was once tidal flats and marshes. 
+                        Through extensive land reclamation projects over centuries, areas like Back Bay, the South End, and parts of Downtown were created from fill. 
+                        This historic map shows the original 1630 shoreline, and the interactive map below displays modern buildings that now stand on this reclaimed land.
+                    </p>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Historic Shoreline Map (c. 1630)</h3>
+                    <img src="boston_shoreline_1630.png" alt="Historic Map of Boston Shoreline" style="width: 100%; height: auto; border-radius: 10px;">
+                </div>
+                
+                <div class="section-header" style="margin-top: 40px;">
+                    <h2>Buildings on Reclaimed Land</h2>
+                    <p>An interactive map of structures located on areas that were filled after 1630.</p>
+                </div>
+
+                <div class="controls">
+                    <div class="control-group">
+                        <label>Filter by Occupancy:</label>
+                        <select id="historicOccFilter" onchange="createHistoricShorelineMap()"></select>
+                        
+                        <label>Filter by Material:</label>
+                        <select id="historicMaterialFilter" onchange="createHistoricShorelineMap()"></select>
+                        
+                        <label>Filter by Foundation:</label>
+                        <select id="historicFoundationFilter" onchange="createHistoricShorelineMap()"></select>
+                    </div>
+                    <div class="control-group">
+                        <label>Color Points By:</label>
+                        <select id="historicColorBy" onchange="createHistoricShorelineMap()">
+                            <option value="OCC_CLS">Occupancy Class</option>
+                            <option value="material_type">Material Type</option>
+                            <option value="foundation_type">Foundation Type</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="map-container">
+                    <div id="historicShorelineMapPlot"></div>
+                </div>
+            </div>
+            <div id="interactive" class="section">
+
 <!-- INTERACTIVE EXPLORER SECTION -->
             <div id="interactive" class="section">
                 <div class="section-header">
@@ -1954,6 +2021,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
     <script>
         // Global variables for data
         let buildingData = null;
+        let historicShorelineData = null;
         let isDataLoaded = false;
         let currentClusterK = 7;
         
@@ -2286,208 +2354,121 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             document.getElementById('dataCleaningSankey').innerHTML = '<p>Data cleaning statistics are not available.</p>';
         }
         
-        function createBuildingDistributionSankey() {
+    function createBuildingDistributionSankey() {
+            // This function creates the hierarchical Sankey diagram.
+            // It now supports four views, including simplified versions for both count and GFA.
             if (!buildingData || !buildingData.hierarchical_distribution) {
                 console.warn('No hierarchical distribution data available');
                 return;
             }
-            
+
+            // Get user selections from the dropdowns
             const selectedOccupancy = document.getElementById('hierarchicalOccupancy')?.value || 'all';
-            let sankeyData = buildingData.hierarchical_distribution[selectedOccupancy];
-            
-            if (!sankeyData) {
-                console.warn(`No data available for occupancy: ${selectedOccupancy}`);
-                document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this selection (Not enough buildings).</p>';
-                return;
-            }
-            
-            if (!sankeyData || !sankeyData.nodes || !sankeyData.links || sankeyData.nodes.length === 0) {
-                console.warn('Invalid or empty sankey data structure');
-                document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this selection (Not enough buildings to generate a flow chart).</p>';
+            const selectedView = document.getElementById('sankeyViewSelector')?.value || 'by_count';
+
+            // Select the correct data structure based on occupancy and view selection
+            let dataForOccupancy = buildingData.hierarchical_distribution[selectedOccupancy];
+            if (!dataForOccupancy) {
+                console.warn(`No data for occupancy: ${selectedOccupancy}`);
+                document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this occupancy class.</p>';
                 return;
             }
 
-            function formatSankeyNumber(num) {
+            let sankeyData = dataForOccupancy[selectedView];
+            if (!sankeyData || !sankeyData.nodes || !sankeyData.links || sankeyData.nodes.length === 0) {
+                console.warn(`No data for view: ${selectedView}`);
+                document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this view (Not enough buildings to generate a flow chart).</p>';
+                return;
+            }
+
+            // Helper function to format large numbers for display
+            function formatSankeyNumber(num, isGfa = false) {
+                if (isGfa) {
+                    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+                    if (num >= 1000) return `${Math.round(num / 1000)}K`;
+                    return `${Math.round(num)}`;
+                }
                 if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
-                if (num >= 10000) return `${(num / 1000).toFixed(0)}K`;
                 if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
                 return num.toString();
             }
 
-            // Create node positions based on logical ordering
-            const nodePositions = {};
+            // Create maps for quick node lookup by name to get their index
+            const nodeIndexMap = new Map(sankeyData.nodes.map((node, i) => [node.name, i]));
+
+            // Check if the current view is GFA-based or simplified
+            const isGfaView = selectedView.includes('gfa');
+            const isSimplifiedView = selectedView.includes('simplified');
             
-            const xPositions = selectedOccupancy === 'all' 
-                ? [-0.1, 0.2, 0.35, 0.5, 0.65, 0.85]
-                : [-0.1, 0.3, 0.5, 0.7, 0.9];
-            
-            // Group nodes by level
-            const nodesByLevel = {};
-            sankeyData.nodes.forEach(node => {
-                if (!nodesByLevel[node.level]) {
-                    nodesByLevel[node.level] = [];
-                }
-                nodesByLevel[node.level].push(node);
-            });
-            
-            // Define ordering for each level
-            const orderingRules = {
-                1: null, // Occupancy classes will sort by count
-                2: ['Small', 'Medium', 'Large'],
-                3: ['Low', 'Mid', 'High'],
-                4: ['Historic (<1940)', 'Mid-Century (40-80)', 'Modern (>1980)'],
-                5: ['Excessively drained', 'Somewhat excessively drained', 'Well drained', 
-                    'Moderately well drained', 'Somewhat poorly drained', 
-                    'Poorly drained', 'Very poorly drained', 'Unknown Drainage']
-            };
+            const valueUnit = isGfaView ? 'sqm' : '';
+            const valueLabel = isGfaView ? 'Total GFA' : 'Count';
 
-            // START OF MODIFIED SECTION
-            // Calculate Y positions for each node
-            Object.keys(nodesByLevel).forEach(level => {
-                const levelNodes = nodesByLevel[level];
-                const levelInt = parseInt(level);
-
-                // Determine which ordering rule to use
-                let orderingKey = levelInt;
-                if (selectedOccupancy !== 'all' && levelInt > 0) {
-                    orderingKey = levelInt + 1;
-                }
-                const ordering = orderingRules[orderingKey];
-
-                // Sort nodes based on predefined order or count
-                if (ordering) {
-                    levelNodes.sort((a, b) => {
-                        const aIndex = ordering.indexOf(a.name);
-                        const bIndex = ordering.indexOf(b.name);
-                        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                        if (aIndex !== -1) return -1;
-                        if (bIndex !== -1) return 1;
-                        return 0; // Fallback for items not in the ordering list
-                    });
-                } else if (levelInt === 1 && selectedOccupancy === 'all') {
-                    // For the occupancy class level, sort by count (descending)
-                    levelNodes.sort((a, b) => b.count - a.count);
-                }
-
-                // Use consistent and generous spacing for all levels
-                // This makes the Occupancy Class column display cleanly like the old version
-                const numNodes = levelNodes.length > 1 ? levelNodes.length - 1 : 1;
-                const spacing = 0.98 / numNodes;
-                const yStart = (1 - (spacing * (numNodes))) / 2;
-
-                levelNodes.forEach((node, index) => {
-                    let yPos = 0.5; // Default for a single node
-                    if (levelNodes.length > 1) {
-                        yPos = yStart + spacing * index;
-                    }
-                    nodePositions[node.name] = {
-                        x: xPositions[levelInt],
-                        y: yPos
-                    };
-                });
-            });
-            // END OF MODIFIED SECTION
-
-            // Create ordered node list
-            const orderedNodes = [];
-            const nodeIndexMap = new Map();
-            
-            const maxLevel = selectedOccupancy === 'all' ? 6 : 5;
-            for (let level = 0; level < maxLevel; level++) {
-                if (nodesByLevel[level]) {
-                    nodesByLevel[level].forEach(node => {
-                        nodeIndexMap.set(node.name, orderedNodes.length);
-                        orderedNodes.push(node);
-                    });
-                }
-            }
-
-            // Prepare node data with explicit positions
-            const nodeData = {
-                label: orderedNodes.map(n => {
-                    const displayName = n.display_name || n.name;
-                    return `${displayName}<br>(${formatSankeyNumber(n.count)})`;
-                }),
-                color: orderedNodes.map(n => plasmaColors[n.level % plasmaColors.length]),
-                x: orderedNodes.map(n => nodePositions[n.name] ? nodePositions[n.name].x : 0),
-                y: orderedNodes.map(n => nodePositions[n.name] ? nodePositions[n.name].y : 0.5),
-                pad: 40,
-                thickness: 25,
-                line: { color: 'white', width: 1 }
-            };
-
-            // Prepare link data
-            const linkData = {
-                source: [],
-                target: [],
-                value: []
-            };
-            
-            sankeyData.links.forEach(link => {
-                const sourceIdx = nodeIndexMap.get(link.source);
-                const targetIdx = nodeIndexMap.get(link.target);
-                if (sourceIdx !== undefined && targetIdx !== undefined) {
-                    linkData.source.push(sourceIdx);
-                    linkData.target.push(targetIdx);
-                    linkData.value.push(link.value);
-                }
-            });
-
+            // Prepare the data for Plotly
             const plotData = [{
                 type: 'sankey',
                 orientation: 'h',
-                arrangement: 'snap', // This helps align nodes
-                node: nodeData,
+                node: {
+                    pad: 20,
+                    thickness: 25,
+                    line: { color: 'white', width: 1.5 },
+                    label: sankeyData.nodes.map(n => n.name),
+                    color: sankeyData.nodes.map(n => plasmaColors[n.level % plasmaColors.length]),
+                },
                 link: {
-                    source: linkData.source,
-                    target: linkData.target,
-                    value: linkData.value,
+                    source: sankeyData.links.map(link => nodeIndexMap.get(link.source)).filter(idx => idx !== undefined),
+                    target: sankeyData.links.map(link => nodeIndexMap.get(link.target)).filter(idx => idx !== undefined),
+                    value: sankeyData.links.map(link => link.value),
                     color: 'rgba(102, 126, 234, 0.25)',
-                    hovertemplate: '%{source.label} → %{target.label}<br>Count: %{value:,}<extra></extra>'
+                    hovertemplate: `%{source.label} → %{target.label}<br>${valueLabel}: %{value:,.0f} ${valueUnit}<extra></extra>`
                 }
             }];
             
-            let title = selectedOccupancy === 'all' ? 
-                `MA Building Hierarchical Distribution - All Buildings` :
-                `MA Building Hierarchical Distribution - ${selectedOccupancy}`;
-            
+            // Dynamically set the chart title based on the selected view
+            let viewTitle = '';
+            if (isGfaView) {
+                viewTitle = isSimplifiedView ? 'by Total GFA (Simplified)' : 'by Total GFA';
+            } else {
+                viewTitle = isSimplifiedView ? 'by Building Count (Simplified)' : 'by Building Count';
+            }
+
+            let title = selectedOccupancy === 'all' ?
+                `MA Building Hierarchical Distribution - All Buildings (${viewTitle})` :
+                `MA Building Hierarchical Distribution - ${selectedOccupancy} (${viewTitle})`;
+
             if (sankeyData.total_buildings) {
                 title += ` (${formatSankeyNumber(sankeyData.total_buildings)} buildings)`;
             }
-            
+
+            // Dynamically create annotations based on the current view
             const annotations = [];
             if (sankeyData.bin_info) {
                 let annotationText = `<b>Binning Information:</b><br>`;
-                annotationText += `<b>Area:</b> ${sankeyData.bin_info.Area}<br>`;
-                annotationText += `<b>Height:</b> ${sankeyData.bin_info.Height}<br>`;
+                // Only show Area and Height info for non-simplified views
+                if (!isSimplifiedView) {
+                    annotationText += `<b>Area:</b> ${sankeyData.bin_info.Area}<br>`;
+                    annotationText += `<b>Height:</b> ${sankeyData.bin_info.Height}<br>`;
+                }
                 annotationText += `<b>Year:</b> ${sankeyData.bin_info.Year}<br>`;
                 annotationText += `<b>Drainage:</b> ${sankeyData.bin_info.Drainage}`;
                 
                 annotations.push({
-                    x: 0.5, 
-                    y: -0.45,
-                    xref: 'paper', 
-                    yref: 'paper',
-                    text: annotationText, 
-                    showarrow: false,
-                    font: { size: 11, color: '#555' }, 
-                    align: 'center' // This ensures text inside the annotation box is centered
+                    x: 0.5, y: -0.25, xref: 'paper', yref: 'paper',
+                    text: annotationText, showarrow: false,
+                    font: { size: 11, color: '#555' }, align: 'center'
                 });
             }
 
             const layout = {
-                title: { 
-                    text: title, 
-                    font: { size: 22, color: '#333' },
-                    x: 0.5, // Explicitly center the title
-                    xanchor: 'center'
+                title: {
+                    text: title,
+                    font: { size: 18, color: '#333' }
                 },
                 font: { size: 11 },
-                height: 1200, // You can adjust height as needed; 1200 is a good starting point
-                margin: { t: 120, b: 340, l: 200, r: 200 },
+                height: 800,
+                margin: { t: 80, b: 200, l: 150, r: 150 },
                 annotations: annotations
             };
-            
+
             Plotly.newPlot('buildingDistributionSankey', plotData, layout, {responsive: true});
         }
         
@@ -2502,6 +2483,20 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 }
                 
                 buildingData = await response.json();
+
+                                try {
+                    console.log('Loading historic shoreline building data...');
+                    const historicResponse = await fetch('historic_shoreline_buildings.json');
+                    if (!historicResponse.ok) {
+                        throw new Error('Failed to load historic_shoreline_buildings.json');
+                    }
+                    historicShorelineData = await historicResponse.json();
+                    console.log(`Loaded ${historicShorelineData.length} buildings on reclaimed land.`);
+                } catch (error) {
+                    console.error('Could not load historic shoreline data:', error);
+                    // If the file fails to load, initialize as an empty array to prevent dashboard from breaking.
+                    historicShorelineData = []; 
+                }
                 
                 // Store soil analysis data globally
                 if (buildingData.soil_analysis) {
@@ -2767,6 +2762,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             updateMaterialsHeatmap();
             updateSoilAnalysis();
             updateInteractiveExplorer();
+            populateHistoricShorelineFilters();
+            createHistoricShorelineMap();
         }
 
         function generateSampleData() {
@@ -3704,6 +3701,171 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             };
 
             Plotly.newPlot('overviewMapPlot', mapData, layout, {responsive: true});
+        }
+
+                function populateHistoricShorelineFilters() {
+            // Check if the historic data is loaded and is an array.
+            if (!historicShorelineData || !Array.isArray(historicShorelineData)) return;
+
+            const samples = historicShorelineData;
+            
+            // Get unique values for each category from the dataset.
+            const occClasses = ['All', ...new Set(samples.map(s => s.OCC_CLS).filter(Boolean))];
+            const materials = ['All', ...new Set(samples.map(s => s.material_type).filter(Boolean))];
+            const foundations = ['All', ...new Set(samples.map(s => s.foundation_type).filter(Boolean))];
+
+            /**
+             * Helper function to populate a select dropdown.
+             * @param {string} selectId - The ID of the select element.
+             * @param {Array<string>} options - The array of options to add.
+             * @param {Object|null} map - A mapping for display labels (e.g., 'W' -> 'Wood').
+             */
+            const populate = (selectId, options, map = null) => {
+                const select = document.getElementById(selectId);
+                // Clear existing options before populating
+                select.innerHTML = ''; 
+                select.innerHTML = options.map(opt => {
+                    const label = map && map[opt] ? `${opt} - ${map[opt]}` : opt;
+                    const value = opt === 'All' ? 'All' : opt;
+                    return `<option value="${value}">${label}</option>`;
+                }).join('');
+            };
+            
+            // Populate the dropdowns with unique IDs for the historic section.
+            populate('historicOccFilter', occClasses);
+            populate('historicMaterialFilter', materials, materialTypeMap);
+            populate('historicFoundationFilter', foundations, foundationTypeMap);
+        }
+
+
+        /**
+         * Creates and updates the interactive map for buildings on historic filled land.
+         * This function is a direct adaptation of createOverviewMap(), but targets
+         * the new data source (historicShorelineData) and new HTML element IDs.
+         */
+        function createHistoricShorelineMap() {
+            // Check if the historic data is available.
+            if (!historicShorelineData) {
+                document.getElementById('historicShorelineMapPlot').innerHTML = '<p style="text-align:center; padding-top:100px;">Historic shoreline data is not loaded.</p>';
+                return;
+            }
+
+            // Get current filter values from the historic section's controls.
+            const occFilter = document.getElementById('historicOccFilter').value;
+            const materialFilter = document.getElementById('historicMaterialFilter').value;
+            const foundationFilter = document.getElementById('historicFoundationFilter').value;
+            const colorBy = document.getElementById('historicColorBy').value;
+
+            // Filter the data based on user selections.
+            let filteredData = historicShorelineData.filter(d => {
+                const occMatch = (occFilter === 'All' || d.OCC_CLS === occFilter);
+                const materialMatch = (materialFilter === 'All' || d.material_type === materialFilter);
+                const foundationMatch = (foundationFilter === 'All' || d.foundation_type === foundationFilter);
+                // Ensure the point has valid coordinates.
+                return d.LATITUDE && d.LONGITUDE && occMatch && materialMatch && foundationMatch;
+            });
+
+            // If there's no data after filtering, display a message.
+            if (filteredData.length === 0) {
+                document.getElementById('historicShorelineMapPlot').innerHTML = '<p style="text-align:center; padding-top:100px;">No data available for the current filter selection.</p>';
+                return;
+            }
+            
+            // Choose the appropriate fixed color mapping based on the 'Color By' dropdown.
+            let colorMap;
+            if (colorBy === 'OCC_CLS') {
+                colorMap = FIXED_OCC_COLORS;
+            } else if (colorBy === 'material_type') {
+                colorMap = FIXED_MATERIAL_COLORS;
+            } else if (colorBy === 'foundation_type') {
+                colorMap = FIXED_FOUNDATION_COLORS;
+            }
+            
+            // Get unique categories present in the filtered data to create the legend.
+            const colorValues = filteredData.map(d => d[colorBy]);
+            const uniqueCategories = [...new Set(colorValues)].filter(cat => cat != null);
+            
+            // Sort categories for a consistent legend order.
+             if (colorBy === 'OCC_CLS') {
+                const occOrder = ['Residential', 'Commercial', 'Government', 'Industrial', 
+                                'Assembly', 'Unclassified', 'Education', 'Utility and Misc', 'Agriculture'];
+                uniqueCategories.sort((a, b) => occOrder.indexOf(a) - occOrder.indexOf(b));
+            } else if (colorBy === 'material_type') {
+                const materialOrder = ['W', 'M', 'S', 'C', 'H'];
+                uniqueCategories.sort((a, b) => materialOrder.indexOf(a) - materialOrder.indexOf(b));
+            } else if (colorBy === 'foundation_type') {
+                const foundationOrder = ['B', 'S', 'C', 'I', 'P', 'W', 'F'];
+                uniqueCategories.sort((a, b) => foundationOrder.indexOf(a) - foundationOrder.indexOf(b));
+            } else {
+                uniqueCategories.sort();
+            }
+            
+            // Create dummy traces for the legend.
+            const legendTraces = uniqueCategories.map(cat => ({
+                type: 'scattermapbox',
+                lon: [null], lat: [null], mode: 'markers',
+                marker: { size: 10, color: colorMap[cat] || '#999999' },
+                name: colorBy === 'material_type' ? (materialTypeMap[cat] || cat) :
+                    colorBy === 'foundation_type' ? (foundationTypeMap[cat] || cat) :
+                    cat,
+                showlegend: true, hoverinfo: 'skip'
+            }));
+            
+            // Create the main trace with all the building points.
+            const mainTrace = {
+                type: 'scattermapbox',
+                lon: filteredData.map(d => d.LONGITUDE),
+                lat: filteredData.map(d => d.LATITUDE),
+                mode: 'markers',
+                marker: {
+                    size: 10,
+                    color: colorValues.map(v => colorMap[v] || '#999999'),
+                    opacity: 0.8,
+                    line: { width: 0.5, color: 'rgba(255,255,255,0.3)' }
+                },
+                text: filteredData.map(d => 
+                    `<b>Year Built:</b> ${d.year_built}<br>` +
+                    `<b>Occupancy:</b> ${d.OCC_CLS || 'N/A'}<br>` +
+                    `<b>Material:</b> ${materialTypeMap[d.material_type] || d.material_type || 'N/A'}<br>` +
+                    `<b>Foundation:</b> ${foundationTypeMap[d.foundation_type] || d.foundation_type || 'N/A'}`
+                ),
+                hovertemplate: '%{text}<extra></extra>',
+                showlegend: false
+            };
+            
+            const mapData = [mainTrace, ...legendTraces];
+            
+            // Define the layout for the map.
+            const layout = {
+                title: {
+                    text: `Buildings on Reclaimed Land (${filteredData.length} points shown)`,
+                    font: { size: 20, color: '#333' }
+                },
+                mapbox: {
+                    style: 'open-street-map',
+                    // Center the map on Boston.
+                    center: { lat: 42.355, lon: -71.06 },
+                    zoom: 12.5 // Zoom in closer on Boston
+                },
+                height: 600,
+                margin: { t: 50, b: 0, l: 0, r: 120 },
+                showlegend: true,
+                legend: {
+                    x: 1.02, y: 0.5, yanchor: 'middle',
+                    bgcolor: 'rgba(255,255,255,0.95)',
+                    bordercolor: '#ccc', borderwidth: 1,
+                    font: { size: 11 },
+                    title: {
+                        text: colorBy === 'OCC_CLS' ? 'Occupancy Class' :
+                            colorBy === 'material_type' ? 'Material Type' :
+                            'Foundation Type',
+                        font: { size: 13, color: '#333' }
+                    }
+                }
+            };
+
+            // Render the plot in the designated div.
+            Plotly.newPlot('historicShorelineMapPlot', mapData, layout, {responsive: true});
         }
 
         // 用下面的函数完整替换掉旧的 createDataSourcesFlowchart 函数
@@ -4877,8 +5039,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             }
             
             // Update dimension indicator
-            let dimensions = ['Year', 'Area', 'Occupancy'];
-            let dimensionCount = 3;
+            let dimensions = ['Year', 'Footprint Area', 'Height', 'Occupancy'];
+            let dimensionCount = 4;
             if (includeMaterial) {
                 dimensions.push('Material');
                 dimensionCount++;
@@ -4957,14 +5119,17 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             });
 
             // Create 3D scatter plot
+            // index.html L:1976
+            // Create 3D scatter plot
+            // MODIFICATION: The scatter plot now visualizes Footprint Area (x), Height (y), and Year (z), with points colored by cluster.
             const scatterData = [{
-                x: samplesForViz.map(s => s.year_built < 1940 ? 1939 : s.year_built),
-                y: samplesForViz.map(s => useLogScale ? Math.log10(s['Est GFA sqmeters'] + 1) : s['Est GFA sqmeters']),
-                z: samplesForViz.map(s => s.displayCluster),
+                x: samplesForViz.map(s => useLogScale ? Math.log10(s.SQMETERS + 1) : s.SQMETERS),
+                y: samplesForViz.map(s => s.PRED_HEIGHT),
+                z: samplesForViz.map(s => s.year_built < 1940 ? 1939 : s.year_built),
                 mode: 'markers',
                 type: 'scatter3d',
                 marker: {
-                    color: samplesForViz.map(s => s.displayCluster),
+                    color: samplesForViz.map(s => s.displayCluster), // Color by the assigned cluster
                     colorscale: 'Plasma',
                     size: 5,
                     opacity: 0.7,
@@ -4978,7 +5143,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     cmax: kValue - 1
                 },
                 text: samplesForViz.map(s => {
-                    let text = `${s.OCC_CLS}<br>Cluster: ${s.displayCluster + 1}`;
+                    let text = `${s.OCC_CLS}<br>Cluster: ${s.displayCluster !== null ? s.displayCluster + 1 : 'N/A'}`;
                     if (includeMaterial && s.material_type) {
                         text += `<br>Material: ${materialTypeMap[s.material_type] || s.material_type}`;
                     }
@@ -4987,8 +5152,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     }
                     return text;
                 }),
-                hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f}' + (useLogScale ? ' (log)' : ' sqm') + 
-                              '<br>Cluster: %{z}<br>%{text}<extra></extra>'
+                hovertemplate: 'Footprint: %{x:.1f} sqm' + (useLogScale ? ' (log)' : '') +
+                              '<br>Height: %{y:.1f} m' +
+                              '<br>Year: %{z}' +
+                              '<br>%{text}<extra></extra>'
             }];
             
             const scatterLayout = {
@@ -4998,18 +5165,15 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 },
                 scene: {
                     xaxis: { 
+                        title: useLogScale ? 'Footprint Area (SQMETERS, log scale)' : 'Footprint Area (SQMETERS)'
+                    },
+                    yaxis: { 
+                        title: 'Predicted Height (m)'
+                    },
+                    zaxis: { 
                         title: 'Year Built',
                         tickvals: [1939, 1950, 1970, 1990, 2010, 2020],
                         ticktext: ['pre-1940', '1950', '1970', '1990', '2010', '2020']
-                    },
-                    yaxis: { 
-                        title: useLogScale ? 'Est GFA sqmeters (log scale)' : 'Est GFA sqmeters'
-                    },
-                    zaxis: { 
-                        title: 'Cluster ID',
-                        tickmode: 'linear',
-                        tick0: 0,
-                        dtick: 1
                     },
                     camera: {
                         eye: {x: 1.5, y: 1.5, z: 1.5}
@@ -5039,12 +5203,12 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 
                 if (kStats && kStats.clusters) {
                     // Create full dataset table with enhanced clustering
-                    let tableHeaders = ['Cluster', 'Total Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'];
+                    let tableHeaders = ['Cluster', 'Total Count', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'];
                     let tableValues = [
                         kStats.clusters.map(s => `Cluster ${s.cluster_id + 1}`),
                         kStats.clusters.map(s => s.count.toLocaleString()),
-                        kStats.clusters.map(s => Math.round(s.avg_area)),
-                        kStats.clusters.map(s => Math.round(s.std_area)),
+                        kStats.clusters.map(s => Math.round(s.avg_sqmeters)),
+                        kStats.clusters.map(s => s.avg_height.toFixed(1)),
                         kStats.clusters.map(s => Math.round(s.avg_year))
                     ];
                     
@@ -5164,9 +5328,9 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             for (let i = 0; i < kValue; i++) {
                 sampleStats[i] = { 
                     count: 0, 
-                    areaSum: 0, 
+                    sqmetersSum: 0,
+                    heightSum: 0, 
                     yearSum: 0, 
-                    areaSquaredSum: 0,
                     materials: {},
                     foundations: {}
                 };
@@ -5175,13 +5339,11 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             samplesForViz.forEach(s => {
                 const cluster = s.displayCluster;
 
-
                 if (cluster !== null && cluster !== undefined) {
-                    const area = s['Est GFA sqmeters'];
                     sampleStats[cluster].count++;
-                    sampleStats[cluster].areaSum += area;
+                    sampleStats[cluster].sqmetersSum += s.SQMETERS;
+                    sampleStats[cluster].heightSum += s.PRED_HEIGHT;
                     sampleStats[cluster].yearSum += s.year_built;
-                    sampleStats[cluster].areaSquaredSum += area * area;
 
                     // Track material and foundation types
                     if (s.material_type) {
@@ -5201,17 +5363,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
             const headerColor = sampleType === 'random' ? '#fb9f3a' : '#7201a8';
             
-            let sampleTableHeaders = ['Cluster', 'Sample Count', 'Avg Est GFA (m²)', 'Std Est GFA', 'Avg Year'];
+            // MODIFICATION: Updated table headers and values for the sample statistics.
+            let sampleTableHeaders = ['Cluster', 'Sample Count', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'];
             let sampleTableValues = [
                 Object.keys(sampleStats).map(c => `Cluster ${parseInt(c) + 1}`),
                 Object.values(sampleStats).map(s => s.count.toLocaleString()),
-                Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.areaSum / s.count) : 0),
-                Object.values(sampleStats).map(s => {
-                    if (s.count <= 1) return 0;
-                    const mean = s.areaSum / s.count;
-                    const variance = (s.areaSquaredSum / s.count) - (mean * mean);
-                    return Math.round(Math.sqrt(Math.max(0, variance)));
-                }),
+                Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.sqmetersSum / s.count) : 0),
+                Object.values(sampleStats).map(s => s.count > 0 ? (s.heightSum / s.count).toFixed(1) : 0),
                 Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.yearSum / s.count) : 0)
             ];
             

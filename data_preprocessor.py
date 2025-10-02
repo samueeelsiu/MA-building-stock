@@ -158,399 +158,142 @@ class BuildingDataProcessor:
 
     def process_hierarchical_distribution(self):
         """
-        Processes hierarchical data for Sankey diagrams.
-        It defines global bins for area, height, and year to ensure consistency,
-        then generates the data structure for both the "all buildings" view and
-        for each individual occupancy class.
+        Processes hierarchical data for Sankey diagrams for multiple views.
+        - by_count: Standard hierarchy with values as building counts.
+        - by_gfa: Standard hierarchy with values as summed GFA.
+        - by_count_simplified: Simplified hierarchy (no area/height) with values as counts.
         """
-        print("Processing hierarchical distribution with shared binning...")
+        print("Processing hierarchical distribution for multiple views...")
 
         df_work = self.df_cleaned.copy()
-
-        # ISSUE #3 FIX: Use original drainage classes instead of grouping them.
-        # We use .fillna() to handle missing values, preserving all other categories.
         if 'drainagecl' in df_work.columns:
             df_work['drainage_cat'] = df_work['drainagecl'].fillna('Unknown Drainage')
-
-
-        # Ensure it's treated as a categorical column.
+        else:
+            df_work['drainage_cat'] = 'Unknown Drainage'
         df_work['drainage_cat'] = df_work['drainage_cat'].astype('category')
 
-        # Define consistent, global bins for all data to use.
+        # Define consistent, global bins
         area_percentiles = df_work['Est GFA sqmeters'].quantile([0.33, 0.67]).values
         area_bins = [0, area_percentiles[0], area_percentiles[1], float('inf')]
         area_labels = ['Small', 'Medium', 'Large']
 
         height_percentiles = df_work['PRED_HEIGHT'].quantile([0.33, 0.67]).values
         height_bins = [0, height_percentiles[0], height_percentiles[1], float('inf')]
-        height_labels = ['Low', 'Mid', 'High']
+        height_labels = ['Short', 'Mid', 'High']  # Renamed "Low" to "Short"
 
         year_bins = [0, 1940, 1980, float('inf')]
         year_labels = ['Historic (<1940)', 'Mid-Century (40-80)', 'Modern (>1980)']
 
-        drainage_labels = df_work['drainage_cat'].cat.categories.tolist()
-
-        # Apply these bins to the entire working dataframe to create categorical columns.
+        # Apply bins
         df_work['area_cat'] = pd.cut(df_work['Est GFA sqmeters'], bins=area_bins, labels=area_labels, right=False)
         df_work['height_cat'] = pd.cut(df_work['PRED_HEIGHT'], bins=height_bins, labels=height_labels, right=False)
         df_work['year_cat'] = pd.cut(df_work['year_built'], bins=year_bins, labels=year_labels, right=False)
 
-        hierarchical_by_occupancy = {}
+        # Main dictionary to hold all versions
+        hierarchical_data = {}
 
-        # ISSUE #1 & #2 FIX: Call the NEW rewritten function for "All Buildings".
-        # We also pass the bin definitions to be stored in the JSON for the frontend annotation.
-        hierarchical_by_occupancy['all'] = self._process_all_buildings_hierarchy(
-            df_work, area_bins, height_bins, year_bins,
-            area_labels, height_labels, year_labels, drainage_labels
-        )
-
-        # Process the hierarchical structure for each individual occupancy class.
-        occupancy_classes = df_work['OCC_CLS'].unique()
-        for occ_class in occupancy_classes:
-            occ_data = df_work[df_work['OCC_CLS'] == occ_class]
-            if len(occ_data) > 100:
-                hierarchical_by_occupancy[occ_class] = self._process_single_occupancy_hierarchy(
-                    occ_data, occ_class, area_bins, height_bins, year_bins,
-                    area_labels, height_labels, year_labels, drainage_labels
-                )
-
-        print(f"  Processed hierarchical data for {len(hierarchical_by_occupancy)} occupancy classes")
-        return hierarchical_by_occupancy
-
-    # In data_preprocessor.py, find and replace ONLY this one function.
-
-    # In data_preprocessor.py, find and replace ONLY this one function.
-
-    # In data_preprocessor.py, find and replace ONLY this one function.
-
-    # In data_preprocessor.py, find and replace ONLY this one function.
-
-    def _process_all_buildings_hierarchy(self, df_all, area_bins, height_bins, year_bins,
-                                         area_labels, height_labels, year_labels, drainage_labels):
-        """
-        Processes hierarchical data for all buildings, ensuring nodes are arranged in a logical order.
-
-        This version assigns specific vertical positions to nodes within each level to create a
-        stable and visually intuitive Sankey diagram layout.
-
-        Returns:
-            dict: A dictionary containing 'nodes', 'links', 'total_buildings', and 'node_positions'
-                  formatted for the Sankey diagram.
-        """
-        sankey_data = {
-            'nodes': [],
-            'links': [],
-            'total_buildings': len(df_all),
-            'node_positions': {}  # New: Store node position information.
+        # Process for 'all' buildings view
+        hierarchical_data['all'] = {
+            'by_count': self._process_hierarchy(df_work,
+                                                ['occ_cat', 'area_cat', 'height_cat', 'year_cat', 'drainage_cat'],
+                                                'count'),
+            'by_gfa': self._process_hierarchy(df_work,
+                                              ['occ_cat', 'area_cat', 'height_cat', 'year_cat', 'drainage_cat'], 'gfa'),
+            'by_count_simplified': self._process_hierarchy(df_work, ['occ_cat', 'year_cat', 'drainage_cat'], 'count'),
+            'by_gfa_simplified': self._process_hierarchy(df_work, ['occ_cat', 'year_cat', 'drainage_cat'], 'gfa')
         }
-        MIN_COUNT = 0
-        nodes = {}
-
-        def add_node(name, level, position=None):
-            """
-            Helper function to add a new node if it doesn't exist.
-
-            Args:
-                name (str): The unique name of the node.
-                level (int): The horizontal level (column) of the node in the Sankey diagram.
-                position (float, optional): The normalized vertical position (0.0 to 1.0) of the node.
-            """
-            if name not in nodes:
-                nodes[name] = {
-                    'name': name,
-                    'display_name': name,
-                    'level': level,
-                    'position': position  # Add position information to the node.
-                }
-
-        # Root node
-        root_name = 'All Buildings'
-        add_node(root_name, 0, 0.5)  # Centered in the first column
-
-        # Occupancy categories - Sorted by count
-        occ_counts = df_all['OCC_CLS'].value_counts()
-        top_9_occ = occ_counts.nlargest(9).index.tolist()
-        df_all['occ_cat'] = df_all['OCC_CLS'].apply(lambda x: x if x in top_9_occ else 'Other')
-
-        # Position occupancy nodes evenly based on their rank by count.
-        all_occ_cats = df_all['occ_cat'].value_counts().index.tolist()
-        for i, label in enumerate(all_occ_cats):
-            position = (i + 1) / (len(all_occ_cats) + 1)  # Distributes nodes evenly
-            add_node(label, 1, position)
-
-        # Area - Fixed order: Small -> Medium -> Large
-        area_positions = {'Small': 0.25, 'Medium': 0.5, 'Large': 0.75}
-        for label in area_labels:
-            add_node(label, 2, area_positions.get(label, 0.5))  # Default to center
-
-        # Height - Fixed order: Low -> Mid -> High
-        height_positions = {'Low': 0.25, 'Mid': 0.5, 'High': 0.75}
-        for label in height_labels:
-            add_node(label, 3, height_positions.get(label, 0.5))
-
-        # Year - Fixed order: Old -> Mid -> New
-        year_positions = {
-            'Historic (<1940)': 0.25,
-            'Mid-Century (40-80)': 0.5,
-            'Modern (>1980)': 0.75
-        }
-        for label in year_labels:
-            add_node(label, 4, year_positions.get(label, 0.5))
-
-        # Drainage - Fixed order: Good -> Poor
-        drainage_positions = {
-            'Excessively drained': 0.1,
-            'Well drained': 0.2,
-            'Moderately well drained': 0.3,
-            'Somewhat excessively drained': 0.4,
-            'Somewhat poorly drained': 0.5,
-            'Poorly drained': 0.7,
-            'Very poorly drained': 0.8,
-            'Unknown Drainage': 0.9
-        }
-
-        # Filter out drainage labels that might have overlapping names with occupancy categories.
-        valid_drainage_labels = [label for label in drainage_labels
-                                 if label not in all_occ_cats]
-        for label in valid_drainage_labels:
-            add_node(label, 5, drainage_positions.get(label, 0.5))
-
-        # Create links (maintaining original logic)
-        # This section calculates the flow values between nodes at consecutive levels.
-        level1_counts = df_all.groupby('occ_cat').size().reset_index(name='count')
-        for _, row in level1_counts.iterrows():
-            if row['count'] >= MIN_COUNT:
-                sankey_data['links'].append({
-                    'source': root_name,
-                    'target': row['occ_cat'],
-                    'value': row['count']
-                })
-
-        level2_counts = df_all.groupby(['occ_cat', 'area_cat'], observed=True).size().reset_index(name='count')
-        for _, row in level2_counts.iterrows():
-            if row['count'] >= MIN_COUNT:
-                sankey_data['links'].append({
-                    'source': str(row['occ_cat']),
-                    'target': str(row['area_cat']),
-                    'value': row['count']
-                })
-
-        level3_counts = df_all.groupby(['area_cat', 'height_cat'], observed=True).size().reset_index(name='count')
-        for _, row in level3_counts.iterrows():
-            if row['count'] >= MIN_COUNT:
-                sankey_data['links'].append({
-                    'source': str(row['area_cat']),
-                    'target': str(row['height_cat']),
-                    'value': row['count']
-                })
-
-        level4_counts = df_all.groupby(['height_cat', 'year_cat'], observed=True).size().reset_index(name='count')
-        for _, row in level4_counts.iterrows():
-            if row['count'] >= MIN_COUNT:
-                sankey_data['links'].append({
-                    'source': str(row['height_cat']),
-                    'target': str(row['year_cat']),
-                    'value': row['count']
-                })
-
-        level5_counts = df_all.groupby(['year_cat', 'drainage_cat'], observed=True).size().reset_index(name='count')
-        for _, row in level5_counts.iterrows():
-            if row['count'] >= MIN_COUNT and str(row['drainage_cat']) in valid_drainage_labels:
-                sankey_data['links'].append({
-                    'source': str(row['year_cat']),
-                    'target': str(row['drainage_cat']),
-                    'value': row['count']
-                })
-
-        # Calculate node counts for display purposes (e.g., in tooltips).
-        node_counts = {root_name: len(df_all)}
-        node_counts.update(df_all.groupby('occ_cat').size().to_dict())
-        node_counts.update(df_all.groupby('area_cat', observed=True).size().to_dict())
-        node_counts.update(df_all.groupby('height_cat', observed=True).size().to_dict())
-        node_counts.update(df_all.groupby('year_cat', observed=True).size().to_dict())
-        node_counts.update(df_all.groupby('drainage_cat', observed=True).size().to_dict())
-
-        # Identify active nodes (those with at least one link).
-        active_nodes_names = set(link['source'] for link in sankey_data['links']) | \
-                             set(link['target'] for link in sankey_data['links'])
-
-        # Format the final list of nodes, including position information.
-        final_nodes = []
-        for name, node_info in nodes.items():
-            if name in active_nodes_names:
-                node_info['count'] = node_counts.get(name, 0)
-                final_nodes.append(node_info)
-                # Store the final position for use in the visualization library.
-                sankey_data['node_positions'][name] = node_info.get('position', 0.5)
-
-        sankey_data['nodes'] = final_nodes
-
-        # Add descriptive binning information for the UI.
-        sankey_data['bin_info'] = {
+        # Add binning info for the UI
+        bin_info = {
             'Area': f"Small (<{area_bins[1]:.0f} sqm), Medium ({area_bins[1]:.0f}-{area_bins[2]:.0f} sqm), Large (>{area_bins[2]:.0f} sqm)",
-            'Height': f"Low (<{height_bins[1]:.1f}m), Mid ({height_bins[1]:.1f}-{height_bins[2]:.1f}m), High (>{height_bins[2]:.1f}m)",
+            'Height': f"Short (<{height_bins[1]:.1f}m), Mid ({height_bins[1]:.1f}-{height_bins[2]:.1f}m), High (>{height_bins[2]:.1f}m)",
             'Year': f"Historic (<{year_bins[1]}), Mid-Century ({year_bins[1]}-{year_bins[2]}), Modern (>{year_bins[2]})",
             'Drainage': "Multiple classes including Well, Moderately, Poorly drained, etc."
         }
+        for view in hierarchical_data['all']:
+            hierarchical_data['all'][view]['bin_info'] = bin_info
 
-        print(f"    all: {len(sankey_data['nodes'])} nodes, {len(sankey_data['links'])} links processed")
-        return sankey_data
-
-    def _process_single_occupancy_hierarchy(self, df_subset, name,
-                                            area_bins, height_bins, year_bins,
-                                            area_labels, height_labels, year_labels, drainage_labels):
-        """
-        Processes the hierarchical distribution for a single occupancy category.
-
-        This function creates a Sankey diagram starting from the specified occupancy
-        type as the root node and assigns fixed vertical positions to subsequent nodes.
-
-        Args:
-            df_subset (pd.DataFrame): DataFrame filtered for a single occupancy type.
-            name (str): The name of the occupancy category, to be used as the root node.
-            (other args): Bin and label information, same as the function above.
-
-        Returns:
-            dict: A dictionary formatted for the Sankey diagram.
-        """
-        sankey_data = {
-            'nodes': [],
-            'links': [],
-            'total_buildings': len(df_subset),
-            'node_positions': {}  # Store node position information.
-        }
-        nodes = {}
-
-
-
-        def add_node(name, level, position=None):
-            """Helper function to add a new node if it doesn't already exist."""
-            if name not in nodes:
-                nodes[name] = {
-                    'name': name,
-                    'display_name': name,
-                    'level': level,
-                    'position': position
+        # Process for each individual occupancy class
+        for occ_class in df_work['OCC_CLS'].unique():
+            occ_data = df_work[df_work['OCC_CLS'] == occ_class]
+            if len(occ_data) > 100:
+                hierarchical_data[occ_class] = {
+                    'by_count': self._process_hierarchy(occ_data,
+                                                        ['area_cat', 'height_cat', 'year_cat', 'drainage_cat'], 'count',
+                                                        root_name=occ_class),
+                    'by_gfa': self._process_hierarchy(occ_data, ['area_cat', 'height_cat', 'year_cat', 'drainage_cat'],
+                                                      'gfa', root_name=occ_class),
+                    'by_count_simplified': self._process_hierarchy(occ_data, ['year_cat', 'drainage_cat'], 'count',
+                                                                   root_name=occ_class),
+                    'by_gfa_simplified': self._process_hierarchy(occ_data, ['year_cat', 'drainage_cat'], 'gfa',
+                                                                 root_name=occ_class)
                 }
+                for view in hierarchical_data[occ_class]:
+                    hierarchical_data[occ_class][view]['bin_info'] = bin_info
 
-        # Root node (the occupancy category itself)
-        root_name = name
-        add_node(root_name, 0, 0.5)  # Centered
+        print(f"  Processed hierarchical data for {len(hierarchical_data)} occupancy classes across 3 views")
+        return hierarchical_data
 
-        # Area - Fixed order
-        area_positions = {'Small': 0.25, 'Medium': 0.5, 'Large': 0.75}
-        for label in area_labels:
-            add_node(label, 1, area_positions.get(label, 0.5))
+    def _process_hierarchy(self, df, levels, value_mode='count', root_name='All Buildings'):
+        """
+        A generic function to process hierarchical data for Sankey diagrams.
+        Can generate diagrams based on count or GFA, and with different levels.
+        """
+        sankey_data = {'nodes': [], 'links': []}
 
-        # Height - Fixed order
-        height_positions = {'Low': 0.25, 'Mid': 0.5, 'High': 0.75}
-        for label in height_labels:
-            add_node(label, 2, height_positions.get(label, 0.5))
+        df_proc = df.copy()
 
-        # Year - Fixed order
-        year_positions = {
-            'Historic (<1940)': 0.25,
-            'Mid-Century (40-80)': 0.5,
-            'Modern (>1980)': 0.75
-        }
-        for label in year_labels:
-            add_node(label, 3, year_positions.get(label, 0.5))
+        # For the 'all' view, create the top-level occupancy category
+        if 'occ_cat' in levels:
+            occ_counts = df_proc['OCC_CLS'].value_counts()
+            top_9_occ = occ_counts.nlargest(9).index.tolist()
+            df_proc['occ_cat'] = df_proc['OCC_CLS'].apply(lambda x: x if x in top_9_occ else 'Other')
 
-        # Drainage - Fixed order
-        drainage_positions = {
-            'Excessively drained': 0.1,
-            'Well drained': 0.2,
-            'Moderately well drained': 0.3,
-            'Somewhat excessively drained': 0.4,
-            'Somewhat poorly drained': 0.5,
-            'Poorly drained': 0.7,
-            'Very poorly drained': 0.8,
-            'Unknown Drainage': 0.9
-        }
-        for label in drainage_labels:
-            add_node(label, 4, drainage_positions.get(label, 0.5))
+        # Define the full hierarchy including the root
+        full_hierarchy = [root_name] + levels
 
-        MIN_COUNT = 0
+        # Group data and create links
+        for i in range(len(full_hierarchy) - 1):
+            source_level = full_hierarchy[i]
+            target_level = full_hierarchy[i + 1]
 
-        # Create links (maintaining original logic)
-        # Links from Root (Occupancy Name) to Area
-        area_counts = df_subset['area_cat'].value_counts()
-        for area_cat, count in area_counts.items():
-            if count >= MIN_COUNT:
+            group_by_cols = [source_level, target_level] if i > 0 else [target_level]
+
+            if value_mode == 'gfa':
+                # Aggregate by summing 'Est GFA sqmeters' if value_mode is 'gfa'
+                agg_result = df_proc.groupby(group_by_cols, observed=True).agg(
+                    {'Est GFA sqmeters': 'sum'}).reset_index()
+                agg_result.rename(columns={'Est GFA sqmeters': 'value'}, inplace=True)
+            else:
+                # Aggregate by counting rows if value_mode is 'count'
+                agg_result = df_proc.groupby(group_by_cols, observed=True).size().reset_index(name='value')
+
+            for _, row in agg_result.iterrows():
+                source_name = row.get(source_level, root_name)
                 sankey_data['links'].append({
-                    'source': root_name,
-                    'target': str(area_cat),
-                    'value': count
+                    'source': str(source_name),
+                    'target': str(row[target_level]),
+                    'value': row['value']
                 })
 
-        # Links from Area to Height
-        area_height_counts = df_subset.groupby(['area_cat', 'height_cat'], observed=True).size().reset_index(
-            name='count')
-        for _, row in area_height_counts.iterrows():
-            if row['count'] >= MIN_COUNT:
-                sankey_data['links'].append({
-                    'source': str(row['area_cat']),
-                    'target': str(row['height_cat']),
-                    'value': row['count']
-                })
-
-        # Links from Height to Year
-        height_year_counts = df_subset.groupby(['height_cat', 'year_cat'], observed=True).size().reset_index(
-            name='count')
-        for _, row in height_year_counts.iterrows():
-            if row['count'] >= MIN_COUNT:
-                sankey_data['links'].append({
-                    'source': str(row['height_cat']),
-                    'target': str(row['year_cat']),
-                    'value': row['count']
-                })
-
-        # Links from Year to Drainage
-        year_drainage_counts = df_subset.groupby(['year_cat', 'drainage_cat'], observed=True).size().reset_index(
-            name='count')
-        for _, row in year_drainage_counts.iterrows():
-            if row['count'] >= MIN_COUNT:
-                sankey_data['links'].append({
-                    'source': str(row['year_cat']),
-                    'target': str(row['drainage_cat']),
-                    'value': row['count']
-                })
-
-        # Calculate node counts by summing the values of incoming links.
-        node_counts = {root_name: len(df_subset)}
+        # Collect all unique nodes from the links
+        node_names = set()
         for link in sankey_data['links']:
-            target_node = link['target']
-            if target_node not in node_counts:
-                node_counts[target_node] = 0
-            # This sums up flows into a node to get its total value
-            # It's an approximation, assuming no nodes are both source and target in different links
-            # A more robust method is to groupby the original dataframe for each category
-        # Recalculating with groupby for accuracy
-        node_counts.update(df_subset.groupby('area_cat', observed=True).size().to_dict())
-        node_counts.update(df_subset.groupby('height_cat', observed=True).size().to_dict())
-        node_counts.update(df_subset.groupby('year_cat', observed=True).size().to_dict())
-        node_counts.update(df_subset.groupby('drainage_cat', observed=True).size().to_dict())
+            node_names.add(link['source'])
+            node_names.add(link['target'])
 
-        # Identify active nodes (those with at least one link).
-        active_nodes = set([link['source'] for link in sankey_data['links']] +
-                           [link['target'] for link in sankey_data['links']])
+        # Create the node list and assign a level (for coloring)
+        node_map = {name: {'name': name} for name in node_names}
+        for i, level_name in enumerate(full_hierarchy):
+            if level_name in df_proc.columns:
+                for category in df_proc[level_name].unique():
+                    if str(category) in node_map:
+                        node_map[str(category)]['level'] = i
+        if root_name in node_map:
+            node_map[root_name]['level'] = 0
 
-        # Format final list of nodes.
-        for node_name, node_info in nodes.items():
-            if node_name in active_nodes:
-                node_info['count'] = node_counts.get(node_name, 0)
-                sankey_data['nodes'].append(node_info)
-                sankey_data['node_positions'][node_name] = node_info.get('position', 0.5)
+        sankey_data['nodes'] = list(node_map.values())
+        sankey_data['total_buildings'] = len(df)
 
-        # Add descriptive binning information for the UI.
-        sankey_data['bin_info'] = {
-            'Area': f"Small (<{area_bins[1]:.0f} sqm), Medium ({area_bins[1]:.0f}-{area_bins[2]:.0f} sqm), Large (>{area_bins[2]:.0f} sqm)",
-            'Height': f"Low (<{height_bins[1]:.1f}m), Mid ({height_bins[1]:.1f}-{height_bins[2]:.1f}m), High (>{height_bins[2]:.1f}m)",
-            'Year': f"Historic (<{year_bins[1]}), Mid-Century ({year_bins[1]}-{year_bins[2]}), Modern (>{year_bins[2]})",
-            'Drainage': ", ".join(drainage_labels)
-        }
-
-        print(f"    {name}: {len(sankey_data['nodes'])} nodes, {len(sankey_data['links'])} links")
         return sankey_data
 
     def process_occupancy_hierarchy(self):
@@ -649,7 +392,7 @@ class BuildingDataProcessor:
             return None
 
         # Prepare features based on combination
-        numerical_features = ['Est GFA sqmeters', 'year_built']
+        numerical_features = ['SQMETERS', 'PRED_HEIGHT', 'year_built']
         categorical_features = ['OCC_CLS']
 
         if feature_combo == 'material' or feature_combo == 'both':
@@ -702,8 +445,9 @@ class BuildingDataProcessor:
         if len(df_subset) < k:
             return None
 
-        # Prepare features based on combination
-        numerical_features = ['Est GFA sqmeters', 'year_built']
+        # MODIFICATION: Changed numerical features to use footprint area and height instead of GFA.
+        # PREVIOUSLY: numerical_features = ['Est GFA sqmeters', 'year_built']
+        numerical_features = ['SQMETERS', 'PRED_HEIGHT', 'year_built']
         categorical_features = ['OCC_CLS']
 
         if feature_combo == 'material' or feature_combo == 'both':
@@ -742,9 +486,11 @@ class BuildingDataProcessor:
                 stats = {
                     'cluster_id': cluster_id,
                     'count': len(cluster_data),
-                    'avg_area': float(cluster_data['Est GFA sqmeters'].mean()),
+                    'avg_sqmeters': float(cluster_data['SQMETERS'].mean()),
+                    'std_sqmeters': float(cluster_data['SQMETERS'].std(ddof=0)),
+                    'avg_height': float(cluster_data['PRED_HEIGHT'].mean()),
+                    'std_height': float(cluster_data['PRED_HEIGHT'].std(ddof=0)),
                     'avg_year': int(cluster_data['year_built'].mean()),
-                    'std_area': float(cluster_data['Est GFA sqmeters'].std(ddof=0)),
                     'std_year': float(cluster_data['year_built'].std(ddof=0))
                 }
 
@@ -776,9 +522,11 @@ class BuildingDataProcessor:
         if len(df_to_cluster) < 10:
             return None
 
+        # MODIFICATION: Changed features for scaling to use SQMETERS and PRED_HEIGHT.
+        # PREVIOUSLY: X_scaled = scaler.fit_transform(df_to_cluster[['Est GFA sqmeters', 'year_built']])
         # Scale features
         scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(df_to_cluster[['Est GFA sqmeters', 'year_built']])
+        X_scaled = scaler.fit_transform(df_to_cluster[['SQMETERS', 'PRED_HEIGHT', 'year_built']])
 
         # Perform clustering for different k values (2-7)
         for k in range(2, 8):
@@ -796,12 +544,16 @@ class BuildingDataProcessor:
 
                 if len(cluster_data) == 0: continue
 
+                # MODIFICATION: Changed stats to reflect new dimensions.
+                # PREVIOUSLY: 'avg_area': float(cluster_data['Est GFA sqmeters'].mean()), 'std_area': float(cluster_data['Est GFA sqmeters'].std(ddof=0))
                 cluster_stats.append({
                     'cluster_id': cluster_id,
                     'count': len(cluster_data),
-                    'avg_area': float(cluster_data['Est GFA sqmeters'].mean()),
+                    'avg_sqmeters': float(cluster_data['SQMETERS'].mean()),
+                    'std_sqmeters': float(cluster_data['SQMETERS'].std(ddof=0)),
+                    'avg_height': float(cluster_data['PRED_HEIGHT'].mean()),
+                    'std_height': float(cluster_data['PRED_HEIGHT'].std(ddof=0)),
                     'avg_year': int(cluster_data['year_built'].mean()),
-                    'std_area': float(cluster_data['Est GFA sqmeters'].std(ddof=0)),
                     'std_year': float(cluster_data['year_built'].std(ddof=0))
                 })
 
@@ -954,7 +706,7 @@ class BuildingDataProcessor:
         """Keep original method for backward compatibility"""
         print("Processing occupancy-specific clusters (original method)...")
         occupancy_clusters = {}
-        features = ['Est GFA sqmeters', 'year_built']
+        features = ['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
 
         # First, process for "all" classes
         print("  Processing 'all'...")
@@ -1307,7 +1059,7 @@ class BuildingDataProcessor:
         print("Creating enhanced samples with multi-dimensional clustering...")
 
         # Prepare base features
-        features = ['Est GFA sqmeters', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
+        features = ['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
 
         # Add soil features if they exist
         soil_features = ['drainagecl', 'flodfreqcl', 'eng_property', 'wtdepannmin', 'compname', 'LONGITUDE', 'LATITUDE']
@@ -1315,11 +1067,11 @@ class BuildingDataProcessor:
             if sf in self.df_cleaned.columns:
                 features.append(sf)
 
-        df_for_samples = self.df_cleaned[features].dropna(subset=['Est GFA sqmeters', 'year_built', 'OCC_CLS']).copy()
+        df_for_samples = self.df_cleaned[features].dropna(subset=['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS']).copy()
 
         # Remove outliers
-        area_threshold = df_for_samples['Est GFA sqmeters'].quantile(0.99999)
-        df_for_samples = df_for_samples[df_for_samples['Est GFA sqmeters'] < area_threshold]
+        area_threshold = df_for_samples['SQMETERS'].quantile(0.99999)
+        df_for_samples = df_for_samples[df_for_samples['SQMETERS'] < area_threshold]
 
         # Create random sample
         random_sample_size = min(75000, len(df_for_samples))
