@@ -1940,17 +1940,17 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 <div class="controls">
                     <div class="control-group">
                         <label>Filter by Occupancy:</label>
-                        <select id="historicOccFilter" onchange="createHistoricShorelineMap()"></select>
+                        <select id="historicOccFilter" onchange="updateHistoricShorelineCharts()"></select>
                         
                         <label>Filter by Material:</label>
-                        <select id="historicMaterialFilter" onchange="createHistoricShorelineMap()"></select>
+                        <select id="historicMaterialFilter" onchange="updateHistoricShorelineCharts()"></select>
                         
                         <label>Filter by Foundation:</label>
-                        <select id="historicFoundationFilter" onchange="createHistoricShorelineMap()"></select>
+                        <select id="historicFoundationFilter" onchange="updateHistoricShorelineCharts()"></select>
                     </div>
                     <div class="control-group">
                         <label>Color Points By:</label>
-                        <select id="historicColorBy" onchange="createHistoricShorelineMap()">
+                        <select id="historicColorBy" onchange="updateHistoricShorelineCharts()">
                             <option value="OCC_CLS">Occupancy Class</option>
                             <option value="material_type">Material Type</option>
                             <option value="foundation_type">Foundation Type</option>
@@ -1960,6 +1960,25 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
                 <div class="map-container">
                     <div id="historicShorelineMapPlot"></div>
+                </div>
+
+                                <div class="stats-grid" style="margin-top: 30px; grid-template-columns: repeat(auto-fit, minmax(48%, 1fr));">
+                    
+                    <div class="chart-container">
+                        <div id="historicOccupancyChart"></div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <div id="historicYearChart"></div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <div id="historicMaterialChart"></div>
+                    </div>
+
+                    <div class="chart-container">
+                        <div id="historicFoundationChart"></div>
+                    </div>
                 </div>
             </div>
 
@@ -2762,7 +2781,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             updateSoilAnalysis();
             updateInteractiveExplorer();
             populateHistoricShorelineFilters();
-            createHistoricShorelineMap();
+            updateHistoricShorelineCharts();
         }
 
         function generateSampleData() {
@@ -3743,13 +3762,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
          * the new data source (historicShorelineData) and new HTML element IDs.
          */
         function createHistoricShorelineMap() {
-            // Check if the historic data is available.
+            // Check if the historic data is available. If not, show a message and exit.
             if (!historicShorelineData) {
                 document.getElementById('historicShorelineMapPlot').innerHTML = '<p style="text-align:center; padding-top:100px;">Historic shoreline data is not loaded.</p>';
                 return;
             }
 
-            // Get current filter values from the historic section's controls.
+            // Get current filter values from the historic section's controls (dropdowns).
             const occFilter = document.getElementById('historicOccFilter').value;
             const materialFilter = document.getElementById('historicMaterialFilter').value;
             const foundationFilter = document.getElementById('historicFoundationFilter').value;
@@ -3760,7 +3779,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 const occMatch = (occFilter === 'All' || d.OCC_CLS === occFilter);
                 const materialMatch = (materialFilter === 'All' || d.material_type === materialFilter);
                 const foundationMatch = (foundationFilter === 'All' || d.foundation_type === foundationFilter);
-                // Ensure the point has valid coordinates.
+                // Ensure the point has valid coordinates to be plotted.
                 return d.LATITUDE && d.LONGITUDE && occMatch && materialMatch && foundationMatch;
             });
 
@@ -3785,7 +3804,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const uniqueCategories = [...new Set(colorValues)].filter(cat => cat != null);
             
             // Sort categories for a consistent legend order.
-             if (colorBy === 'OCC_CLS') {
+            if (colorBy === 'OCC_CLS') {
                 const occOrder = ['Residential', 'Commercial', 'Government', 'Industrial', 
                                 'Assembly', 'Unclassified', 'Education', 'Utility and Misc', 'Agriculture'];
                 uniqueCategories.sort((a, b) => occOrder.indexOf(a) - occOrder.indexOf(b));
@@ -3799,7 +3818,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 uniqueCategories.sort();
             }
             
-            // Create dummy traces for the legend.
+            // Create dummy traces (invisible points) for the legend.
             const legendTraces = uniqueCategories.map(cat => ({
                 type: 'scattermapbox',
                 lon: [null], lat: [null], mode: 'markers',
@@ -3810,7 +3829,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 showlegend: true, hoverinfo: 'skip'
             }));
             
-            // Create the main trace with all the building points.
+            // Create the main trace with all the visible building points.
             const mainTrace = {
                 type: 'scattermapbox',
                 lon: filteredData.map(d => d.LONGITUDE),
@@ -3822,6 +3841,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     opacity: 0.8,
                     line: { width: 0.5, color: 'rgba(255,255,255,0.3)' }
                 },
+                // Define the text that appears on hover.
                 text: filteredData.map(d => 
                     `<b>Year Built:</b> ${d.year_built}<br>` +
                     `<b>Occupancy:</b> ${d.OCC_CLS || 'N/A'}<br>` +
@@ -3832,9 +3852,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 showlegend: false
             };
             
+            // Combine the main trace and legend traces into one array for plotting.
             const mapData = [mainTrace, ...legendTraces];
             
-            // Define the layout for the map.
+            // Define the layout for the map (title, map style, center, zoom, etc.).
             const layout = {
                 title: {
                     text: `Buildings on Reclaimed Land (${filteredData.length} points shown)`,
@@ -3863,8 +3884,217 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 }
             };
 
-            // Render the plot in the designated div.
+            // Render the plot in the designated div using Plotly.
             Plotly.newPlot('historicShorelineMapPlot', mapData, layout, {responsive: true});
+        }
+
+                function updateHistoricShorelineCharts() {
+            if (!historicShorelineData) return;
+
+            // Get current filter values from the controls.
+        
+            const occFilter = document.getElementById('historicOccFilter').value;
+            const materialFilter = document.getElementById('historicMaterialFilter').value;
+            const foundationFilter = document.getElementById('historicFoundationFilter').value;
+
+            // Filter the data based on user selections. This is done only once here.
+           
+            const filteredData = historicShorelineData.filter(d => {
+                const occMatch = (occFilter === 'All' || d.OCC_CLS === occFilter);
+                const materialMatch = (materialFilter === 'All' || d.material_type === materialFilter);
+                const foundationMatch = (foundationFilter === 'All' || d.foundation_type === foundationFilter);
+                return d.LATITUDE && d.LONGITUDE && occMatch && materialMatch && foundationMatch;
+            });
+
+            // Call all the chart-drawing functions with the filtered data.
+         
+            createHistoricShorelineMap(filteredData); // Update the map 
+            createHistoricOccupancyChart(filteredData); // Update the new Occupancy chart 
+            createHistoricYearChart(filteredData); // Update the new Year chart 
+            createHistoricMaterialChart(filteredData); // Update the new Material chart 
+            createHistoricFoundationChart(filteredData); // Update the new Foundation chart 
+        }
+
+        /**
+         * Creates a bar chart for Occupancy Class (OCC_CLS) distribution.
+
+         */
+        function createHistoricOccupancyChart(data) {
+            const chartDiv = document.getElementById('historicOccupancyChart');
+            if (!data || data.length === 0) {
+                chartDiv.innerHTML = '<p style="padding: 20px; text-align: center;">No data for Occupancy chart.</p>';
+                return;
+            }
+
+            const counts = data.reduce((acc, d) => {
+                const key = d.OCC_CLS || 'Unknown';
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            // START: MODIFICATION
+            // Map occupancy classes to their predefined colors from FIXED_OCC_COLORS.
+            const barColors = sorted.map(d => FIXED_OCC_COLORS[d[0]] || '#999999');
+            // END: MODIFICATION
+
+            const plotData = [{
+                x: sorted.map(d => d[0]),
+                y: sorted.map(d => d[1]),
+                type: 'bar',
+                // Use the mapped colors for the bar chart.
+                marker: { color: barColors }
+            }];
+
+            const layout = {
+                title: { text: 'Distribution by Occupancy' },
+                xaxis: { title: 'Occupancy Class', tickangle: -45 },
+                yaxis: { title: 'Building Count' },
+                height: 400,
+                margin: { t: 40, b: 120, l: 60, r: 20 }
+            };
+
+            Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
+        }
+
+        /**
+         * Creates a bar chart for Year Built distribution.
+         * This version now groups years before 1940 into a "pre-1940" category.
+         */
+        function createHistoricYearChart(data) {
+            const chartDiv = document.getElementById('historicYearChart');
+            if (!data || data.length === 0) {
+                chartDiv.innerHTML = '<p style="padding: 20px; text-align: center;">No data for Year Built chart.</p>';
+                return;
+            }
+
+            const counts = data.reduce((acc, d) => {
+                const year = d.year_built;
+                let key;
+                
+                // START: MODIFICATION
+                // First, check if 'year' is a valid number to prevent null/NaN from being miscategorized.
+                if (year && !isNaN(year) && year > 0) {
+                    // If the year is before 1940, label it as 'pre-1940'.
+                    if (year < 1940) {
+                        key = 'pre-1940';
+                    } else {
+                        // Otherwise, group by decade.
+                        key = `${Math.floor(year / 10) * 10}s`;
+                    }
+                } else {
+                    // Group all other cases (null, NaN, 0) as 'Unknown'.
+                    key = 'Unknown';
+                }
+                // END: MODIFICATION
+
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+
+            // Custom sort to ensure 'pre-1940' and 'Unknown' are handled correctly.
+            const sorted = Object.entries(counts).sort((a, b) => {
+                if (a[0] === 'pre-1940') return -1;
+                if (b[0] === 'pre-1940') return 1;
+                if (a[0] === 'Unknown') return 1;
+                if (b[0] === 'Unknown') return -1;
+                return a[0].localeCompare(b[0]);
+            });
+
+            const plotData = [{
+                x: sorted.map(d => d[0]),
+                y: sorted.map(d => d[1]),
+                type: 'bar',
+                marker: { color: getPlasmaColors(sorted.length).reverse() }
+            }];
+
+            const layout = {
+                title: { text: 'Distribution by Year Built' },
+                xaxis: { title: 'Decade', tickangle: -45 },
+                yaxis: { title: 'Building Count' },
+                height: 400,
+                margin: { t: 40, b: 120, l: 60, r: 20 }
+            };
+
+            Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
+        }
+        /**
+         * Creates a bar chart for Material Type distribution.
+    
+         */
+        function createHistoricMaterialChart(data) {
+            const chartDiv = document.getElementById('historicMaterialChart');
+            if (!data || data.length === 0) {
+                chartDiv.innerHTML = '<p style="padding: 20px; text-align: center;">No data for Material chart.</p>';
+                return;
+            }
+
+            const counts = data.reduce((acc, d) => {
+                // Use the mapping to get full names (e.g., 'W' -> 'Wood').
+               
+                const key = materialTypeMap[d.material_type] || d.material_type || 'Unknown';
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            const plotData = [{
+                x: sorted.map(d => d[0]),
+                y: sorted.map(d => d[1]),
+                type: 'bar',
+                marker: { color: plasmaColors }
+            }];
+
+            const layout = {
+                title: { text: 'Distribution by Material' },
+                xaxis: { title: 'Material Type' },
+                yaxis: { title: 'Building Count' },
+                height: 400,
+                margin: { t: 40, b: 80, l: 60, r: 20 }
+            };
+
+            Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
+        }
+
+        /**
+         * Creates a bar chart for Foundation Type distribution.
+   
+         */
+        function createHistoricFoundationChart(data) {
+            const chartDiv = document.getElementById('historicFoundationChart');
+            if (!data || data.length === 0) {
+                chartDiv.innerHTML = '<p style="padding: 20px; text-align: center;">No data for Foundation chart.</p>';
+                return;
+            }
+
+            const counts = data.reduce((acc, d) => {
+                // Use the mapping to get full names (e.g., 'B' -> 'Basement').
+       
+                const key = foundationTypeMap[d.foundation_type] || d.foundation_type || 'Unknown';
+                acc[key] = (acc[key] || 0) + 1;
+                return acc;
+            }, {});
+
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            const plotData = [{
+                x: sorted.map(d => d[0]),
+                y: sorted.map(d => d[1]),
+                type: 'bar',
+                marker: { color: plasmaColors }
+            }];
+
+            const layout = {
+                title: { text: 'Distribution by Foundation' },
+                xaxis: { title: 'Foundation Type' },
+                yaxis: { title: 'Building Count' },
+                height: 400,
+                margin: { t: 40, b: 80, l: 60, r: 20 }
+            };
+
+            Plotly.newPlot(chartDiv, plotData, layout, { responsive: true });
         }
 
         // 用下面的函数完整替换掉旧的 createDataSourcesFlowchart 函数
