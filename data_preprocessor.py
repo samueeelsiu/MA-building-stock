@@ -661,7 +661,8 @@ class BuildingDataProcessor:
 
         # First, process for "all" classes
         print("  Processing 'all' with multiple feature combinations...")
-        features_extended = ['Est GFA sqmeters', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
+        # NEW and CORRECT
+        features_extended = ['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
 
         df_all = self.df_cleaned[features_extended].dropna().copy()
 
