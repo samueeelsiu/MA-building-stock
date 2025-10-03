@@ -539,7 +539,7 @@ class BuildingDataProcessor:
         X_scaled = scaler.fit_transform(df_to_cluster[['SQMETERS', 'PRED_HEIGHT', 'year_built']])
 
         # Perform clustering for different k values (2-7)
-        for k in range(2, 8):
+        for k in range(2, 10):
             if len(df_to_cluster) < k:
                 continue
 

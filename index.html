@@ -4348,16 +4348,34 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         }
 
     function updateClustering() {
-            if (!buildingData) return;
-            
-            const clusters = buildingData.clustering.clusters;
-            const samples = buildingData.building_samples_random;
-            
-            const reassignedSamples = samples.map(s => ({ ...s, cluster: Math.floor(Math.random() * currentClusterK) }));
-            
-            const scatterData = [];
-            for (let i = 0; i < currentClusterK; i++) {
-                const clusterSamples = reassignedSamples.filter(s => s.cluster === i);
+        if (!buildingData) return;
+
+        // The data for the statistics table and treemap now comes from the more detailed
+        // 'occupancy_clusters' object, which holds pre-calculated results for multiple K values.
+        const allClustersData = buildingData.occupancy_clusters?.all?.k_values;
+        const samples = buildingData.building_samples_random;
+
+        if (!allClustersData || !samples) {
+            console.error("Required clustering data is not available.");
+            document.getElementById('clusterScatter').innerHTML = "<p>Clustering data is missing.</p>";
+            return;
+        }
+
+        // --- FIX #1: USE REAL, PRE-CALCULATED CLUSTER ASSIGNMENTS ---
+        // Instead of random assignments, we now map each sample point to its true
+        // pre-calculated cluster for the currently selected K value.
+        // The Python script saves these as columns like 'cluster_base_k5', 'cluster_base_k7', etc.
+        const samplesWithRealClusters = samples.map(s => ({
+            ...s,
+            // Dynamically select the correct cluster column based on the chosen K.
+            displayCluster: s[`cluster_base_k${currentClusterK}`]
+        }));
+
+        // --- Scatter Plot (Now shows REAL clusters) ---
+        const scatterData = [];
+        for (let i = 0; i < currentClusterK; i++) {
+            const clusterSamples = samplesWithRealClusters.filter(s => s.displayCluster === i);
+            if (clusterSamples.length > 0) {
                 scatterData.push({
                     x: clusterSamples.map(s => s.year_built < 1940 ? 'pre-1940' : s.year_built),
                     y: clusterSamples.map(s => s['Est GFA sqmeters']),
@@ -4365,99 +4383,116 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     type: 'scatter',
                     name: `Cluster ${i + 1}`,
                     marker: { color: plasmaColors[i % plasmaColors.length], size: 8, opacity: 0.6 },
-                    hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<extra></extra>'
+                    hovertemplate: 'Year: %{x}<br>Est GFA: %{y:.1f} sqm<br><b>Cluster: ' + (i + 1) + '</b><extra></extra>'
                 });
             }
-            
-            const scatterLayout = {
-                title: { text: `K-Means Clustering Results (K=${currentClusterK})`, font: { size: 20, color: '#333' } },
-                xaxis: { title: 'Year Built' },
-                yaxis: { title: 'Est GFA (sqm)' },
-                height: 500,
-                hovermode: 'closest'
-            };
-            Plotly.newPlot('clusterScatter', scatterData, scatterLayout, {responsive: true});
-            
-            const elbowData = [{
-                x: buildingData.clustering.elbow_k_values,
-                y: buildingData.clustering.elbow_wcss_values,
-                mode: 'lines+markers',
-                type: 'scatter',
-                marker: { size: 10, color: plasmaColors[3], line: { color: 'white', width: 2 } },
-                line: { width: 3, color: plasmaColors[3] },
-                hovertemplate: 'K: %{x}<br>WCSS: %{y:,.0f}<extra></extra>'
-            }];
-            const elbowLayout = {
-                title: { text: 'Elbow Method for Optimal K', font: { size: 20, color: '#333' } },
-                xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
-                yaxis: { title: 'Within-Cluster Sum of Squares (WCSS)' },
-                height: 400,
-                annotations: [{ x: 7, y: buildingData.clustering.elbow_wcss_values[5], xref: 'x', yref: 'y', text: 'Optimal K = 7', showarrow: true, arrowhead: 2, ax: -50, ay: -40, bgcolor: 'rgba(255, 255, 255, 0.9)', bordercolor: plasmaColors[3], borderwidth: 2 }]
-            };
-            Plotly.newPlot('clusterElbow', elbowData, elbowLayout, {responsive: true});
-            
-            const displayClusters = clusters.slice(0, Math.min(currentClusterK, clusters.length));
+        }
+        const scatterLayout = {
+            title: { text: `K-Means Clustering Results (K=${currentClusterK}) - REAL DATA`, font: { size: 20, color: '#333' } },
+            xaxis: { title: 'Year Built' },
+            yaxis: { title: 'Est GFA (sqm)' },
+            height: 500,
+            hovermode: 'closest'
+        };
+        Plotly.newPlot('clusterScatter', scatterData, scatterLayout, { responsive: true });
+
+        // --- Elbow Plot (Now uses REAL WCSS data for all K values) ---
+        const elbowKValues = Object.keys(allClustersData).map(Number);
+        const elbowWcssValues = elbowKValues.map(k => allClustersData[k].wcss);
+        
+        const elbowData = [{
+            x: elbowKValues,
+            y: elbowWcssValues,
+            mode: 'lines+markers',
+            type: 'scatter',
+            marker: { size: 10, color: plasmaColors[3], line: { color: 'white', width: 2 } },
+            line: { width: 3, color: plasmaColors[3] },
+            hovertemplate: 'K: %{x}<br>WCSS: %{y:,.0f}<extra></extra>'
+        }];
+        const elbowLayout = {
+            title: { text: 'Elbow Method for Optimal K', font: { size: 20, color: '#333' } },
+            xaxis: { title: 'Number of Clusters (K)', dtick: 1 },
+            yaxis: { title: 'Within-Cluster Sum of Squares (WCSS)' },
+            height: 400
+        };
+        Plotly.newPlot('clusterElbow', elbowData, elbowLayout, { responsive: true });
+
+        // --- Statistics Table and Treemap (Now use REAL data for the selected K) ---
+        const clusterStatsForK = allClustersData[currentClusterK];
+        if (clusterStatsForK && clusterStatsForK.clusters) {
+            const displayClusters = clusterStatsForK.clusters;
+
+            // Statistics Table
             const tableData = [{
                 type: 'table',
-                header: { values: ['Cluster', 'Count', 'Most Common Type', 'Avg Area (m²)', 'Avg Year'], align: 'center', line: {width: 1, color: '#dee2e6'}, fill: {color: plasmaColors[3]}, font: {family: "Arial", size: 14, color: "white"} },
+                header: { values: ['Cluster', 'Count', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'], align: 'center', line: {width: 1, color: '#dee2e6'}, fill: {color: plasmaColors[3]}, font: {family: "Arial", size: 14, color: "white"} },
                 cells: {
                     values: [
                         displayClusters.map(c => `Cluster ${c.cluster_id + 1}`),
                         displayClusters.map(c => c.count.toLocaleString()),
-                        displayClusters.map(c => c.most_common_occ),
-                        displayClusters.map(c => Math.round(c.area_mean)),
-                        displayClusters.map(c => c.year_mean)
+                        displayClusters.map(c => Math.round(c.avg_sqmeters)),
+                        displayClusters.map(c => c.avg_height.toFixed(1)),
+                        displayClusters.map(c => c.avg_year)
                     ],
                     align: 'center', line: {color: "#dee2e6", width: 1}, fill: {color: ['#f8f9fa', 'white']}, font: {family: "Arial", size: 12, color: ["#333"]}
                 }
             }];
             const tableLayout = { title: { text: `Cluster Statistics (K=${currentClusterK}, Based on Full Dataset)`, font: { size: 18, color: '#333' } }, height: 400 };
-            Plotly.newPlot('clusterTable', tableData, tableLayout, {responsive: true});
-            
-            updateClusterTreemap();
-        }
+            Plotly.newPlot('clusterTable', tableData, tableLayout, { responsive: true });
 
-    function updateClusterTreemap() {
-            if (!buildingData) return;
-            
-            const sizeBy = document.getElementById('treemapSizeBy').value;
-            const clusters = buildingData.clustering.clusters.slice(0, currentClusterK);
-            
-            const labels = ['All Clusters'];
-            const parents = [''];
-            const values = [0];
-            const colors = [''];
-            
-            clusters.forEach((cluster, index) => {
-                const label = `Cluster ${index + 1}<br>${cluster.most_common_occ}`;
-                labels.push(label);
-                parents.push('All Clusters');
-                
-                if (sizeBy === 'count') {
-                    values.push(cluster.count);
-                } else {
-                    values.push(cluster.count * cluster.area_mean);
-                }
-                colors.push(plasmaColors[index % plasmaColors.length]);
-            });
-            
-            const treemapData = [{
-                type: 'treemap',
-                labels: labels,
-                parents: parents,
-                values: values,
-                marker: { colors: colors },
-                textinfo: 'label+value+percent parent',
-                hovertemplate: '%{label}<br>Value: %{value:,}<br>%{percentParent}<extra></extra>'
-            }];
-            
-            const treemapLayout = {
-                title: { text: `Cluster Treemap (Sized by ${sizeBy === 'count' ? 'Building Count' : 'Total Floor Area'})`, font: { size: 18, color: '#333' } },
-                height: 500
-            };
-            
-            Plotly.newPlot('clusterTreemap', treemapData, treemapLayout, {responsive: true});
+            // Treemap
+            updateClusterTreemap(displayClusters); // Pass the correct data to the treemap function
+        } else {
+            // Handle cases where data for a specific K might be missing
+            document.getElementById('clusterTable').innerHTML = `<p>No statistics available for K=${currentClusterK}.</p>`;
+            document.getElementById('clusterTreemap').innerHTML = '';
         }
+    }
+
+    // You also need to slightly modify `updateClusterTreemap` to accept data as an argument.
+    // Find `updateClusterTreemap()` and replace it with this new version.
+    function updateClusterTreemap(clusters) {
+        if (!buildingData || !clusters) return;
+        
+        const sizeBy = document.getElementById('treemapSizeBy').value;
+        
+        const labels = ['All Clusters'];
+        const parents = [''];
+        const values = [0];
+        const colors = [''];
+        
+        clusters.forEach((cluster, index) => {
+            // The new data doesn't have 'most_common_occ', so we create a simple label.
+            const label = `Cluster ${index + 1}`;
+            labels.push(label);
+            parents.push('All Clusters');
+            
+            // The new data uses 'avg_sqmeters', not 'area_mean'.
+            if (sizeBy === 'count') {
+                values.push(cluster.count);
+            } else {
+                values.push(cluster.count * cluster.avg_sqmeters);
+            }
+            colors.push(plasmaColors[index % plasmaColors.length]);
+        });
+        
+        const treemapData = [{
+            type: 'treemap',
+            labels: labels,
+            parents: parents,
+            values: values,
+            marker: { colors: colors },
+            textinfo: 'label+value+percent parent',
+            hovertemplate: '%{label}<br>Value: %{value:,}<br>%{percentParent}<extra></extra>'
+        }];
+        
+        const treemapLayout = {
+            title: { text: `Cluster Treemap (Sized by ${sizeBy === 'count' ? 'Building Count' : 'Total Floor Area'})`, font: { size: 18, color: '#333' } },
+            height: 500
+        };
+        
+        Plotly.newPlot('clusterTreemap', treemapData, treemapLayout, {responsive: true});
+    }
 
 
         function updateTemporalChart() {
