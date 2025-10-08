@@ -117,6 +117,18 @@ class BuildingDataProcessor:
             print("Warning: 'foundation_type' column not found. Filling with None.")
             self.df_cleaned['foundation_type'] = None
 
+        # Create a unified height field for clustering and stats
+        # Prefer measured HEIGHT when it is valid (>0); otherwise fall back to PRED_HEIGHT
+        h = (self.df_cleaned['HEIGHT'].apply(pd.to_numeric, errors='coerce')
+             if 'HEIGHT' in self.df_cleaned.columns
+             else pd.Series(np.nan, index=self.df_cleaned.index))
+
+        ph = (self.df_cleaned['PRED_HEIGHT'].apply(pd.to_numeric, errors='coerce')
+              if 'PRED_HEIGHT' in self.df_cleaned.columns
+              else pd.Series(np.nan, index=self.df_cleaned.index))
+
+        self.df_cleaned['HEIGHT_USED'] = np.where(h.notna() & (h > 0), h, ph)
+
         # Print summary of cleaning process
         print(f"Cleaned data: {len(self.df_cleaned)} records")
         print(f"  Removed {cleaning_stats['invalid_year_count']} records with invalid year")
@@ -139,8 +151,8 @@ class BuildingDataProcessor:
 
         # --- FINAL FIX: Include ALL columns needed by any function that uses df_cluster ---
         features = [
-            'OCC_CLS', 'Est GFA sqmeters', 'SQMETERS', 'PRED_HEIGHT',
-            'year_built', 'material_type', 'foundation_type'
+            'OCC_CLS', 'Est GFA sqmeters', 'SQMETERS', 'HEIGHT_USED',
+            'PRED_HEIGHT', 'year_built', 'material_type', 'foundation_type'
         ]
         self.df_cluster = self.df_cleaned[features].dropna().copy()
 
@@ -180,7 +192,7 @@ class BuildingDataProcessor:
         area_bins = [0, area_percentiles[0], area_percentiles[1], float('inf')]
         area_labels = ['Small', 'Medium', 'Large']
 
-        height_percentiles = df_work['PRED_HEIGHT'].quantile([0.33, 0.67]).values
+        height_percentiles = df_work['HEIGHT_USED'].dropna().quantile([0.33, 0.67]).values
         height_bins = [0, height_percentiles[0], height_percentiles[1], float('inf')]
         height_labels = ['Short', 'Mid', 'High']  # Renamed "Low" to "Short"
 
@@ -189,7 +201,7 @@ class BuildingDataProcessor:
 
         # Apply bins
         df_work['area_cat'] = pd.cut(df_work['Est GFA sqmeters'], bins=area_bins, labels=area_labels, right=False)
-        df_work['height_cat'] = pd.cut(df_work['PRED_HEIGHT'], bins=height_bins, labels=height_labels, right=False)
+        df_work['height_cat'] = pd.cut(df_work['HEIGHT_USED'], bins=height_bins, labels=height_labels, right=False)
         df_work['year_cat'] = pd.cut(df_work['year_built'], bins=year_bins, labels=year_labels, right=False)
 
         # Main dictionary to hold all versions
@@ -235,6 +247,65 @@ class BuildingDataProcessor:
 
         print(f"  Processed hierarchical data for {len(hierarchical_data)} occupancy classes across 3 views")
         return hierarchical_data
+
+    # NEW: Full-population aggregation for Year → Occupancy → Material → Foundation → Soil (compname)
+    def process_year_occ_mat_found_soil_flow(self, top_n_occ=12, top_n_soils=15, group_others=False):
+        """
+        Build an aggregated flow table across the *full* cleaned dataset (no sampling).
+        Output is compact (combination counts), ideal for front-end Sankey with toggles.
+        - Year bands: Historic (<1940), Mid-Century (1940–1980), Modern (>1980)  (top→bottom order)
+        - Occupancy: Top N by count + 'Other' (if group_others is True)
+        - Material/Foundation: use string values or 'Unknown'
+        - Soil: compname Top N + 'Other Soils' (if group_others is True)
+        """
+        df = self.df_cleaned.copy()
+
+        # --- Year band (consistent labels for the front-end order override) ---
+        year_bins = [0, 1940, 1980, float('inf')]
+        year_labels = ['Historic (<1940)', 'Mid-Century (1940–1980)', 'Modern (>1980)']
+        df['year_band'] = pd.cut(df['year_built'], bins=year_bins, labels=year_labels, right=False)
+
+        # --- Occupancy (top-N + Other) ---
+        occ_col = 'OCC_CLS'
+        if group_others:
+            occ_counts = df[occ_col].value_counts(dropna=False)
+            top_occ = occ_counts.nlargest(top_n_occ).index
+            df['occupancy'] = df[occ_col].where(df[occ_col].isin(top_occ), other='Other')
+        else:
+            df['occupancy'] = df[occ_col].fillna('Unknown')
+
+        # --- Material / Foundation / Soil(compname) ---
+        df['material'] = df['material_type'].fillna('Unknown') if 'material_type' in df.columns else 'Unknown'
+        df['foundation'] = df['foundation_type'].fillna('Unknown') if 'foundation_type' in df.columns else 'Unknown'
+        df['soil'] = df['compname'].fillna('Unknown') if 'compname' in df.columns else 'Unknown'
+
+        # Soil: top-N + Other Soils
+        if group_others:
+            soil_counts = df['soil'].value_counts(dropna=False)
+            top_soils = soil_counts.nlargest(top_n_soils).index
+            df['soil'] = df['soil'].where(df['soil'].isin(top_soils), other='Other Soils')
+
+        # --- Group by the full chain (this is tiny compared to 1.69M rows) ---
+        grp = (df
+               .groupby(['year_band', 'occupancy', 'material', 'foundation', 'soil'], observed=True)
+               .size()
+               .reset_index(name='count'))
+
+        # Convert to list-of-dicts for compact JSON
+        combination_counts = grp.to_dict(orient='records')
+
+        return {
+            'combination_counts': combination_counts,
+            'meta': {
+                'total_buildings': int(len(df)),
+                'levels': ['All Buildings', 'Year', 'Occupancy', 'Material', 'Foundation', 'Soil'],
+                'year_order_top_to_bottom': ['Modern (>1980)', 'Mid-Century (1940–1980)', 'Historic (<1940)'],
+                'grouping': {
+                    'occupancy': f'top_{top_n_occ}_plus_other' if group_others else 'raw',
+                    'soil': f'top_{top_n_soils}_plus_other' if group_others else 'raw'
+                }
+            }
+        }
 
     def _process_hierarchy(self, df, levels, value_mode='count', root_name='All Buildings'):
         """
@@ -342,7 +413,7 @@ class BuildingDataProcessor:
 
         # --- FIX: Updated the numerical features to SQMETERS and PRED_HEIGHT ---
         # The ColumnTransformer now scales the correct columns for the model.
-        numerical_features_for_clustering = ['SQMETERS', 'PRED_HEIGHT', 'year_built']
+        numerical_features_for_clustering = ['SQMETERS', 'HEIGHT_USED', 'year_built']
 
         # Set up preprocessor
         self.preprocessor = ColumnTransformer(
@@ -402,7 +473,7 @@ class BuildingDataProcessor:
             return None
 
         # Prepare features based on combination
-        numerical_features = ['SQMETERS', 'PRED_HEIGHT', 'year_built']
+        numerical_features = ['SQMETERS', 'HEIGHT_USED', 'year_built']
         categorical_features = ['OCC_CLS']
 
         if feature_combo == 'material' or feature_combo == 'both':
@@ -457,7 +528,7 @@ class BuildingDataProcessor:
 
         # MODIFICATION: Changed numerical features to use footprint area and height instead of GFA.
         # PREVIOUSLY: numerical_features = ['Est GFA sqmeters', 'year_built']
-        numerical_features = ['SQMETERS', 'PRED_HEIGHT', 'year_built']
+        numerical_features = ['SQMETERS', 'HEIGHT_USED', 'year_built']
         categorical_features = ['OCC_CLS']
 
         if feature_combo == 'material' or feature_combo == 'both':
@@ -496,10 +567,12 @@ class BuildingDataProcessor:
                 stats = {
                     'cluster_id': cluster_id,
                     'count': len(cluster_data),
+                    'avg_area': float(cluster_data['SQMETERS'].mean()),
+                    'std_area': float(cluster_data['SQMETERS'].std(ddof=0)),
                     'avg_sqmeters': float(cluster_data['SQMETERS'].mean()),
                     'std_sqmeters': float(cluster_data['SQMETERS'].std(ddof=0)),
-                    'avg_height': float(cluster_data['PRED_HEIGHT'].mean()),
-                    'std_height': float(cluster_data['PRED_HEIGHT'].std(ddof=0)),
+                    'avg_height': float(cluster_data['HEIGHT_USED'].mean()),
+                    'std_height': float(cluster_data['HEIGHT_USED'].std(ddof=0)),
                     'avg_year': int(cluster_data['year_built'].mean()),
                     'std_year': float(cluster_data['year_built'].std(ddof=0))
                 }
@@ -536,7 +609,7 @@ class BuildingDataProcessor:
         # PREVIOUSLY: X_scaled = scaler.fit_transform(df_to_cluster[['Est GFA sqmeters', 'year_built']])
         # Scale features
         scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(df_to_cluster[['SQMETERS', 'PRED_HEIGHT', 'year_built']])
+        X_scaled = scaler.fit_transform(df_to_cluster[['SQMETERS', 'HEIGHT_USED', 'year_built']])
 
         # Perform clustering for different k values (2-7)
         for k in range(2, 10):
@@ -559,10 +632,12 @@ class BuildingDataProcessor:
                 cluster_stats.append({
                     'cluster_id': cluster_id,
                     'count': len(cluster_data),
+                    'avg_area': float(cluster_data['SQMETERS'].mean()),
+                    'std_area': float(cluster_data['SQMETERS'].std(ddof=0)),
                     'avg_sqmeters': float(cluster_data['SQMETERS'].mean()),
                     'std_sqmeters': float(cluster_data['SQMETERS'].std(ddof=0)),
-                    'avg_height': float(cluster_data['PRED_HEIGHT'].mean()),
-                    'std_height': float(cluster_data['PRED_HEIGHT'].std(ddof=0)),
+                    'avg_height': float(cluster_data['HEIGHT_USED'].mean()),
+                    'std_height': float(cluster_data['HEIGHT_USED'].std(ddof=0)),
                     'avg_year': int(cluster_data['year_built'].mean()),
                     'std_year': float(cluster_data['year_built'].std(ddof=0))
                 })
@@ -662,7 +737,7 @@ class BuildingDataProcessor:
         # First, process for "all" classes
         print("  Processing 'all' with multiple feature combinations...")
         # NEW and CORRECT
-        features_extended = ['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
+        features_extended = ['SQMETERS', 'HEIGHT_USED', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
 
         df_all = self.df_cleaned[features_extended].dropna().copy()
 
@@ -717,7 +792,8 @@ class BuildingDataProcessor:
         """Keep original method for backward compatibility"""
         print("Processing occupancy-specific clusters (original method)...")
         occupancy_clusters = {}
-        features = ['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
+        features = ['SQMETERS', 'HEIGHT_USED', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
+
 
         # First, process for "all" classes
         print("  Processing 'all'...")
@@ -1071,8 +1147,8 @@ class BuildingDataProcessor:
         print("Creating enhanced samples with multi-dimensional clustering...")
 
         # --- FINAL FIX: Include 'Est GFA sqmeters' for JS visualizations that use samples ---
-        features = ['Est GFA sqmeters', 'SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS', 'material_type',
-                    'foundation_type']
+        features = ['Est GFA sqmeters', 'SQMETERS', 'HEIGHT_USED','PRED_HEIGHT', 'year_built',
+                    'OCC_CLS', 'material_type', 'foundation_type']
 
         # Add soil features if they exist
         soil_features = ['drainagecl', 'flodfreqcl', 'eng_property', 'wtdepannmin', 'compname', 'LONGITUDE', 'LATITUDE']
@@ -1081,7 +1157,8 @@ class BuildingDataProcessor:
                 features.append(sf)
 
         df_for_samples = self.df_cleaned[features].dropna(
-            subset=['SQMETERS', 'PRED_HEIGHT', 'year_built', 'OCC_CLS']).copy()
+            subset=['SQMETERS', 'HEIGHT_USED', 'year_built', 'OCC_CLS']
+        ).copy()
 
         # Outlier removal should use GFA to match original intent
         area_threshold = df_for_samples['Est GFA sqmeters'].quantile(0.99999)
@@ -1173,6 +1250,9 @@ class BuildingDataProcessor:
 
         hierarchical_distribution = self.process_hierarchical_distribution()
 
+        # NEW: full-pop aggregation for the new Year→Occ→Mat→Found→Soil Sankey
+        year_occ_flow = self.process_year_occ_mat_found_soil_flow()
+
         # Get enhanced samples as DataFrames
         random_sample_df, balanced_sample_df = self.prepare_enhanced_samples()
 
@@ -1188,6 +1268,7 @@ class BuildingDataProcessor:
                 'samples_files': []
             },
             'hierarchical_distribution': hierarchical_distribution,
+            'year_occ_flow': year_occ_flow,
             'summary_stats': {
                 'total_buildings': len(self.df_cleaned),
                 'avg_year_built': int(self.df_cleaned['year_built'].mean()),
