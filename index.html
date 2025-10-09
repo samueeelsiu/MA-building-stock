@@ -1244,6 +1244,16 @@
                             <input type="checkbox" id="toggleSoil" checked>
                             Show Soil (compname)
                         </label>
+
+                        <!-- NEW: metric selector for Year→Occ→... Sankey -->
+                        <span style="display:inline-block; margin-left:20px; font-weight:600;">Metric:</span>
+                        <select id="yearOccMetric" onchange="createYearOccSankey()"
+                                style="padding:6px 10px; border:1px solid #dee2e6; border-radius:4px; font-size:13px;">
+                        <option value="count" selected>Buildings count</option>
+                        <option value="gfa">GFA (sqm)</option>
+                        </select>
+
+
                         </div>
                     </div>
 
@@ -2493,7 +2503,9 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // Desired top-to-bottom orders
             const AREA_ORDER   = ['Small', 'Medium', 'Large'];
             const HEIGHT_ORDER = ['Short', 'Mid', 'High'];
-            const YEAR_ORDER   = ['Historic', 'Mid-Century', 'Modern'];
+            // Enforce chronological order for the Year column (exact labels used in data)
+            const YEAR_ORDER   = ['Historic (<1940)', 'Mid-Century (40-80)', 'Modern (>1980)'];
+
 
             // Helper to assign y positions [0..1] to a group of nodes.
             // Items present in `preferredOrder` are placed first in that exact order;
@@ -2629,6 +2641,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         const includeFoundation = document.getElementById('toggleFoundation')?.checked ?? true;
         const includeSoil       = document.getElementById('toggleSoil')?.checked ?? true;
 
+        // Metric selector: 'count' or 'gfa'
+        const metric = document.getElementById('yearOccMetric')?.value || 'count';
+        const isGFA  = (metric === 'gfa') && Array.isArray(flow) && flow.length > 0; // only honor GFA when full flow exists
+
         // Display name maps
         const MATERIAL_NAME   = { M:'Masonry', W:'Wood', H:'Manufactured', S:'Steel', C:'Concrete' };
         const FOUNDATION_NAME = { C:'Crawl Space', B:'Basement', S:'Slab', P:'Pier', I:'Pile', F:'Fill', W:'Solid Wall' };
@@ -2643,8 +2659,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             }
             return nodeIndex.get(label);
         }
-        const linkMap    = new Map();  // "A→B" -> value
-        const yearCounts = new Map();  // "Y:xxx" -> value
+        const linkMap    = new Map();  // "A→B" -> aggregated value
+        const yearCounts = new Map();  // "Y:xxx" -> aggregated value
         const pushPair = (a, b, v) => {
             if (!v || !isFinite(v)) return;
             const key = a + '→' + b;
@@ -2683,7 +2699,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             if (includeFoundation) chain.push(`F:${r.foundation || 'Unknown'}`);
             if (includeSoil)       chain.push(`S:${r.soil || 'Unknown'}`);
 
-            const v = Number(r.count) || 0;
+            // Pick value by selected metric
+            // - When 'gfa': use r.gfa (sqm)
+            // - When 'count': use r.count (buildings)
+            const v = isGFA ? (Number(r.gfa) || 0) : (Number(r.count) || 0);
             if (v <= 0) continue;
 
             // Keep Root -> Year totals so the left column is complete
@@ -2693,6 +2712,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             for (let i = 0; i < chain.length - 1; i++) pushPair(chain[i], chain[i + 1], v);
             }
         } else {
+            // Fallback to random samples when full flow isn't present.
+            // NOTE: samples usually don't carry GFA; we therefore fall back to count (=1 per sample)
             function yearBand(y) {
             if (!y || isNaN(y)) return 'Unknown';
             if (y > 1980) return 'Modern (>1980)';
@@ -2708,8 +2729,9 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             if (includeFoundation) chain.push(`F:${d.foundation_type || 'Unknown'}`);
             if (includeSoil)       chain.push(`S:${d.compname || 'Unknown'}`);
 
-            yearCounts.set(chain[0], (yearCounts.get(chain[0]) || 0) + 1);
-            for (let i = 0; i < chain.length - 1; i++) pushPair(chain[i], chain[i + 1], 1);
+            const v = 1; // count-only for samples
+            yearCounts.set(chain[0], (yearCounts.get(chain[0]) || 0) + v);
+            for (let i = 0; i < chain.length - 1; i++) pushPair(chain[i], chain[i + 1], v);
             }
         }
 
@@ -2733,11 +2755,11 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         const displayLabels = nodes.map(n => {
             const raw = n.name;
             if (raw.startsWith('R:')) return 'All Buildings';
-            if (raw.startsWith('Y:')) return 'Year: ' + raw.slice(2);
-            if (raw.startsWith('O:')) return 'Occ: '  + raw.slice(2);
+            if (raw.startsWith('Y:')) return raw.slice(2);
+            if (raw.startsWith('O:')) return  raw.slice(2);
             if (raw.startsWith('M:')) { const s = raw.slice(2); return MATERIAL_NAME[s] || s; }
             if (raw.startsWith('F:')) { const s = raw.slice(2); return FOUNDATION_NAME[s] || s; }
-            if (raw.startsWith('S:')) return 'Soil: ' + raw.slice(2);
+            if (raw.startsWith('S:')) return raw.slice(2);
             return raw;
         });
         const fullNodeLabels  = displayLabels.slice();
@@ -2800,7 +2822,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
         // Optional: enforce an explicit vertical order for Year column
         const YEAR_ORDER_DISPLAY = meta.year_order_top_to_bottom || [
-            'Modern (>1980)', 'Mid-Century (1940–1980)', 'Historic (<1940)'
+            'Historic (<1940)', 'Mid-Century (1940–1980)', 'Modern (>1980)'
         ];
         const yearLabelsWanted = YEAR_ORDER_DISPLAY.map(s => `Year: ${s}`);
         const labelToIdx = new Map(displayLabels.map((lab, i) => [lab, i]));
@@ -2822,11 +2844,12 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             : ['#0d0887','#46039f','#7201a8','#9c179e','#bd3786','#d8576b','#ed7953','#fb9f3a','#fdca26','#f0f921'];
         const nodeColors = nodeLevel.map(lvl => palette[lvl % palette.length]);
 
-        // Title
+        // Title with metric suffix
         const isFull = !!flow;
-        const titleText = isFull
-            ? 'Year → Occupancy → Material → Foundation → Soil (Full Population)'
+        const titleBase = isFull
+            ? 'Year → Occupancy → Material → Foundation → Soil'
             : 'Year → Occupancy → Material → Foundation → Soil (Sampled)';
+        const titleText = titleBase + (isGFA ? ' — by GFA (sqm)' : ' — by Building Count');
 
         // Render
         try { Plotly.purge(containerId); } catch (e) {}
@@ -2850,8 +2873,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             source: sources,
             target: targets,
             value: values,
-            // If you want link colors to follow the source column, map from source->nodeColors here.
-            color: 'rgba(102, 126, 234, 0.22)'
+            color: 'rgba(102, 126, 234, 0.22)',
+            // Nice-to-have: show metric-specific units on link hover and suffix
+            hovertemplate: isGFA
+                ? '%{source.label} → %{target.label}<br><b>GFA:</b> %{value:,.0f} sqm<extra></extra>'
+                : '%{source.label} → %{target.label}<br><b>Count:</b> %{value:,}<extra></extra>',
+            valuesuffix: isGFA ? ' sqm' : '',
+            valueformat: isGFA ? ',.0f' : ',d'
             }
         }];
 
@@ -2859,8 +2887,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         const layout = {
             title: { text: titleText, font: { size: 18, color: '#333' } },
             font:  { size: 12 },
-            margin:{ t: MARGIN_T, r: rightMargin, b: MARGIN_B, l: 20 },
-            height: finalHeight
+            margin:{ t: 70, r: rightMargin, b: 40, l: 20 },
+            height: window.__YEAR_OCC_STICKY_HEIGHT__ || 560
         };
 
         Plotly.newPlot(containerId, data, layout, {

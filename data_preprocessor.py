@@ -25,6 +25,7 @@ def format_large_number(num, is_area=False):
         return f"{num / 1000:.2f}K" if is_area else f"{num / 1000:.1f}K"
     return str(round(num)) if is_area else str(num)
 
+
 class BuildingDataProcessor:
     def __init__(self, csv_path='ma_structures_with_demolition_FINAL.csv'):
         """Initialize the processor with data path"""
@@ -285,11 +286,26 @@ class BuildingDataProcessor:
             top_soils = soil_counts.nlargest(top_n_soils).index
             df['soil'] = df['soil'].where(df['soil'].isin(top_soils), other='Other Soils')
 
-        # --- Group by the full chain (this is tiny compared to 1.69M rows) ---
-        grp = (df
-               .groupby(['year_band', 'occupancy', 'material', 'foundation', 'soil'], observed=True)
-               .size()
-               .reset_index(name='count'))
+        # --- Group by the full chain (count + GFA) ---
+        group_cols = ['year_band', 'occupancy', 'material', 'foundation', 'soil']
+
+        # Count buildings per combination
+        grp_count = (
+            df.groupby(group_cols, observed=True)
+            .size()
+            .reset_index(name='count')
+        )
+
+        # Sum GFA per combination
+        grp_gfa = (
+            df.groupby(group_cols, observed=True)['Est GFA sqmeters']
+            .sum()
+            .reset_index(name='gfa')
+        )
+
+        # Merge both metrics into one table
+        grp = grp_count.merge(grp_gfa, on=group_cols, how='left')
+        grp['gfa'] = grp['gfa'].fillna(0.0).astype(float)  # ensure numeric
 
         # Convert to list-of-dicts for compact JSON
         combination_counts = grp.to_dict(orient='records')
@@ -299,7 +315,9 @@ class BuildingDataProcessor:
             'meta': {
                 'total_buildings': int(len(df)),
                 'levels': ['All Buildings', 'Year', 'Occupancy', 'Material', 'Foundation', 'Soil'],
-                'year_order_top_to_bottom': ['Modern (>1980)', 'Mid-Century (1940–1980)', 'Historic (<1940)'],
+                'year_order_top_to_bottom': ['Historic (<1940)', 'Mid-Century (1940–1980)', 'Modern (>1980)'],
+                'available_metrics': ['count', 'gfa'],  # values: count = buildings, gfa = sqm
+                'gfa_units': 'sqm',
                 'grouping': {
                     'occupancy': f'top_{top_n_occ}_plus_other' if group_others else 'raw',
                     'soil': f'top_{top_n_soils}_plus_other' if group_others else 'raw'
