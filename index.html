@@ -1319,44 +1319,51 @@
                                 <div class="flow-box data-source usa-structures">
                                     <h4>USA Structures (Base)</h4>
                                     <p>2,091,488 Records</p>
-                                    <p>32 Columns</p>
+                                    <p>36 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source nsi">
                                     <h4>NSI Data Points</h4>
                                     <p>2,095,529 Records</p>
-                                    <p>12 Columns Added</p>
+                                    <p>11 Columns Added</p>
                                 </div>
                             </div>
 
                             <div class="flow-arrow">▼</div>
                             
                             <div class="flow-box operation">
-                                <h4>Operation: Multi-Strategy Spatial Join</h4>
-                                <p>A sophisticated, multi-stage process was used to accurately enrich building footprints with NSI point data, addressing the common one-to-many matching problem (e.g., multiple apartment units within one building footprint).</p>
+                                <h4>Operation: Advanced Multi-Stage Spatial Join</h4>
+                                <p>An enhanced, multi-stage process was implemented to accurately enrich building footprints with NSI point data. This updated methodology features flexible handling of mixed-use properties, a precise nearest-neighbor buffer match, and systematic occupancy conflict detection to ensure data quality.</p>
                                 <ul>
-                                    <li><strong>Strategy 1: Single-Family Residential (1-to-1 Match)</strong>
+                                    <li><strong>Strategy 1: Intelligent Single-Family Matching</strong>
                                         <ul>
-                                            <li>Buildings identified as 'Single Family' were matched with NSI points of type 'RES1'.</li>
-                                            <li>In cases where multiple NSI points fell within a single footprint, we performed <strong>centroid-based deduplication</strong>: the single NSI point closest to the building polygon's geometric centroid was selected as the definitive match.</li>
+                                            <li>For buildings classified as 'Single Family', the process now flexibly considers both residential (<code>RES</code>) and commercial (<code>COM</code>) NSI points inside. This accommodates mixed-use scenarios like in-home businesses.</li>
+                                            <li><strong>If one point is found,</strong> a direct one-to-one match is made.</li>
+                                            <li><strong>If multiple points are found,</strong> their attributes are <strong>aggregated</strong> to create a composite profile, replacing the previous centroid-based selection. This robustly handles properties with multiple distinct units (e.g., a house with a separate commercial unit).</li>
                                         </ul>
                                     </li>
-                                    <li><strong>Strategy 2: Multi-Unit & Commercial (Aggregate Match)</strong>
+                                    <li><strong>Strategy 2: Standard Aggregation for Other Buildings</strong>
                                         <ul>
-                                            <li>For all other building types (multi-family, commercial, etc.), all NSI points falling within the footprint were used.</li>
-                                            <li>Their attributes were <strong>aggregated</strong> to create a composite profile for the building:
+                                            <li>For all other building types (multi-family, commercial, etc.), all NSI points falling within the footprint are used.</li>
+                                            <li>Their attributes are <strong>aggregated</strong> to create a comprehensive profile for the building:
                                                 <ul>
-                                                    <li><strong>Value & Area (`structure_value`, `sqft`):</strong> Summed to get a total for the building.</li>
-                                                    <li><strong>Stories (`nsi_num_story`):</strong> The maximum value was taken.</li>
-                                                    <li><strong>Characteristics (`year_built`, `material_type`):</strong> The statistical mode (most frequent value) was used.</li>
+                                                    <li><strong>Value & Area (`structure_value`, `nsi_sqft`):</strong> Summed to get a total.</li>
+                                                    <li><strong>Stories (`nsi_num_story`):</strong> The maximum value is taken.</li>
+                                                    <li><strong>Characteristics (`year_built`, `material_type`):</strong> The statistical mode (most frequent value) is used.</li>
                                                 </ul>
                                             </li>
                                         </ul>
                                     </li>
-                                    <li><strong>Strategy 3: Buffer Match (Second-Chance Match)</strong>
+                                    <li><strong>Strategy 3: Nearest Neighbor Buffer Match</strong>
                                         <ul>
-                                            <li>For buildings and points that remained unmatched after the first two strategies, a <strong>5-meter buffer</strong> was created around the unmatched building footprints.</li>
-                                            <li>This process captured nearby NSI points that were just outside the polygon boundary, correcting for minor spatial inaccuracies. The first point found was taken as the match.</li>
+                                            <li>For NSI points that remain unmatched, this strategy finds the <strong>single nearest building polygon</strong> within a <strong>5-meter radius</strong>.</li>
+                                            <li>This ensures each point is uniquely assigned to its closest building, correcting for minor spatial inaccuracies. A single building can "absorb" multiple nearby points via this method.</li>
+                                            <li>A configurable option also allows buildings already matched in earlier stages to absorb additional nearby points, capturing features like adjacent garages or utility structures.</li>
+                                        </ul>
+                                    </li>
+                                    <li><strong>Extra Feature: Systematic Occupancy Conflict Detection</strong>
+                                        <ul>
+                                            <li>Throughout the process, the script will actively compare the land use category of the NSI point (e.g., 'Commercial') against the category of the building polygon it falls into (e.g., 'Residential').</li>
                                         </ul>
                                     </li>
                                 </ul>
@@ -1367,8 +1374,8 @@
                             <div class="flow-box result nsi-enhanced">
                                 <h4>Result: NSI Enhanced Structures v1</h4>
                                 <p>2,091,488 Records</p>
-                                <p>44 Columns (32 Base + 12 from NSI)</p>
-                                <small>A Left Join was performed, so all original buildings were retained. Unmatched buildings(398,687 in total) have NaN values for NSI columns(year_built, foundation_type, etc.).</small>
+                                <p>47 Columns (36 Base + 11 from NSI)</p>
+                                <small>A Left Join was performed, so all original buildings were retained. Unmatched buildings(405,037 in total) have NaN values for NSI columns(year_built, foundation_type, etc.).</small>
                             </div>
                         </div>
                     </div>
@@ -1386,7 +1393,7 @@
                                 <div class="flow-box data-source nsi-enhanced-input">
                                     <h4>NSI Enhanced Structures v1</h4>
                                     <p>2,091,488 Records (as Points)</p>
-                                    <p>44 Columns</p>
+                                    <p>47 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source soil-survey">
@@ -1420,7 +1427,7 @@
                             <div class="flow-box result final-dataset">
                                 <h4>Result: NSI Enhanced Structures v2</h4>
                                 <p>2,091,488 Records</p>
-                                <p>57 Total Columns (44 + 13 from Soil)</p>
+                                <p>59 Total Columns (47 + 12 from Soil)</p>
                                 <small>A final Left Join ensures all buildings are retained, for those some fall outside the soil map coverage(11,385 buidlings), they haven't been signed any soil-relates data.</small>
                             </div>
                         </div>
@@ -1437,7 +1444,7 @@
                                 <div class="flow-box result final-dataset" style="background-color: #e8f5e9; border-color: #2E7D32;">
                                 <h4>NSI Enhanced Structures v2</h4>
                                 <p>2,091,488 Records</p>
-                                <p>57 Columns</p>
+                                <p>59 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source boston-permits">
@@ -1460,7 +1467,7 @@
                             <div class="flow-box data-source nsi-enhanced-input" style="border-color: #2E7D32; background-color: #e8f5e9;">
                                 <h4>Result: Final NSI-Enhanced USA Structures Dataset</h4>
                                 <p>2,091,488 Records</p>
-                                <p>59 Total Columns (57 + 2 from Permits)</p>
+                                <p>61 Total Columns (59 + 2 from Permits)</p>
                                 <small>A Left Join retains all buildings. <strong>1,236</strong> buildings were successfully matched with demolition data.</small>
                             </div>
                         </div>
@@ -3765,7 +3772,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     'CENSUSCODE', 'PROD_DATE', 'SOURCE', 'USNG', 'LONGITUDE', 
                     'LATITUDE', 'IMAGE_NAME', 'IMAGE_DATE', 'VAL_METHOD', 'REMARKS', 
                     'UUID', 'Est GWP kgCO2e', 'GWP Intensity', 'GWP class', 
-                    'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT','geometry'
+                    'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT','OCC_CONFLICT','conflict_type'
                 ]
             },
             'NSI': {
@@ -3776,7 +3783,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                      'year_built', 'material_type', 
                     'material_type_desc', 'foundation_type', 'match_type', 
                     'match_method', 'nsi_num_story', 'structure_value', 
-                    'nsi_sqft', 'nsi_unit_count'
+                    'nsi_sqft', 'nsi_unit_count','nsi_occtype'
                 ]
             },
             'Web Soil Survey': {
@@ -4708,8 +4715,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             // Add summary stats as floating badges
             const stats = [
-                { label: 'Total Columns', value: '59', color: '#2c3e50' },
-                { label: 'Data Sources', value: '3', color: '#667eea' },
+                { label: 'Total Columns', value: '61', color: '#2c3e50' },
+                { label: 'Data Sources', value: '4', color: '#667eea' },
                 { label: 'MA Buildings', value: '2.09M+', color: '#764ba2' }
             ];
             
