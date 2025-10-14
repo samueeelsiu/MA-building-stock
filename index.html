@@ -2447,188 +2447,193 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             document.getElementById('dataCleaningSankey').innerHTML = '<p>Data cleaning statistics are not available.</p>';
         }
         
-    function createBuildingDistributionSankey() {
-            // This function creates the hierarchical Sankey diagram.
-            // It now supports four views, including simplified versions for both count and GFA.
-            if (!buildingData || !buildingData.hierarchical_distribution) {
-                console.warn('No hierarchical distribution data available');
-                return;
+        function createBuildingDistributionSankey() {
+        // This function creates the hierarchical Sankey diagram.
+        // It supports four views, including simplified versions for both count and GFA,
+        // and now includes a compact (screenshot) mode to reduce height and spacing.
+
+        if (!buildingData || !buildingData.hierarchical_distribution) {
+            console.warn('No hierarchical distribution data available');
+            return;
+        }
+
+        // UI: compact (screenshot) mode toggle. If the checkbox is absent, default to true.
+        const compact = document.getElementById('toggleCompact')?.checked ?? true;
+        const UI = compact ? {
+            NODE_PAD: 10,
+            NODE_THICKNESS: 14,
+            LINE_WIDTH: 1.2,
+            FONT_SIZE: 10,
+            TITLE_SIZE: 16,
+            HEIGHT: 520,
+            MARGINS: { t: 56, b: 120, l: 110, r: 110 } // keep some bottom space for annotations
+        } : {
+            NODE_PAD: 20,
+            NODE_THICKNESS: 25,
+            LINE_WIDTH: 1.5,
+            FONT_SIZE: 11,
+            TITLE_SIZE: 18,
+            HEIGHT: 800,
+            MARGINS: { t: 80, b: 200, l: 150, r: 150 }
+        };
+
+        // Get user selections from the dropdowns
+        const selectedOccupancy = document.getElementById('hierarchicalOccupancy')?.value || 'all';
+        const selectedView = document.getElementById('sankeyViewSelector')?.value || 'by_count';
+
+        // Select the correct data structure based on occupancy and view selection
+        let dataForOccupancy = buildingData.hierarchical_distribution[selectedOccupancy];
+        if (!dataForOccupancy) {
+            console.warn(`No data for occupancy: ${selectedOccupancy}`);
+            document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this occupancy class.</p>';
+            return;
+        }
+
+        let sankeyData = dataForOccupancy[selectedView];
+        if (!sankeyData || !sankeyData.nodes || !sankeyData.links || sankeyData.nodes.length === 0) {
+            console.warn(`No data for view: ${selectedView}`);
+            document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this view (Not enough buildings to generate a flow chart).</p>';
+            return;
+        }
+
+        // Helper function to format large numbers for display
+        function formatSankeyNumber(num, isGfa = false) {
+            if (isGfa) {
+            if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+            if (num >= 1000) return `${Math.round(num / 1000)}K`;
+            return `${Math.round(num)}`;
             }
+            if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
+            if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+            return num.toString();
+        }
 
-            // Get user selections from the dropdowns
-            const selectedOccupancy = document.getElementById('hierarchicalOccupancy')?.value || 'all';
-            const selectedView = document.getElementById('sankeyViewSelector')?.value || 'by_count';
+        // Create maps for quick node lookup by name to get their index
+        const nodeIndexMap = new Map(sankeyData.nodes.map((node, i) => [node.name, i]));
 
-            // Select the correct data structure based on occupancy and view selection
-            let dataForOccupancy = buildingData.hierarchical_distribution[selectedOccupancy];
-            if (!dataForOccupancy) {
-                console.warn(`No data for occupancy: ${selectedOccupancy}`);
-                document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this occupancy class.</p>';
-                return;
-            }
+        // Check if the current view is GFA-based or simplified
+        const isGfaView = selectedView.includes('gfa');
+        const isSimplifiedView = selectedView.includes('simplified');
 
-            let sankeyData = dataForOccupancy[selectedView];
-            if (!sankeyData || !sankeyData.nodes || !sankeyData.links || sankeyData.nodes.length === 0) {
-                console.warn(`No data for view: ${selectedView}`);
-                document.getElementById('buildingDistributionSankey').innerHTML = '<p>No data to display for this view (Not enough buildings to generate a flow chart).</p>';
-                return;
-            }
+        // Compute x/y positions so Plotly honors desired column and top-to-bottom order
+        const maxLevel = Math.max(...sankeyData.nodes.map(n => (n.level ?? 0)));
+        const nodeX = sankeyData.nodes.map(n => (n.level ?? 0) / (maxLevel || 1)); // normalized x by level
 
-            // Helper function to format large numbers for display
-            function formatSankeyNumber(num, isGfa = false) {
-                if (isGfa) {
-                    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-                    if (num >= 1000) return `${Math.round(num / 1000)}K`;
-                    return `${Math.round(num)}`;
-                }
-                if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
-                if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-                return num.toString();
-            }
-
-            // Create maps for quick node lookup by name to get their index
-            const nodeIndexMap = new Map(sankeyData.nodes.map((node, i) => [node.name, i]));
-
-            // Check if the current view is GFA-based or simplified
-            const isGfaView = selectedView.includes('gfa');
-            const isSimplifiedView = selectedView.includes('simplified');
-            
-            // CHANGE: Enforce vertical order for Area / Height / Year levels in the Sankey
-            // We will compute x/y positions for nodes so Plotly honors the desired top-to-bottom order.
-
-            const maxLevel = Math.max(...sankeyData.nodes.map(n => (n.level ?? 0)));
-            const nodeX = sankeyData.nodes.map(n => (n.level ?? 0) / (maxLevel || 1)); // normalized x by level
-
-            // Group nodes by level so that we can assign y positions per column (level)
-            const nodesByLevel = new Map();
-            sankeyData.nodes.forEach((n, idx) => {
+        // Group nodes by level so that we can assign y positions per column (level)
+        const nodesByLevel = new Map();
+        sankeyData.nodes.forEach((n, idx) => {
             const lvl = n.level ?? 0;
             if (!nodesByLevel.has(lvl)) nodesByLevel.set(lvl, []);
             nodesByLevel.get(lvl).push({ i: idx, name: n.name });
-            });
+        });
 
-            // Desired top-to-bottom orders
-            const AREA_ORDER   = ['Small', 'Medium', 'Large'];
-            const HEIGHT_ORDER = ['Short', 'Mid', 'High'];
-            // Enforce chronological order for the Year column (exact labels used in data)
-            const YEAR_ORDER   = ['Historic (<1940)', 'Mid-Century (40-80)', 'Modern (>1980)'];
+        // Desired top-to-bottom orders
+        const AREA_ORDER   = ['Small', 'Medium', 'Large'];
+        const HEIGHT_ORDER = ['Short', 'Mid', 'High'];
+        const YEAR_ORDER   = ['Historic (<1940)', 'Mid-Century (40-80)', 'Modern (>1980)'];
 
-
-            // Helper to assign y positions [0..1] to a group of nodes.
-            // Items present in `preferredOrder` are placed first in that exact order;
-            // the rest keep their original order and come afterwards.
-            function assignY(items, preferredOrder) {
+        // Assign y positions [0..1] to a group of nodes.
+        function assignY(items, preferredOrder) {
             const ordered = [];
             preferredOrder.forEach(name => {
-                const hit = items.find(d => d.name === name);
-                if (hit) ordered.push(hit);
+            const hit = items.find(d => d.name === name);
+            if (hit) ordered.push(hit);
             });
             items.forEach(d => { if (!preferredOrder.includes(d.name)) ordered.push(d); });
 
             const n = ordered.length || 1;
-            const ys = new Array(n);
             ordered.forEach((d, idx) => {
-                d.y = (idx + 0.5) / n; // evenly spaced within [0,1]
+            d.y = (idx + 0.5) / n; // evenly spaced
             });
             return ordered;
-            }
+        }
 
-            const nodeY = new Array(sankeyData.nodes.length).fill(0.5); // default vertical center
-
-            // For each level/column, decide whether it is Area, Height, or Year and assign y accordingly.
-            // Other columns (root, occupancy, drainage) keep a simple even spacing (stable but not enforced).
-            for (const [lvl, items] of nodesByLevel.entries()) {
+        const nodeY = new Array(sankeyData.nodes.length).fill(0.5); // default center
+        for (const [lvl, items] of nodesByLevel.entries()) {
             const names = items.map(d => d.name);
             let arranged;
             if (AREA_ORDER.some(n => names.includes(n))) {
-                arranged = assignY(items, AREA_ORDER);            // Small → Medium → Large
+            arranged = assignY(items, AREA_ORDER);
             } else if (HEIGHT_ORDER.some(n => names.includes(n))) {
-                arranged = assignY(items, HEIGHT_ORDER);          // Short → Mid → High
+            arranged = assignY(items, HEIGHT_ORDER);
             } else if (YEAR_ORDER.some(n => names.includes(n))) {
-                arranged = assignY(items, YEAR_ORDER);            // Historic → Mid-Century → Modern
+            arranged = assignY(items, YEAR_ORDER);
             } else {
-                // Even spacing for non-target levels (e.g., occupancy/drainage)
-                arranged = assignY(items, []);                    // keep original order
+            arranged = assignY(items, []); // keep original order
             }
             arranged.forEach(d => { nodeY[d.i] = d.y; });
-            }
-
-
-            const valueUnit = isGfaView ? 'sqm' : '';
-            const valueLabel = isGfaView ? 'Total GFA' : 'Count';
-
-            // Prepare the data for Plotly
-            const plotData = [{
-                type: 'sankey',
-                orientation: 'h',
-                arrangement: 'snap',
-                node: {
-                    pad: 20,
-                    thickness: 25,
-                    line: { color: 'white', width: 1.5 },
-                    label: sankeyData.nodes.map(n => n.name),
-                    color: sankeyData.nodes.map(n => plasmaColors[n.level % plasmaColors.length]),
-                    x: nodeX, // CHANGE: fixed horizontal column by level
-                    y: nodeY, // CHANGE: enforced vertical order per column
-                },
-                link: {
-                    source: sankeyData.links.map(link => nodeIndexMap.get(link.source)).filter(idx => idx !== undefined),
-                    target: sankeyData.links.map(link => nodeIndexMap.get(link.target)).filter(idx => idx !== undefined),
-                    value: sankeyData.links.map(link => link.value),
-                    color: 'rgba(102, 126, 234, 0.25)',
-                    hovertemplate: `%{source.label} → %{target.label}<br>${valueLabel}: %{value:,.0f} ${valueUnit}<extra></extra>`
-                }
-            }];
-            
-            // Dynamically set the chart title based on the selected view
-            let viewTitle = '';
-            if (isGfaView) {
-                viewTitle = isSimplifiedView ? 'by Total GFA (Simplified)' : 'by Total GFA';
-            } else {
-                viewTitle = isSimplifiedView ? 'by Building Count (Simplified)' : 'by Building Count';
-            }
-
-            let title = selectedOccupancy === 'all' ?
-                `MA Building Hierarchical Distribution - All Buildings (${viewTitle})` :
-                `MA Building Hierarchical Distribution - ${selectedOccupancy} (${viewTitle})`;
-
-            if (sankeyData.total_buildings) {
-                title += ` (${formatSankeyNumber(sankeyData.total_buildings)} buildings)`;
-            }
-
-            // Dynamically create annotations based on the current view
-            const annotations = [];
-            if (sankeyData.bin_info) {
-                let annotationText = `<b>Binning Information:</b><br>`;
-                // Only show Area and Height info for non-simplified views
-                if (!isSimplifiedView) {
-                    annotationText += `<b>Area:</b> ${sankeyData.bin_info.Area}<br>`;
-                    annotationText += `<b>Height:</b> ${sankeyData.bin_info.Height}<br>`;
-                }
-                annotationText += `<b>Year:</b> ${sankeyData.bin_info.Year}<br>`;
-                annotationText += `<b>Drainage:</b> ${sankeyData.bin_info.Drainage}`;
-                
-                annotations.push({
-                    x: 0.5, y: -0.25, xref: 'paper', yref: 'paper',
-                    text: annotationText, showarrow: false,
-                    font: { size: 11, color: '#555' }, align: 'center'
-                });
-            }
-
-            const layout = {
-                title: {
-                    text: title,
-                    font: { size: 18, color: '#333' }
-                },
-                font: { size: 11 },
-                height: 800,
-                margin: { t: 80, b: 200, l: 150, r: 150 },
-                annotations: annotations
-            };
-
-            Plotly.newPlot('buildingDistributionSankey', plotData, layout, {responsive: true});
         }
 
+        const valueUnit = isGfaView ? 'sqm' : '';
+        const valueLabel = isGfaView ? 'Total GFA' : 'Count';
+
+        // Prepare the data for Plotly
+        const plotData = [{
+            type: 'sankey',
+            orientation: 'h',
+            arrangement: 'snap',
+            node: {
+            pad: UI.NODE_PAD,
+            thickness: UI.NODE_THICKNESS,
+            line: { color: 'white', width: UI.LINE_WIDTH },
+            label: sankeyData.nodes.map(n => n.name),
+            color: sankeyData.nodes.map(n => plasmaColors[n.level % plasmaColors.length]),
+            x: nodeX,
+            y: nodeY
+            },
+            link: {
+            source: sankeyData.links.map(link => nodeIndexMap.get(link.source)).filter(idx => idx !== undefined),
+            target: sankeyData.links.map(link => nodeIndexMap.get(link.target)).filter(idx => idx !== undefined),
+            value: sankeyData.links.map(link => link.value),
+            color: 'rgba(102, 126, 234, 0.25)',
+            hovertemplate: `%{source.label} → %{target.label}<br>${valueLabel}: %{value:,.0f} ${valueUnit}<extra></extra>`
+            }
+        }];
+
+        // Dynamically set the chart title based on the selected view
+        let viewTitle = '';
+        if (isGfaView) {
+            viewTitle = isSimplifiedView ? 'by Total GFA (Simplified)' : 'by Total GFA';
+        } else {
+            viewTitle = isSimplifiedView ? 'by Building Count (Simplified)' : 'by Building Count';
+        }
+
+        let title = selectedOccupancy === 'all'
+            ? `MA Building Hierarchical Distribution - All Buildings (${viewTitle})`
+            : `MA Building Hierarchical Distribution - ${selectedOccupancy} (${viewTitle})`;
+
+        if (sankeyData.total_buildings) {
+            title += ` (${formatSankeyNumber(sankeyData.total_buildings)} buildings)`;
+        }
+
+        // Annotations
+        const annotations = [];
+        if (sankeyData.bin_info) {
+            let annotationText = `<b>Binning Information:</b><br>`;
+            if (!isSimplifiedView) {
+            annotationText += `<b>Area:</b> ${sankeyData.bin_info.Area}<br>`;
+            annotationText += `<b>Height:</b> ${sankeyData.bin_info.Height}<br>`;
+            }
+            annotationText += `<b>Year:</b> ${sankeyData.bin_info.Year}<br>`;
+            annotationText += `<b>Drainage:</b> ${sankeyData.bin_info.Drainage}`;
+
+            annotations.push({
+            x: 0.5, y: -0.25, xref: 'paper', yref: 'paper',
+            text: annotationText, showarrow: false,
+            font: { size: Math.max(9, UI.FONT_SIZE), color: '#555' }, align: 'center'
+            });
+        }
+
+        const layout = {
+            title: { text: title, font: { size: UI.TITLE_SIZE, color: '#333' } },
+            font:  { size: UI.FONT_SIZE },
+            height: UI.HEIGHT,
+            margin: UI.MARGINS,
+            annotations
+        };
+
+        Plotly.newPlot('buildingDistributionSankey', plotData, layout, { responsive: true });
+        }
 
         function createYearOccSankey() {
         const containerId = 'yearOccSankey';
@@ -2650,15 +2655,51 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
         // Metric selector: 'count' or 'gfa'
         const metric = document.getElementById('yearOccMetric')?.value || 'count';
-        const isGFA  = (metric === 'gfa') && Array.isArray(flow) && flow.length > 0; // only honor GFA when full flow exists
+        const isGFA  = (metric === 'gfa') && Array.isArray(flow) && flow.length > 0;
+
+        // Compact (screenshot) mode: if toggle not present, default to true
+        const compact = document.getElementById('toggleCompact')?.checked ?? true;
+        const UI = compact ? {
+            NODE_THICKNESS: 12,
+            NODE_PAD_WANT: 10,
+            FONT_SIZE: 10,
+            TITLE_SIZE: 16,
+            MARGIN_T: 48, MARGIN_R: 140, MARGIN_B: 32, MARGIN_L: 16,
+            HEIGHT: 780,
+            LINK_RGBA: 'rgba(102, 126, 234, 0.20)',
+            LINE_WIDTH: 1.2
+        } : {
+            NODE_THICKNESS: 18,
+            NODE_PAD_WANT: 18,
+            FONT_SIZE: 12,
+            TITLE_SIZE: 18,
+            MARGIN_T: 70, MARGIN_R: 160, MARGIN_B: 40, MARGIN_L: 20,
+            HEIGHT: null, // computed via sticky logic
+            LINK_RGBA: 'rgba(102, 126, 234, 0.22)',
+            LINE_WIDTH: 2
+        };
 
         // Display name maps
         const MATERIAL_NAME   = { M:'Masonry', W:'Wood', H:'Manufactured', S:'Steel', C:'Concrete' };
         const FOUNDATION_NAME = { C:'Crawl Space', B:'Basement', S:'Slab', P:'Pier', I:'Pile', F:'Fill', W:'Solid Wall' };
 
+        // Layout helpers
+        function computeRightMargin(labels, fontSize = 12, padding = 28) {
+            if (!labels || !labels.length) return 160;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.font = `${fontSize}px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial`;
+            const maxPx = Math.max(...labels.map(s => ctx.measureText(String(s)).width));
+            return Math.max(120, Math.min(Math.ceil(maxPx) + padding, 380));
+        }
+        function truncateLabel(s, max = 22) {
+            s = String(s ?? '');
+            return s.length > max ? s.slice(0, max - 1) + '…' : s;
+        }
+
         // Nodes / links builders
-        const nodeIndex = new Map();   // internal label -> node index
-        const nodes = [];              // array of { name }
+        const nodeIndex = new Map();
+        const nodes = [];
         function getIndex(label) {
             if (!nodeIndex.has(label)) {
             nodeIndex.set(label, nodes.length);
@@ -2673,20 +2714,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const key = a + '→' + b;
             linkMap.set(key, (linkMap.get(key) || 0) + v);
         };
-
-        // Layout helpers
-        function computeRightMargin(labels, fontSize = 12, padding = 28) {
-            if (!labels || !labels.length) return 160;
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            ctx.font = `${fontSize}px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial`;
-            const maxPx = Math.max(...labels.map(s => ctx.measureText(String(s)).width));
-            return Math.max(160, Math.min(Math.ceil(maxPx) + padding, 420));
-        }
-        function truncateLabel(s, max = 22) {
-            s = String(s ?? '');
-            return s.length > max ? s.slice(0, max - 1) + '…' : s;
-        }
 
         // Column order (left -> right)
         const prefixes = ['Y:', 'O:'];
@@ -2706,21 +2733,14 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             if (includeFoundation) chain.push(`F:${r.foundation || 'Unknown'}`);
             if (includeSoil)       chain.push(`S:${r.soil || 'Unknown'}`);
 
-            // Pick value by selected metric
-            // - When 'gfa': use r.gfa (sqm)
-            // - When 'count': use r.count (buildings)
             const v = isGFA ? (Number(r.gfa) || 0) : (Number(r.count) || 0);
             if (v <= 0) continue;
 
-            // Keep Root -> Year totals so the left column is complete
             yearCounts.set(chain[0], (yearCounts.get(chain[0]) || 0) + v);
-
-            // Adjacent pairs
             for (let i = 0; i < chain.length - 1; i++) pushPair(chain[i], chain[i + 1], v);
             }
         } else {
-            // Fallback to random samples when full flow isn't present.
-            // NOTE: samples usually don't carry GFA; we therefore fall back to count (=1 per sample)
+            // Fallback to random samples
             function yearBand(y) {
             if (!y || isNaN(y)) return 'Unknown';
             if (y > 1980) return 'Modern (>1980)';
@@ -2763,7 +2783,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const raw = n.name;
             if (raw.startsWith('R:')) return 'All Buildings';
             if (raw.startsWith('Y:')) return raw.slice(2);
-            if (raw.startsWith('O:')) return  raw.slice(2);
+            if (raw.startsWith('O:')) return raw.slice(2);
             if (raw.startsWith('M:')) { const s = raw.slice(2); return MATERIAL_NAME[s] || s; }
             if (raw.startsWith('F:')) { const s = raw.slice(2); return FOUNDATION_NAME[s] || s; }
             if (raw.startsWith('S:')) return raw.slice(2);
@@ -2771,12 +2791,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         });
         const fullNodeLabels  = displayLabels.slice();
         const shortNodeLabels = fullNodeLabels.map(l => truncateLabel(l, 22));
-
-        // Pixel constants
-        const NODE_THICKNESS = 18;
-        const NODE_PAD_WANT  = 18;
-        const MARGIN_T = 70;
-        const MARGIN_B = 40;
 
         // Levels and x positions
         const prefixesInOrder = ['R:', ...prefixes];
@@ -2795,25 +2809,42 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             bucketsByLevel.get(lvl).push(i);
         });
 
-        // Compute required plot height and effective pad
-        const counts = [];
-        for (let lvl = 0; lvl <= maxLevel; lvl++) {
+        // Height and padding computation
+        let finalHeight, plotAreaHeight, NODE_PAD, NODE_THICKNESS;
+        NODE_THICKNESS = UI.NODE_THICKNESS;
+
+        if (compact) {
+            // Fixed compact height, no sticky growth
+            finalHeight = UI.HEIGHT;
+            plotAreaHeight = Math.max(1, finalHeight - UI.MARGIN_T - UI.MARGIN_B);
+
+            const counts = [];
+            for (let lvl = 0; lvl <= maxLevel; lvl++) {
             const arr = bucketsByLevel.get(lvl) || [];
             counts.push(arr.length || 1);
+            }
+            const padPerLevel = counts.map(n => Math.max(2, (plotAreaHeight - n * NODE_THICKNESS) / (n + 1)));
+            NODE_PAD = Math.min(UI.NODE_PAD_WANT, ...padPerLevel);
+        } else {
+            // Sticky logic (original behavior)
+            const counts = [];
+            for (let lvl = 0; lvl <= maxLevel; lvl++) {
+            const arr = bucketsByLevel.get(lvl) || [];
+            counts.push(arr.length || 1);
+            }
+            const requiredByLevel   = counts.map(n => n * NODE_THICKNESS + (n + 1) * UI.NODE_PAD_WANT);
+            const plotHeightNeeded  = requiredByLevel.length ? Math.max(...requiredByLevel) : 0;
+            const figureHeightGuess = UI.MARGIN_T + plotHeightNeeded + UI.MARGIN_B + 40;
+
+            window.__YEAR_OCC_STICKY_HEIGHT__ = Math.max(window.__YEAR_OCC_STICKY_HEIGHT__ || 0, figureHeightGuess);
+            finalHeight   = window.__YEAR_OCC_STICKY_HEIGHT__;
+            plotAreaHeight = Math.max(1, finalHeight - UI.MARGIN_T - UI.MARGIN_B);
+
+            const padPerLevel = counts.map(n => Math.max(2, (plotAreaHeight - n * NODE_THICKNESS) / (n + 1)));
+            NODE_PAD = Math.min(UI.NODE_PAD_WANT, ...padPerLevel);
         }
-        const requiredByLevel   = counts.map(n => n * NODE_THICKNESS + (n + 1) * NODE_PAD_WANT);
-        const plotHeightNeeded  = requiredByLevel.length ? Math.max(...requiredByLevel) : 0;
-        const figureHeightGuess = MARGIN_T + plotHeightNeeded + MARGIN_B + 40;
 
-        // Sticky height so toggling columns never shrinks below the max we've needed
-        window.__YEAR_OCC_STICKY_HEIGHT__ = Math.max(window.__YEAR_OCC_STICKY_HEIGHT__ || 0, figureHeightGuess);
-        const finalHeight   = window.__YEAR_OCC_STICKY_HEIGHT__;
-        const plotAreaHeight = Math.max(1, finalHeight - MARGIN_T - MARGIN_B);
-
-        const padPerLevel = counts.map(n => Math.max(2, (plotAreaHeight - n * NODE_THICKNESS) / (n + 1)));
-        const NODE_PAD    = Math.min(NODE_PAD_WANT, ...padPerLevel);
-
-        // Y positions (normalized within the plot area)
+        // Y positions
         const nodeY = new Array(nodes.length).fill(0.5);
         for (let lvl = 0; lvl <= maxLevel; lvl++) {
             const arr = bucketsByLevel.get(lvl) || [];
@@ -2827,7 +2858,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             });
         }
 
-        // Optional: enforce an explicit vertical order for Year column
+        // Explicit vertical order for Year column if provided
         const YEAR_ORDER_DISPLAY = meta.year_order_top_to_bottom || [
             'Historic (<1940)', 'Mid-Century (1940–1980)', 'Modern (>1980)'
         ];
@@ -2845,13 +2876,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             });
         }
 
-        // Use the same palette as the MA Hierarchical Sankey; fallback if not present
+        // Colors
         const palette = (typeof plasmaColors !== 'undefined' && Array.isArray(plasmaColors) && plasmaColors.length)
             ? plasmaColors
             : ['#0d0887','#46039f','#7201a8','#9c179e','#bd3786','#d8576b','#ed7953','#fb9f3a','#fdca26','#f0f921'];
         const nodeColors = nodeLevel.map(lvl => palette[lvl % palette.length]);
 
-        // Title with metric suffix
+        // Title
         const isFull = !!flow;
         const titleBase = isFull
             ? 'Year → Occupancy → Material → Foundation → Soil'
@@ -2868,7 +2899,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             node: {
             thickness: NODE_THICKNESS,
             pad: NODE_PAD,
-            line: { color: 'white', width: 2 },
+            line: { color: 'white', width: UI.LINE_WIDTH },
             label: shortNodeLabels,
             hovertext: fullNodeLabels,
             hoverinfo: 'text',
@@ -2880,8 +2911,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             source: sources,
             target: targets,
             value: values,
-            color: 'rgba(102, 126, 234, 0.22)',
-            // Nice-to-have: show metric-specific units on link hover and suffix
+            color: UI.LINK_RGBA,
             hovertemplate: isGFA
                 ? '%{source.label} → %{target.label}<br><b>GFA:</b> %{value:,.0f} sqm<extra></extra>'
                 : '%{source.label} → %{target.label}<br><b>Count:</b> %{value:,}<extra></extra>',
@@ -2890,12 +2920,12 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             }
         }];
 
-        const rightMargin = computeRightMargin(shortNodeLabels, 12, 28);
+        const rightMargin = computeRightMargin(shortNodeLabels, UI.FONT_SIZE, 24);
         const layout = {
-            title: { text: titleText, font: { size: 18, color: '#333' } },
-            font:  { size: 12 },
-            margin:{ t: 70, r: rightMargin, b: 40, l: 20 },
-            height: window.__YEAR_OCC_STICKY_HEIGHT__ || 560
+            title: { text: titleText, font: { size: UI.TITLE_SIZE, color: '#333' } },
+            font:  { size: UI.FONT_SIZE },
+            margin:{ t: UI.MARGIN_T, r: Math.max(UI.MARGIN_R, rightMargin), b: UI.MARGIN_B, l: UI.MARGIN_L },
+            height: compact ? UI.HEIGHT : (window.__YEAR_OCC_STICKY_HEIGHT__ || 560)
         };
 
         Plotly.newPlot(containerId, data, layout, {
@@ -2904,6 +2934,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             modeBarButtonsToRemove: ['lasso2d','select2d']
         });
         }
+
 
 
         
