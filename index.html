@@ -1227,21 +1227,21 @@
                     <!-- Year → Occupancy → Material → Foundation → Soil (compname) Sankey -->
                     <div class="chart-container">
                     <div class="section-header" style="margin-top: 0; padding-top: 20px; border: none;">
-                        <h3 style="color:#2c3e50;">Construction Year → Occupancy → Material → Foundation → Soil</h3>
+                        <h3 id="yearOccSankeyTitle" style="color:#2c3e50;">Construction Year → Occupancy → Material → Foundation → Soil</h3>
                         <p style="color:#555;">Base: Year → Occupancy. Toggle columns to the right.</p>
 
                         <!-- Toggles -->
                         <div style="margin-top:8px;">
                         <label style="margin-right:16px;">
-                            <input type="checkbox" id="toggleMaterial" checked>
+                            <input type="checkbox" id="toggleMaterial" checked onchange="handleYearOccToggleChange()">
                             Show Material
                         </label>
                         <label style="margin-right:16px;">
-                            <input type="checkbox" id="toggleFoundation" checked>
+                            <input type="checkbox" id="toggleFoundation" checked onchange="handleYearOccToggleChange()">
                             Show Foundation
                         </label>
                         <label>
-                            <input type="checkbox" id="toggleSoil" checked>
+                            <input type="checkbox" id="toggleSoil" checked onchange="handleYearOccToggleChange()">
                             Show Soil (compname)
                         </label>
 
@@ -1252,6 +1252,36 @@
                         <option value="count" selected>Buildings count</option>
                         <option value="gfa">GFA (sqm)</option>
                         </select>
+
+                        <!-- Export / Screenshot bar -->
+                        <span style="display:inline-block; margin-left:20px; font-weight:600;">Export:</span>
+
+                        <select id="yearOccExportFormat"
+                                style="padding:6px 10px; border:1px solid #dee2e6; border-radius:4px; font-size:13px; margin-left:6px;">
+                        <option value="png" selected>PNG (raster)</option>
+                        <option value="svg">SVG (vector)</option>
+                        <option value="jpeg">JPEG</option>
+                        <option value="webp">WEBP</option>
+                        </select>
+
+                        <select id="yearOccExportScale"
+                                title="Scale for PNG/JPEG/WEBP"
+                                style="padding:6px 10px; border:1px solid #dee2e6; border-radius:4px; font-size:13px; margin-left:6px;">
+                        <option value="1">1×</option>
+                        <option value="2">2×</option>
+                        <option value="3" selected>3×</option>
+                        <option value="4">4×</option>
+                        </select>
+
+                        <label style="margin-left:8px; font-weight:500;">
+                        <input type="checkbox" id="yearOccTransparentBg"> Transparent BG
+                        </label>
+
+                        <button onclick="downloadYearOccSankey()"
+                                style="margin-left:8px; padding:6px 10px; border:1px solid #ced4da; border-radius:6px; background:#f8f9fa; cursor:pointer;">
+                        Save
+                        </button>
+
 
 
                         </div>
@@ -2883,11 +2913,22 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         const nodeColors = nodeLevel.map(lvl => palette[lvl % palette.length]);
 
         // Title
+
         const isFull = !!flow;
-        const titleBase = isFull
-            ? 'Year → Occupancy → Material → Foundation → Soil'
-            : 'Year → Occupancy → Material → Foundation → Soil (Sampled)';
-        const titleText = titleBase + (isGFA ? ' — by GFA (sqm)' : ' — by Building Count');
+
+
+        const dims = ['Year', 'Occupancy'];
+        if (includeMaterial)   dims.push('Material');
+        if (includeFoundation) dims.push('Foundation');
+        if (includeSoil)       dims.push('Soil');
+
+        const dimsTitle = dims.join(' \u2192 ');
+        const titleBase  = isFull ? dimsTitle : `${dimsTitle} (Sampled)`;
+        const titleText  = titleBase + (isGFA ? ' — by GFA (sqm)' : ' — by Building Count');
+
+
+        try { updateYearOccSankeyTitle && updateYearOccSankeyTitle(); } catch(e) {}
+
 
         // Render
         try { Plotly.purge(containerId); } catch (e) {}
@@ -6642,7 +6683,92 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
         }
+
+        function getYearOccSankeyTitle() {
+        const dims = ["Construction Year", "Occupancy"];
+        if (document.getElementById("toggleMaterial")?.checked)   dims.push("Material");
+        if (document.getElementById("toggleFoundation")?.checked) dims.push("Foundation");
+        if (document.getElementById("toggleSoil")?.checked)       dims.push("Soil");
+        return dims.join(" \u2192 "); 
+        }
+
+
+        function updateYearOccSankeyTitle() {
+        const el = document.getElementById("yearOccSankeyTitle");
+        if (el) el.textContent = getYearOccSankeyTitle();
+        }
+
+
+        function handleYearOccToggleChange() {
+        updateYearOccSankeyTitle();
+        if (typeof createYearOccSankey === "function") createYearOccSankey();
+        }
+
+
+        document.addEventListener("DOMContentLoaded", updateYearOccSankeyTitle);
+
+
+        (function patchCreateYearOcc() {
+        const orig = window.createYearOccSankey;
+        if (typeof orig === "function") {
+            window.createYearOccSankey = function() {
+            const r = orig.apply(this, arguments);
+            try { updateYearOccSankeyTitle(); } catch(e) {}
+            return r;
+            }
+        }
+        })();
+                
+        function _ts() {
+            const d = new Date();
+            const z = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+        }
+
+       
+        async function downloadYearOccSankey() {
+            const gd = document.getElementById('yearOccSankey'); 
+            if (!gd) { alert('Plot not found'); return; }
+
         
+            const format = document.getElementById('yearOccExportFormat')?.value || 'png';
+            const scale  = parseInt(document.getElementById('yearOccExportScale')?.value || '3', 10);
+            const transparent = !!document.getElementById('yearOccTransparentBg')?.checked;
+
+          
+            const rect   = gd.getBoundingClientRect();
+            const width  = Math.max(800, Math.round(rect.width));
+            const height = (gd._fullLayout && gd._fullLayout.height) ? gd._fullLayout.height
+                        : Math.max(560, Math.round(rect.height) || 560);
+
+          
+            const prevPaper = (gd.layout && gd.layout.paper_bgcolor) ?? null;
+            const prevPlot  = (gd.layout && gd.layout.plot_bgcolor)  ?? null;
+            const paper = transparent ? 'rgba(0,0,0,0)' : 'white';
+            const plot  = transparent ? 'rgba(0,0,0,0)' : 'white';
+
+            try {
+            await Plotly.relayout(gd, { 'paper_bgcolor': paper, 'plot_bgcolor': plot });
+
+           
+            const opts = {
+                format,
+                filename: `sankey_year_occ_${_ts()}`,
+                width:  (format === 'svg') ? width  : width  * scale,
+                height: (format === 'svg') ? height : height * scale,
+                scale:  1 
+            };
+
+            await Plotly.downloadImage(gd, opts);
+            } catch (err) {
+            console.error(err);
+            alert('Export failed. See console for details.');
+            } finally {
+
+            await Plotly.relayout(gd, { 'paper_bgcolor': prevPaper, 'plot_bgcolor': prevPlot });
+            }
+        }
+
     </script>
 </body>
 </html>
