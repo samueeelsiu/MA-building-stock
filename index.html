@@ -1304,6 +1304,41 @@
                     <div id="occupancyHierarchySankey"></div>
                 </div>
 
+                <!-- OCC_CLS → NSI occtype sankey -->
+                <div class="section-header" style="margin-top:24px; padding-top: 8px; border: none;">
+                <h3 style="color:#2c3e50;">OCC_CLS → NSI occtype matches</h3>
+                <p style="color:#555; margin: 4px 0 12px;">
+                    Each link sums the number of NSI points in <em>polygons whose OCC_CLS equals the left-hand class</em>.
+                    Counts are pooled per class (RES pool, COM pool, ...); points in other classes do not affect this pool.
+                </p>
+                </div>
+                <div id="occClsOccDictSankey" style="height: 1220px;"></div>
+
+                <div class="chart-container">
+                    <div class="section-header" style="margin-top: 0; padding-top: 20px; border: none;">
+                        <h3 style="color: #2c3e50;">Occupancy Homogeneity Score (MIX_SC) Distribution</h3>
+                        <p style="color: #555;">Distribution of buildings based on the homogeneity of NSI point types within their footprint.</p>
+                    </div>
+                    <div class="controls" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                        <div class="toggle-switch">
+                            <label for="toggleSameType">Include 'Same Type Only' Category:</label>
+                            <input type="checkbox" id="toggleSameType" onchange="createMixScPieChart()" checked>
+                        </div>
+                    </div>
+                    <div id="mixScPieChart"></div>
+                    <div class="info-box" style="margin-top: 20px;">
+                        <h3>MIX_SC Categories Explained</h3>
+                        <p>
+                            <strong>Same Type Only (NaN in data):</strong> All NSI points inside the building polygon are of the same primary type as the building itself.<br>
+                            <strong>1 Conflict Type (MIX_SC1):</strong> No NSI points of the same type as the building, and all conflicting points are of a single different type.<br>
+                            <strong>Same & Different Types (MIX_SC2):</strong> The building contains NSI points of its own type plus one or more conflicting types.<br>
+                            <strong>>1 Conflict Types (MIX_SC3):</strong> The building contains no NSI points of the same type as the building, and has two or more different conflicting types.
+                        </p>
+                    </div>
+                </div>
+
+
+
                 <div class="export-buttons">
                     <button class="export-button" onclick="exportChart('overviewChart', 'overview')">Export Chart</button>
                     <button class="export-button" onclick="exportAllData()">Export All Data</button>
@@ -1349,7 +1384,7 @@
                                 <div class="flow-box data-source usa-structures">
                                     <h4>USA Structures (Base)</h4>
                                     <p>2,091,488 Records</p>
-                                    <p>36 Columns</p>
+                                    <p>38 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source nsi">
@@ -1404,7 +1439,7 @@
                             <div class="flow-box result nsi-enhanced">
                                 <h4>Result: NSI Enhanced Structures v1</h4>
                                 <p>2,091,488 Records</p>
-                                <p>47 Columns (36 Base + 11 from NSI)</p>
+                                <p>49 Columns (38 Base + 11 from NSI)</p>
                                 <small>A Left Join was performed, so all original buildings were retained. Unmatched buildings(405,037 in total) have NaN values for NSI columns(year_built, foundation_type, etc.).</small>
                             </div>
                         </div>
@@ -1423,7 +1458,7 @@
                                 <div class="flow-box data-source nsi-enhanced-input">
                                     <h4>NSI Enhanced Structures v1</h4>
                                     <p>2,091,488 Records (as Points)</p>
-                                    <p>47 Columns</p>
+                                    <p>49 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source soil-survey">
@@ -1457,7 +1492,7 @@
                             <div class="flow-box result final-dataset">
                                 <h4>Result: NSI Enhanced Structures v2</h4>
                                 <p>2,091,488 Records</p>
-                                <p>59 Total Columns (47 + 12 from Soil)</p>
+                                <p>61 Total Columns (49 + 12 from Soil)</p>
                                 <small>A final Left Join ensures all buildings are retained, for those some fall outside the soil map coverage(11,385 buidlings), they haven't been signed any soil-relates data.</small>
                             </div>
                         </div>
@@ -1497,7 +1532,7 @@
                             <div class="flow-box data-source nsi-enhanced-input" style="border-color: #2E7D32; background-color: #e8f5e9;">
                                 <h4>Result: Final NSI-Enhanced USA Structures Dataset</h4>
                                 <p>2,091,488 Records</p>
-                                <p>61 Total Columns (59 + 2 from Permits)</p>
+                                <p>63 Total Columns (61 + 2 from Permits)</p>
                                 <small>A Left Join retains all buildings. <strong>1,236</strong> buildings were successfully matched with demolition data.</small>
                             </div>
                         </div>
@@ -2259,6 +2294,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // This function calls all the necessary functions to build the charts in the "Data Pipelines" section.
             createNSIDataSourcesSankey();
             createOccupancyHierarchySankey();
+            createOccClsOccDictSankey();
             createDataCleaningSankey();
             createBuildingDistributionSankey(); // This will call the function we previously fixed.
             createYearOccSankey();
@@ -2404,6 +2440,221 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
                     Plotly.newPlot('occupancyHierarchySankey', sankeyData, layout, {responsive: true});
                 }
+
+        // Build OCC_CLS → NSI occtype sankey.
+        // Prefer pre-aggregated data from Python (buildingData.occ_cls_occ_dict_sankey).
+        // Fallback to compute from samples only if aggregation is missing.
+        function createOccClsOccDictSankey() {
+        const container = document.getElementById('occClsOccDictSankey');
+        if (!container) return;
+
+        if (!buildingData) {
+            container.innerHTML = '<p>Data not loaded.</p>';
+            return;
+        }
+
+        // ---------- 1) Preferred: use pre-aggregated data ----------
+        const aggPack = buildingData.occ_cls_occ_dict_sankey;
+        // use POINTS (sum within each class pool) as the default
+        const agg = aggPack?.by_points || aggPack?.by_buildings;
+
+
+        if (agg && agg.nodes && agg.links && Array.isArray(agg.nodes) && agg.nodes.length) {
+        const nodes  = agg.nodes.map(n => n.name || n.label || String(n));
+        const sources = agg.links.source;
+        const targets = agg.links.target;
+        const values  = agg.links.value;
+
+        // Color left-side OCC_CLS nodes consistently; links fade with same color
+        const leftOccNodes = nodes
+            .map((label, idx) => ({ label, idx }))
+            .filter(n => n.label && n.label.endsWith('(Class)'));
+
+        const baseColors = getPlasmaColors(leftOccNodes.length);
+        const colorMap = {};
+        leftOccNodes.forEach((n, i) => { colorMap[n.label] = baseColors[i]; });
+
+        const nodeColors = nodes.map(lbl => colorMap[lbl] || '#cccccc');
+
+        const linkColors = sources.map(si => {
+            const srcName = nodes[si];
+            const c = colorMap[srcName] || 'rgb(180,180,180)';
+            // rgba fade
+            return c.replace(')', ', 0.35)').replace('rgb', 'rgba');
+        });
+
+            // Square-root scaling for visual balancing (hover shows original)
+            const scaled = values.map(v => Math.sqrt(v));
+
+        // MODIFICATION START: Calculate correct totals for each node's tooltip
+                const originalValues = values; // Keep the original link values safe
+                const originalNodeTotals = Array(nodes.length).fill(0);
+                
+                sources.forEach((sourceIndex, i) => {
+                    const targetIndex = targets[i];
+                    const value = originalValues[i];
+                    originalNodeTotals[sourceIndex] += value;
+                    originalNodeTotals[targetIndex] += value;
+                });
+                // MODIFICATION END
+
+                const sankeyData = [{
+                    type: 'sankey',
+                    orientation: 'h',
+                    node: {
+                        pad: 15,
+                        thickness: 24,
+                        line: { color: 'white', width: 1.5 },
+                        label: nodes,
+                        color: nodeColors,
+                        // Use the correctly calculated node totals for the tooltip
+                        customdata: originalNodeTotals,
+                        hovertemplate: '<b>%{label}</b><br>Total Points: %{customdata:,}<extra></extra>'
+                    },
+                    link: {
+                        source: sources,
+                        target: targets,
+                        value: scaled,
+                        color: linkColors,
+                        // Use the original link values for the link's tooltip
+                        customdata: originalValues,
+                        hovertemplate: '%{source.label} → %{target.label}<br><b>Points: %{customdata:,}</b><extra></extra>'
+                    }
+                }];
+
+    // MODIFICATION START: Increase height and adjust layout for clarity
+            const layout = {
+                title: { text: 'OCC_CLS → NSI occtype matches', font: { size: 18, color: '#333' } },
+                font: { size: 10 }, // Slightly smaller font for right-side labels
+                height: 1200,       // Significantly increased height to give nodes more space
+                margin: {
+                    l: 150, // Add some left margin for long class names
+                    r: 200  // Add right margin for the new long labels
+                }
+            };
+
+            // Also, let's adjust the node padding in the sankeyData definition itself
+            if (sankeyData[0] && sankeyData[0].node) {
+                sankeyData[0].node.pad = 15; // Adjust vertical padding between nodes
+            }
+            // MODIFICATION END
+
+            Plotly.newPlot('occClsOccDictSankey', sankeyData, layout, {responsive: true});
+            return;
+        }
+
+        // ---------- 2) Fallback: compute from samples if aggregation missing ----------
+        let samples = [];
+        if (Array.isArray(buildingData.building_samples_balanced) && buildingData.building_samples_balanced.length) {
+        samples = buildingData.building_samples_balanced;
+        } else if (Array.isArray(buildingData.building_samples_random) && buildingData.building_samples_random.length) {
+        samples = buildingData.building_samples_random;
+        }
+        if (!samples.length) {
+        container.innerHTML = '<p>No aggregated data or samples available.</p>';
+        return;
+        }
+        if (Array.isArray(samples[0])) samples = samples.flat();
+
+        // parse "OCC_DICT": "RES: 1, COM: 0, IND: 3, ..."  → sum POSITIVE values per (OCC_CLS, occtype)
+        const toInt = (v) => {
+        if (typeof v === 'number') return v;
+        const n = parseInt(String(v || '').replace(/[^0-9-]/g, ''), 10);
+        return Number.isFinite(n) ? n : 0;
+        };
+
+        const occPoints = Object.create(null); // key: `${occ}|||${type}` -> total points (sum of values > 0)
+        const occSet = new Set();
+        const typeSet = new Set();
+
+        for (const row of samples) {
+        const occ = row.OCC_CLS || 'Unknown';
+        occSet.add(occ);
+
+        const dictRaw = row.OCC_DICT || '';
+        const parts = String(dictRaw).split(',').map(s => s.trim()).filter(Boolean);
+
+        for (const p of parts) {
+            const m = p.match(/^([A-Z]+)\s*:\s*(-?\d+)/i);
+            if (!m) continue;
+            const key = m[1].toUpperCase();   // e.g. RES/COM/IND/GOV/EDU/REL/...
+            const val = toInt(m[2]);
+
+            if (val > 0) {
+            typeSet.add(key);
+            const k = `${occ}|||${key}`;
+            occPoints[k] = (occPoints[k] || 0) + val;  // SUM points in this OCC_CLS pool
+            }
+        }
+        }
+
+        // build nodes and links
+        const occList = [...occSet].sort();
+        const typeList = [...typeSet].sort();
+
+        const nodeLabels = [
+        ...occList.map(o => `${o} (Class)`),
+        ...typeList.map(t => `${t} (NSI occtype)`)
+        ];
+        const nodeIndex = new Map(nodeLabels.map((lbl, i) => [lbl, i]));
+
+        const links = { source: [], target: [], value: [] };
+        Object.entries(occPoints).forEach(([k, v]) => {
+        const [occ, t] = k.split('|||');
+        const s = nodeIndex.get(`${occ} (Class)`);
+        const tIdx = nodeIndex.get(`${t} (NSI occtype)`);
+        if (s != null && tIdx != null && v > 0) {
+            links.source.push(s);
+            links.target.push(tIdx);
+            links.value.push(v);
+        }
+        });
+
+        // coloring: left side class color; links use faded source color
+        const baseColors = getPlasmaColors(occList.length);
+        const colorMap = {};
+        occList.forEach((o, i) => colorMap[`${o} (Class)`] = baseColors[i]);
+
+        const nodeColors = nodeLabels.map(lbl => colorMap[lbl] || '#cccccc');
+        const linkColors = links.source.map(si => {
+        const lbl = nodeLabels[si];
+        const c = colorMap[lbl] || 'rgb(180,180,180)';
+        return c.replace(')', ', 0.35)').replace('rgb', 'rgba');
+        });
+
+        // optional visual scaling (square root) to reduce dominance of very large flows
+        const scaled = links.value.map(v => Math.sqrt(v));
+
+        const data = [{
+        type: 'sankey',
+        orientation: 'h',
+        node: {
+            pad: 18,
+            thickness: 24,
+            line: { color: 'white', width: 1.5 },
+            label: nodeLabels,
+            color: nodeColors,
+            hovertemplate: '<b>%{label}</b><extra></extra>'
+        },
+        link: {
+            source: links.source,
+            target: links.target,
+            value: scaled,
+            color: linkColors,
+            customdata: links.value,
+            hovertemplate: '%{source.label} → %{target.label}<br><b>Points: %{customdata:,}</b><extra></extra>'
+        }
+        }];
+
+        Plotly.newPlot('occClsOccDictSankey', data, {
+        title: { text: 'OCC_CLS → NSI occtype matches (by points)', font: { size: 18, color: '#333' } },
+        font: { size: 11 },
+        height: 520
+        }, {responsive: true});
+
+        }
+
+
         
         function createDataCleaningSankey() {
             // This function creates the Sankey diagram showing the data cleaning pipeline.
@@ -3269,6 +3520,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             updateMaterialsHeatmap();
             updateSoilAnalysis();
             updateInteractiveExplorer();
+            createMixScPieChart();
             populateHistoricShorelineFilters();
             updateHistoricShorelineCharts();
         }
@@ -3844,7 +4096,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     'CENSUSCODE', 'PROD_DATE', 'SOURCE', 'USNG', 'LONGITUDE', 
                     'LATITUDE', 'IMAGE_NAME', 'IMAGE_DATE', 'VAL_METHOD', 'REMARKS', 
                     'UUID', 'Est GWP kgCO2e', 'GWP Intensity', 'GWP class', 
-                    'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT','OCC_CONFLICT','conflict_type'
+                    'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT','OCC_CONFLICT','conflict_type','OCC_DICT',
+                    'MIX_SC'
                 ]
             },
             'NSI': {
@@ -4787,7 +5040,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             // Add summary stats as floating badges
             const stats = [
-                { label: 'Total Columns', value: '61', color: '#2c3e50' },
+                { label: 'Total Columns', value: '63', color: '#2c3e50' },
                 { label: 'Data Sources', value: '4', color: '#667eea' },
                 { label: 'MA Buildings', value: '2.09M+', color: '#764ba2' }
             ];
@@ -6682,6 +6935,78 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
+        }
+
+        function createMixScPieChart() {
+            if (!buildingData || !buildingData.mix_sc_distribution) {
+                document.getElementById('mixScPieChart').innerHTML = '<p>MIX_SC distribution data not available.</p>';
+                return;
+            }
+
+            const includeSameType = document.getElementById('toggleSameType').checked;
+            let fullData = { ...buildingData.mix_sc_distribution };
+
+            let labels = Object.keys(fullData);
+            let values = Object.values(fullData);
+
+            if (!includeSameType) {
+                const sameTypeIndex = labels.indexOf('Same Type Only');
+                if (sameTypeIndex > -1) {
+                    labels.splice(sameTypeIndex, 1);
+                    values.splice(sameTypeIndex, 1);
+                }
+            }
+
+            if (labels.length === 0) {
+                document.getElementById('mixScPieChart').innerHTML = '<p>No data to display for the current selection.</p>';
+                return;
+            }
+            
+            // Assign specific, consistent colors for better readability
+            const colorMap = {
+                'Same Type Only': '#2E7D32', // Green for homogeneity
+                'Same & Different Types (MIX_SC2)': '#FDD835', // Yellow for some conflict
+                '1 Conflict Type (MIX_SC1)': '#FF9800', // Orange for more conflict
+                '>1 Conflict Types (MIX_SC3)': '#E53935' // Red for high conflict
+            };
+            const pieColors = labels.map(label => colorMap[label] || '#999');
+
+
+            const pieData = [{
+                values: values,
+                labels: labels,
+                type: 'pie',
+                hole: 0.4,
+                marker: {
+                    colors: pieColors,
+                    line: {
+                        color: 'white',
+                        width: 1
+                    }
+                },
+                textinfo: 'percent',
+                textposition: 'inside',
+                insidetextorientation: 'radial',
+                hovertemplate: '<b>%{label}</b><br>Building Count: %{value:,}<br>%{percent}<extra></extra>'
+            }];
+
+            const layout = {
+                title: {
+                    text: 'Building Homogeneity Distribution',
+                    font: { size: 20, color: '#333' }
+                },
+                height: 500,
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.05
+                }
+            };
+
+            Plotly.newPlot('mixScPieChart', pieData, layout, { responsive: true });
         }
 
         function getYearOccSankeyTitle() {

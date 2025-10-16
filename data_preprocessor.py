@@ -425,6 +425,92 @@ class BuildingDataProcessor:
             'links': sankey_links
         }
 
+    def process_occ_cls_to_occdict_sankey(self):
+        """
+        Build Sankey: OCC_CLS (left) → NSI occtype (right), using the OCC_DICT column.
+        Exposes two metrics:
+          - by_points:   Sum of NSI points per occtype（∑点数）
+          - by_buildings:Count of buildings having ≥1 point of that occtype（≥1即记1）
+        """
+        print("Processing OCC_CLS → NSI occtype (OCC_DICT) sankey...")
+
+        import pandas as pd
+        df = self.df_cleaned[['OCC_CLS', 'OCC_DICT']].copy()
+
+        # Robust parser: accepts dict or string like "RES: 1, COM: 0, ..."
+        def parse_occ_dict(v):
+            if isinstance(v, dict):
+                return v
+            if pd.isna(v):
+                return {}
+            s = str(v).strip().strip('{}')
+            parts = [p for p in s.replace(';', ',').split(',') if p.strip()]
+            out = {}
+            for p in parts:
+                if ':' in p:
+                    k, val = p.split(':', 1)
+                    k = k.strip()
+                    try:
+                        val = int(float(val.strip()))
+                    except Exception:
+                        val = 0
+                    out[k] = val
+            return out
+
+        rows = []
+        for _, r in df.iterrows():
+            occ = r['OCC_CLS']
+            d = parse_occ_dict(r['OCC_DICT'])
+            for k, v in d.items():
+                rows.append({
+                    'OCC_CLS': str(occ),
+                    'occtype': str(k),
+                    'points': int(v),
+                    'has': 1 if int(v) > 0 else 0
+                })
+
+        if not rows:
+            return None
+
+        x = pd.DataFrame(rows)
+
+        # ① 总NSI点数
+        agg_points = (
+            x.groupby(['OCC_CLS', 'occtype'], observed=True)['points']
+            .sum()
+            .reset_index()
+        )
+        agg_points = agg_points[agg_points['points'] > 0].copy()
+
+        # ② 具有该occtype（≥1点）的建筑数量
+        agg_buildings = (
+            x[x['has'] > 0]
+            .groupby(['OCC_CLS', 'occtype'], observed=True)
+            .size()
+            .reset_index(name='buildings')
+        )
+
+        def to_sankey(agg_df, value_col):
+            left = agg_df['OCC_CLS'].astype(str) + ' (Class)'
+            # MODIFICATION START: Make target nodes unique by appending the source class
+            right = agg_df['occtype'].astype(str) + ' (from ' + agg_df['OCC_CLS'] + ')'
+            # MODIFICATION END
+            nodes = pd.Index(pd.concat([left, right], ignore_index=True).unique())
+            idx = {name: i for i, name in enumerate(nodes)}
+            return {
+                'nodes': [{'name': n} for n in nodes],
+                'links': {
+                    'source': [idx[s] for s in left],
+                    'target': [idx[t] for t in right],
+                    'value': agg_df[value_col].astype(float).tolist()
+                }
+            }
+
+        return {
+            'by_points': to_sankey(agg_points.rename(columns={'points': 'value'}), 'value'),
+            'by_buildings': to_sankey(agg_buildings.rename(columns={'buildings': 'value'}), 'value')
+        }
+
     def perform_clustering(self, n_clusters=7):
         """Perform K-means clustering"""
         print(f"Performing K-means clustering with {n_clusters} clusters...")
@@ -674,6 +760,28 @@ class BuildingDataProcessor:
         occ_counts = self.df_cleaned['OCC_CLS'].value_counts()
 
         return occ_counts.to_dict()
+
+    def process_mix_sc_distribution(self):
+        """Calculates and formats the distribution of the MIX_SC column."""
+        print("Processing MIX_SC distribution...")
+        if 'MIX_SC' not in self.df_cleaned.columns:
+            print("  Warning: 'MIX_SC' column not found. Skipping.")
+            return None
+
+        # Use value_counts with dropna=False to include NaN values
+        counts = self.df_cleaned['MIX_SC'].value_counts(dropna=False)
+
+        # Map the raw values to the descriptive labels you provided
+        # The key for NaN from value_counts is actually the float `nan`
+        mix_sc_data = {
+            'Same Type Only': counts[counts.index.isna()].sum(),  # Sum up potential NaN values
+            '1 Conflict Type (MIX_SC1)': counts.get('MIX_SC1', 0),
+            'Same & Different Types (MIX_SC2)': counts.get('MIX_SC2', 0),
+            '>1 Conflict Types (MIX_SC3)': counts.get('MIX_SC3', 0)
+        }
+
+        # Filter out any labels that might have a zero count, just in case
+        return {k: int(v) for k, v in mix_sc_data.items() if v > 0}
 
     def process_temporal_data(self):
         """Process data for temporal analysis"""
@@ -1256,6 +1364,8 @@ class BuildingDataProcessor:
         # Get overview occupancy counts
         overview_occupancy_counts = self.get_overview_occupancy_counts()
 
+        mix_sc_distribution = self.process_mix_sc_distribution()
+
         # Process soil analysis with compname
         soil_analysis_data = self.process_soil_analysis()
 
@@ -1270,7 +1380,7 @@ class BuildingDataProcessor:
 
         # NEW: full-pop aggregation for the new Year→Occ→Mat→Found→Soil Sankey
         year_occ_flow = self.process_year_occ_mat_found_soil_flow()
-
+        occ_cls_occ_dict_sankey = self.process_occ_cls_to_occdict_sankey()
         # Get enhanced samples as DataFrames
         random_sample_df, balanced_sample_df = self.prepare_enhanced_samples()
 
@@ -1286,6 +1396,7 @@ class BuildingDataProcessor:
                 'samples_files': []
             },
             'hierarchical_distribution': hierarchical_distribution,
+            'occ_cls_occ_dict_sankey': occ_cls_occ_dict_sankey,
             'year_occ_flow': year_occ_flow,
             'summary_stats': {
                 'total_buildings': len(self.df_cleaned),
@@ -1296,6 +1407,7 @@ class BuildingDataProcessor:
                 'occupancy_classes': sorted(self.df_cleaned['OCC_CLS'].unique().tolist())
             },
             'overview_occupancy_counts': overview_occupancy_counts,
+            'mix_sc_distribution': mix_sc_distribution,
             'clustering': {
                 'elbow_k_values': k_range,
                 'elbow_wcss_values': wcss,
