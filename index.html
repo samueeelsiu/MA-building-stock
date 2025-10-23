@@ -1368,7 +1368,25 @@
                     Counts are pooled per class (RES pool, COM pool, ...); points in other classes do not affect this pool.
                 </p>
                 </div>
+
+                 <div class="info-box" id="occSankeyNotes" style="margin-top:16px;">
+                <h3>Notes on NSI Damage Categories vs. Our Sankey Labels</h3>
+                <p>
+                    The NSI technical documentation states that certain occtypes are folded into broader
+                    <em>‘damage categories’</em> : <strong>AGR</strong> and <strong>REL</strong> are counted under
+                    <strong>Commercial</strong>, while <strong>GOV</strong> and <strong>EDU</strong> are counted under
+                    <strong>Public</strong>. In this Sankey, we intentionally retain the original occtype labels and do
+                    not re-bucket them into those damage-category umbrellas (e.g., <strong>REL is not folded into Commercial</strong>).
+                </p>
+                <p>
+                    We are also developing a method that uses the <code>OCC_CONFLICT</code> signal to recommend an occupancy
+                    class for buildings with <code>OCC_CLS = "Unclassified"</code>. After validation, we will update this section
+                    with the method and results.
+                </p>
+                </div>
                 <div id="occClsOccDictSankey" style="height: 1220px;"></div>
+
+
 
                 <div class="chart-container">
                     <div class="section-header" style="margin-top: 0; padding-top: 20px; border: none;">
