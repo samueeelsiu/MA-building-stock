@@ -996,6 +996,39 @@
                 font-weight: bold;
             }
 
+   
+            #stage1-metrics details { 
+            margin-top: 12px;      
+            }
+            #stage1-metrics details:first-of-type { 
+            margin-top: 0;   
+            }
+            #stage1-metrics summary {
+            font-weight: 700;        
+            margin-bottom: 6px;         
+            }
+
+        
+            #stage1-metrics .funnel-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            }
+            @media (min-width: 700px) {
+            #stage1-metrics .funnel-grid {
+                grid-template-columns: 1fr 1fr;  
+            }
+            }
+            #stage1-metrics .funnel-block em {
+            display: block;       
+            margin-bottom: 4px;
+            font-style: italic;
+            }
+            #stage1-metrics .span-2 {
+            grid-column: 1 / -1;        
+            }
+
+
             .plus-icon {
                 font-size: 2em;
                 color: #6c757d;
@@ -1080,6 +1113,29 @@
             .card {
             overflow: visible;
             }
+
+  
+            #stage1-metrics > details.stage-panel {
+            margin-top: 0;              
+            }
+            #stage1-metrics > details.stage-panel > summary {
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 8px;       
+            }
+
+   
+            #stage1-metrics details { 
+            margin-top: 12px;            
+            }
+            #stage1-metrics details:first-of-type { 
+            margin-top: 0;
+            }
+            #stage1-metrics summary { 
+            font-weight: 700;
+            margin-bottom: 6px;
+            }
+
 
 
     </style>
@@ -1433,7 +1489,17 @@
                                     </li>
                                 </ul>
                             </div>
-                            
+
+                            <div class="flow-inputs">
+                            <div class="flow-box operation" id="stage1-metrics">
+                                <details class="stage-panel" >
+                                <summary><strong>Stage Details & Unmatched Points(Click for detail)</strong></summary>
+                                <div id="stage1MetricsMount"></div>
+                                </details>
+                            </div>
+                            </div>
+
+                                                        
                             <div class="flow-arrow">▼</div>
 
                             <div class="flow-box result nsi-enhanced">
@@ -2299,6 +2365,126 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             createBuildingDistributionSankey(); // This will call the function we previously fixed.
             createYearOccSankey();
         }
+
+        
+        const stage1Stats = {
+        strategy1: {
+            mixed_use_single_family_flagged: 15638,
+            matched_single_family_one_to_one: 1112984,
+            matched_single_family_aggregated: 21283
+        },
+        strategy2: { matched_multiunit_commercial: 366340 },
+        funnel: {
+            initial: { nsi_points: 2095529, usa_polygons: 2091488 },
+            after_pip: { unmatched_nsi_points: 423281, unmatched_usa_polygons: 590881 }, // Stages 1 & 2
+            after_buffer: { final_unmatched_nsi_points: 183289, final_unmatched_usa_polygons: 405037 } // Stage 3
+        },
+        occupancy_conflicts: 118120,
+        performance: {
+            total_buildings: 2091488,
+            buildings_matched: 1686451,
+            buildings_with_occupancy_conflict: 86817,
+            final_match_rate: 80.63
+        },
+        match_type_distribution: [
+            ["residential_single_point", 1100668, "65.27%"],
+            ["multi_unit_aggregated", 357852, "21.22%"],
+            ["buffer_attach", 185844, "11.02%"],
+            ["residential_aggregated", 20255, "1.20%"],
+            ["buffer_attach|residential_single_point", 12316, "0.73%"],
+            ["buffer_attach|multi_unit_aggregated", 8488, "0.50%"],
+            ["buffer_attach|residential_aggregated", 1028, "0.06%"]
+        ]
+        };
+
+
+        function renderStage1Metrics(stats){
+        const mount = document.getElementById('stage1MetricsMount');
+        if (!mount) return;
+        const fmt = n => Number(n).toLocaleString();
+
+        mount.innerHTML = `
+        <details open>
+            <summary><strong>Strategy 1: intelligent matching for single-family homes</strong></summary>
+            <ul>
+            <li>single-family buildings flagged as mixed-use (indoor RES+non-RES): ${fmt(stats.strategy1.mixed_use_single_family_flagged)}</li>
+            <li>matched single-family buildings (1-to-1): ${fmt(stats.strategy1.matched_single_family_one_to_one)}</li>
+            <li>matched single-family buildings (aggregated): ${fmt(stats.strategy1.matched_single_family_aggregated)}</li>
+            </ul>
+        </details>
+
+        <details open>
+            <summary><strong>Strategy 2: multi-unit/commercial aggregated matching</strong></summary>
+            <ul>
+            <li>matched multi-unit/commercial buildings: ${fmt(stats.strategy2.matched_multiunit_commercial)}</li>
+            </ul>
+        </details>
+
+        <details open>
+            <summary><strong>Match Funnel & Unmatched Entity Report</strong></summary>
+            <div class="funnel-grid">
+                <div class="funnel-block">
+                <em>Initial State</em>
+                <div>– Total NSI Points: ${fmt(stats.funnel.initial.nsi_points)}</div>
+                <div>– Total USA Polygons: ${fmt(stats.funnel.initial.usa_polygons)}</div>
+                </div>
+                <div class="funnel-block">
+                <em>After Stages 1 & 2</em>
+                <div>– Remaining Unmatched NSI Points: ${fmt(stats.funnel.after_pip.unmatched_nsi_points)}</div>
+                <div>– Remaining Unmatched USA Polygons: ${fmt(stats.funnel.after_pip.unmatched_usa_polygons)}</div>
+                </div>
+                <div class="funnel-block span-2">
+                <em>After Buffer/Nearest Neighbor (Stage 3)</em>
+                <div>– Final Unmatched NSI Points: ${fmt(stats.funnel.after_buffer.final_unmatched_nsi_points)}</div>
+                <div>– Final Unmatched USA Polygons: ${fmt(stats.funnel.after_buffer.final_unmatched_usa_polygons)}</div>
+                </div>
+            </div>
+        </details>
+
+        <details open>
+            <summary><strong>Occupancy Conflict Report</strong></summary>
+            <div>Total Occupancy Conflicts Detected: ${fmt(stats.occupancy_conflicts)}</div>
+        </details>
+
+        <details open>
+            <summary><strong>Overall Match Performance</strong></summary>
+            <ul>
+            <li>Total Number of Buildings in Dataset: ${fmt(stats.performance.total_buildings)}</li>
+            <li>Total Buildings with a Successful Match: ${fmt(stats.performance.buildings_matched)}</li>
+            <li>Total Buildings with Occupancy Conflict: ${fmt(stats.performance.buildings_with_occupancy_conflict)}</li>
+            <li>Final Match Rate: ${stats.performance.final_match_rate}%</li>
+            </ul>
+        </details>
+
+        <details>
+            <summary><strong>Match Type Distribution</strong></summary>
+            <div id="matchTypeTable"></div>
+        </details>
+        `;
+
+    
+        const table = document.createElement('table');
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        table.innerHTML = `
+            <thead><tr>
+            <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Match type</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid #ddd;">Count</th>
+            <th style="text-align:right;padding:6px;border-bottom:1px solid #ddd;">Share</th>
+            </tr></thead>
+            <tbody>
+            ${stats.match_type_distribution.map(([label, count, pct]) => `
+                <tr>
+                <td style="padding:6px;border-bottom:1px solid #eee;">${label}</td>
+                <td style="padding:6px;border-bottom:1px solid #eee;text-align:right;">${fmt(count)}</td>
+                <td style="padding:6px;border-bottom:1px solid #eee;text-align:right;">${pct}</td>
+                </tr>`).join('')}
+            </tbody>`;
+        document.getElementById('matchTypeTable').appendChild(table);
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => renderStage1Metrics(stage1Stats));
 
 
         document.addEventListener('DOMContentLoaded', function() {
