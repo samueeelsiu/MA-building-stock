@@ -15,6 +15,9 @@ from sklearn.compose import ColumnTransformer
 import json
 from datetime import datetime
 import warnings
+import re
+from collections import defaultdict, Counter
+
 warnings.filterwarnings('ignore')
 
 def format_large_number(num, is_area=False):
@@ -169,6 +172,307 @@ class BuildingDataProcessor:
             print(f"Records after removing outliers: {len(self.df_cluster)}")
 
             self.data_flow_stats['outliers_removed'] = outliers_removed
+
+        return self
+
+        # data_preprocessor.py
+
+    def resolve_unclassified_from_occdict(self):
+            """
+            Reclassify rows whose OCC_CLS == 'Unclassified' (or NaN) using OCC_DICT vote counts.
+            JSON-only, compact log:
+              - Stores a compact mapping under data_flow_stats['unclassified_resolution']:
+                * 'meta': {'id_field': <str>, 'class_legend': {'R':'Residential','C':...}}
+                * 'unclassified_map': [[id, 'C'], [id2, 'R'], ...]  # <--- compact pairs
+              - No CSV export, no extra DataFrame columns (to keep JSON small).
+            Rules:
+              - REL merges into COM (COM_eff = COM + REL).
+              - If all considered classes sum to 0, keep Unclassified.
+              - Tie-breaker priority: RES > COM > IND > AGR > GOV > EDU. # <-- Added AGR
+            """
+            import re
+            from collections import Counter
+
+            if not hasattr(self, 'df_cleaned'):
+                print("resolve_unclassified_from_occdict: no df_cleaned; skip.")
+                return
+            for col in ('OCC_CLS', 'OCC_DICT'):
+                if col not in self.df_cleaned.columns:
+                    print("resolve_unclassified_from_occdict: missing OCC_CLS or OCC_DICT; skip.")
+                    return
+
+            # Preserve original label once for auditing (very small)
+            if 'OCC_CLS_ORIG' not in self.df_cleaned.columns:
+                self.df_cleaned['OCC_CLS_ORIG'] = self.df_cleaned['OCC_CLS']
+
+            # --- MODIFICATION START: Include both 'Unclassified' string and NaN values ---
+            # Create a mask for rows where OCC_CLS is 'Unclassified' OR NaN (null)
+            uncls_mask = (self.df_cleaned['OCC_CLS'].astype(str).str.strip().str.lower() == 'unclassified') | \
+                         (self.df_cleaned['OCC_CLS'].isna())
+            # --- MODIFICATION END ---
+            total_uncls_before = int(uncls_mask.sum())
+
+            # Compact ID selection (prefer a stable id column; fallback to row index)
+            candidate_id_cols = [c for c in ['BUILD_ID', 'UUID', 'OBJECTID', 'OGC_FID', 'fid', 'id'] if
+                                 c in self.df_cleaned.columns]
+            id_col = candidate_id_cols[0] if candidate_id_cols else None
+
+            # Token regex
+            pair_re = re.compile(r'([A-Z]{3})\s*:\s*(-?\d+(?:\.\d+)?)', flags=re.IGNORECASE)
+
+            # --- MODIFICATION START: Added 'Agriculture'/'A' ---
+            # Priority and legend (single-letter -> full name)
+            priority = ['Residential', 'Commercial', 'Industrial', 'Agriculture', 'Government',
+                        'Education']  # Added Agriculture
+            to_code = {'Residential': 'R', 'Commercial': 'C', 'Industrial': 'I', 'Agriculture': 'A', 'Government': 'G',
+                       'Education': 'E'}  # Added A
+            legend = {'R': 'Residential', 'C': 'Commercial', 'I': 'Industrial', 'A': 'Agriculture', 'G': 'Government',
+                      'E': 'Education'}  # Added A
+
+            # --- MODIFICATION END ---
+
+            # Helpers
+            def _has_text(x):
+                if x is None:
+                    return False
+                s = str(x).strip()
+                return bool(s) and s.lower() != 'nan'
+
+            # Accumulators
+            changed_to = Counter()
+            changed = 0
+            unchanged_zero_or_unparsable = 0
+            tie_situations = Counter()  # <-- ADD THIS LINE to track tie reasons
+            # --- COMPACT MAPPING (THIS IS WHAT GOES TO JSON) ---
+            # Each item: [id_value_or_index, 'R'|'C'|'I'|'A'|'G'|'E']
+            reclass_pairs = []
+
+            # Get the indices where the mask is True
+            idxs = self.df_cleaned.index[uncls_mask]
+
+            # Iterate only over the selected indices
+            for i in idxs:
+                occ_txt = self.df_cleaned.at[i, 'OCC_DICT']
+                if not _has_text(occ_txt):
+                    unchanged_zero_or_unparsable += 1
+                    continue
+
+                # Parse KEY:val tokens
+                pairs = {}
+                for k, v in pair_re.findall(str(occ_txt)):
+                    try:
+                        # Sum up values if a key appears multiple times (case-insensitive)
+                        pairs[k.upper()] = pairs.get(k.upper(), 0) + int(float(v))
+                    except Exception:
+                        pass  # Ignore parsing errors for a value
+                if not pairs:
+                    unchanged_zero_or_unparsable += 1
+                    continue
+
+                # --- MODIFICATION START: Extract AGR count ---
+                res = int(pairs.get('RES', 0))
+                com = int(pairs.get('COM', 0))
+                ind = int(pairs.get('IND', 0))
+                gov = int(pairs.get('GOV', 0))
+                edu = int(pairs.get('EDU', 0))
+                rel = int(pairs.get('REL', 0))
+                agr = int(pairs.get('AGR', 0))  # Extract AGR count
+                # --- MODIFICATION END ---
+
+                # Effective commercial count includes REL
+                com_eff = com + rel
+
+                # --- MODIFICATION START: Include agr in total_votes and scores ---
+                # Calculate total votes across considered categories
+                total_votes = res + com_eff + ind + gov + edu + agr  # Added agr
+
+                # If all relevant votes are zero, keep it unclassified
+                if total_votes == 0:
+                    unchanged_zero_or_unparsable += 1
+                    continue
+
+                # Create a dictionary of scores for comparison
+                scores = {
+                    'Residential': res,
+                    'Commercial': com_eff,
+                    'Industrial': ind,
+                    'Agriculture': agr,  # Added Agriculture score
+                    'Government': gov,
+                    'Education': edu,
+                }
+                # --- MODIFICATION END ---
+
+                # Find the maximum score
+                mx = max(scores.values())
+
+                # Find all categories that achieved the maximum score
+                winners = [k for k, v in scores.items() if v == mx]
+
+                # Determine the chosen category
+
+                # Determine the chosen category
+                if len(winners) > 1:
+                    # NEW RULE: If there is a tie for the max score (e.g., RES:1, COM:1),
+                    # do not reclassify. Keep it as 'Unclassified'.
+
+                    # --- START: Log the tie situation ---
+                    try:
+                        # Get the abbreviations for the winners (e.g., 'R', 'C')
+                        sorted_tied_codes = sorted([to_code[w] for w in winners])
+                        # Create a key string, e.g., "C:1, R:1" (using int(mx) for clean key)
+                        tie_key = ", ".join([f"{code}:{int(mx)}" for code in sorted_tied_codes])
+                        # Increment the counter for this specific tie combination
+                        tie_situations[tie_key] += 1
+                    except Exception as e:
+                        # Fail safe in case of unseen errors, just don't log this tie
+                        print(f"Warning: Failed to log tie situation - {e}")
+                    # --- END: Log the tie situation ---
+
+                    unchanged_zero_or_unparsable += 1
+                    continue  # Skip to the next building
+
+                # If we are here, len(winners) == 1, meaning there is a single, clear winner.
+                chosen = winners[0]
+                # Apply the new label to the DataFrame column 'OCC_CLS'
+                self.df_cleaned.at[i, 'OCC_CLS'] = chosen
+
+                # Record the reclassification in a compact format [id, chosen_code]
+                rec_id = self.df_cleaned.at[i, id_col] if id_col else i  # Use ID column if available, else index
+                reclass_pairs.append([rec_id, to_code[chosen]])  # Use the code mapping (e.g., 'A' for Agriculture)
+
+                # Increment counters for statistics
+                changed += 1
+                changed_to[chosen] += 1  # Track counts for each resulting category
+
+            # Sort ties by frequency, descending, for cleaner JSON output
+            sorted_ties = dict(tie_situations.most_common())
+
+            stats_payload = {
+                'meta': {
+                    'id_field': id_col if id_col else 'row_index',
+                    'class_legend': legend  # Legend now includes 'A': 'Agriculture'
+                },
+                'total_unclassified_before': int(total_uncls_before),
+                'with_occdict': int(self.df_cleaned.loc[uncls_mask, 'OCC_DICT'].apply(_has_text).sum()),
+                'changed': int(changed),
+                'unchanged_zero_or_unparsable': int(unchanged_zero_or_unparsable),
+                'changed_to_counts': {k: int(v) for k, v in changed_to.items()},  # Counts now include Agriculture
+
+                # --- ADD THIS LINE ---
+                'tie_situations_logged': {k: int(v) for k, v in sorted_ties.items()},
+                # --- END OF ADDED LINE ---
+
+                # The full mapping of each reclassified Unclassified row (compact!)
+                'unclassified_map': reclass_pairs
+            }
+
+            # Store the statistics payload in the class attribute for later export
+            if not hasattr(self, 'data_flow_stats'):
+                self.data_flow_stats = {}
+            self.data_flow_stats['unclassified_resolution'] = stats_payload
+
+            # Print a summary to the console during script execution
+            print("Unclassified reclassification (JSON-only) summary:",
+                  {k: stats_payload[k] for k in [
+                      'total_unclassified_before', 'with_occdict', 'changed',
+                      'unchanged_zero_or_unparsable'
+                  ]})
+            print(f"  Breakdown of reclassified types: {dict(changed_to)}")
+
+    def recalculate_mix_sc_for_reclassified(self):
+        """
+        Recalculate MIX_SC for rows that were just reclassified from 'Unclassified'.
+        This must be run *after* resolve_unclassified_from_occdict.
+        """
+        print("Recalculating MIX_SC for reclassified 'Unclassified' buildings...")
+
+        # 1. Find all rows that were reclassified from 'Unclassified'
+        if 'OCC_CLS_ORIG' not in self.df_cleaned.columns:
+            print("  Warning: 'OCC_CLS_ORIG' column not found. Skipping MIX_SC recalculation.")
+            return self
+
+        reclassified_mask = (
+                (self.df_cleaned['OCC_CLS_ORIG'] == 'Unclassified') &
+                (self.df_cleaned['OCC_CLS'] != 'Unclassified')
+        )
+        reclassified_indices = self.df_cleaned.index[reclassified_mask]
+
+        if len(reclassified_indices) == 0:
+            print("  No buildings were reclassified. Skipping.")
+            return self
+
+        # 2. Mapping from new 'OCC_CLS' to NSI point types
+        CLS_TO_NSI_TYPES = {
+            'Residential': ['RES'],
+            'Commercial': ['COM', 'REL'],
+            'Industrial': ['IND'],
+            'Government': ['GOV'],
+            'Education': ['EDU']
+        }
+
+        # 3. Regex for parsing 'OCC_DICT' strings
+        pair_re = re.compile(r'([A-Z]{3})\s*:\s*(-?\d+(?:\.\d+)?)', flags=re.IGNORECASE)
+
+        # 4. Recalculate MIX_SC for each reclassified row
+        recalculated_count = 0
+        for i in reclassified_indices:
+            new_cls = self.df_cleaned.at[i, 'OCC_CLS']
+            occ_dict_str = self.df_cleaned.at[i, 'OCC_DICT']
+
+            same_types = CLS_TO_NSI_TYPES.get(new_cls, [])
+
+            occ_counts = {}
+            if pd.notna(occ_dict_str):
+                for k, v in pair_re.findall(str(occ_dict_str)):
+                    try:
+                        val_int = int(float(v))
+                        if val_int > 0:
+                            occ_counts[k.upper()] = occ_counts.get(k.upper(), 0) + val_int
+                    except Exception:
+                        pass
+
+            # 5. Separate same-type and conflict-type points
+            same_type_points = 0
+            conflict_counts = {}
+
+            for key, value in occ_counts.items():
+                if key in same_types:
+                    same_type_points += value
+                else:
+                    conflict_counts[key] = value
+
+            # 6. Apply MIX_SC rules
+            total_same_points = same_type_points
+            total_conflict_types = len(conflict_counts)
+
+            new_mix_sc = self.df_cleaned.at[i, 'MIX_SC']
+
+            # Rule 1: Same Type Only (NaN)
+            if total_same_points > 0 and total_conflict_types == 0:
+                new_mix_sc = np.nan
+
+            # Rule 2: 1 Conflict Type (MIX_SC1)
+            elif total_same_points == 0 and total_conflict_types == 1:
+                new_mix_sc = 'MIX_SC1'
+
+            # Rule 3: Same & Different Types (MIX_SC2)
+            elif total_same_points > 0 and total_conflict_types > 0:
+                new_mix_sc = 'MIX_SC2'
+
+            # Rule 4: >1 Conflict Types (MIX_SC3)
+            elif total_same_points == 0 and total_conflict_types > 1:
+                new_mix_sc = 'MIX_SC3'
+
+            # Rule 5: If occ_counts is empty, no update needed.
+
+            # 7. Update DataFrame
+            self.df_cleaned.at[i, 'MIX_SC'] = new_mix_sc
+            recalculated_count += 1
+
+        print(f"  Recalculated MIX_SC for {recalculated_count} buildings.")
+
+        if 'unclassified_resolution' in self.data_flow_stats:
+            self.data_flow_stats['unclassified_resolution']['mix_sc_recalculated_count'] = recalculated_count
 
         return self
 
@@ -474,7 +778,7 @@ class BuildingDataProcessor:
 
         x = pd.DataFrame(rows)
 
-        # ① 总NSI点数
+
         agg_points = (
             x.groupby(['OCC_CLS', 'occtype'], observed=True)['points']
             .sum()
@@ -482,7 +786,7 @@ class BuildingDataProcessor:
         )
         agg_points = agg_points[agg_points['points'] > 0].copy()
 
-        # ② 具有该occtype（≥1点）的建筑数量
+
         agg_buildings = (
             x[x['has'] > 0]
             .groupby(['OCC_CLS', 'occtype'], observed=True)
@@ -740,6 +1044,8 @@ class BuildingDataProcessor:
                     'std_area': float(cluster_data['SQMETERS'].std(ddof=0)),
                     'avg_sqmeters': float(cluster_data['SQMETERS'].mean()),
                     'std_sqmeters': float(cluster_data['SQMETERS'].std(ddof=0)),
+                    'avg_gfa': float(cluster_data['Est GFA sqmeters'].mean()),
+                    'std_gfa': float(cluster_data['Est GFA sqmeters'].std(ddof=0)),
                     'avg_height': float(cluster_data['HEIGHT_USED'].mean()),
                     'std_height': float(cluster_data['HEIGHT_USED'].std(ddof=0)),
                     'avg_year': int(cluster_data['year_built'].mean()),
@@ -918,7 +1224,8 @@ class BuildingDataProcessor:
         """Keep original method for backward compatibility"""
         print("Processing occupancy-specific clusters (original method)...")
         occupancy_clusters = {}
-        features = ['SQMETERS', 'HEIGHT_USED', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type']
+        features = ['SQMETERS', 'HEIGHT_USED', 'year_built', 'OCC_CLS', 'material_type', 'foundation_type',
+                    'Est GFA sqmeters']
 
 
         # First, process for "all" classes
@@ -1552,6 +1859,8 @@ def main():
     # Process data
     processor.load_data()
     processor.clean_data()
+    processor.resolve_unclassified_from_occdict()
+    processor.recalculate_mix_sc_for_reclassified()
     processor.prepare_clustering_data(remove_outliers=False)
     processor.perform_clustering(n_clusters=7)
 

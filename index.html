@@ -1378,11 +1378,6 @@
                     <strong>Public</strong>. In this Sankey, we intentionally retain the original occtype labels and do
                     not re-bucket them into those damage-category umbrellas (e.g., <strong>REL is not folded into Commercial</strong>).
                 </p>
-                <p>
-                    We are also developing a method that uses the <code>OCC_CONFLICT</code> signal to recommend an occupancy
-                    class for buildings with <code>OCC_CLS = "Unclassified"</code>. After validation, we will update this section
-                    with the method and results.
-                </p>
                 </div>
                 <div id="occClsOccDictSankey" style="height: 1220px;"></div>
 
@@ -1653,6 +1648,89 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         <p>Lightbox provides 2,542,265 total MA building data records. Building material data is available for 1,208,023 records (47.52% coverage), 
                         and foundation type data for 54,497 records (2.14% coverage). Missing values are predicted using HAZUS methodology.</p>
                     </div>
+                </div>
+
+                <!-- INFO: Unclassified relabeling note (append near the end of Data Pipelines section) -->
+                <div class="info-box" style="border-left-color:#00b894; margin-top:16px;">
+                <h3>How we re-label “Unclassified” using <code>OCC_DICT</code></h3>
+                <ul style="margin-left: 16px;">
+                    <li><b>Vote by counts</b> in <code>OCC_DICT</code> (e.g., <code>RES: 0, COM: 8, IND: 1, GOV: 0, EDU: 0 ...</code> → Commercial).</li>
+                    <li><b>REL is counted as COM</b> (e.g., <code>COM: 1, IND: 1, REL: 1</code> → Commercial because <code>COM + REL = 2</code>).</li>
+                    <li>If all <code>RES/COM/IND/GOV/EDU/AGR</code> are 0 → keep <b>Unclassified</b>.</li>
+                    <li>If there is a tie in the vote (e.g., <code>RES: 1, COM: 1</code>), the building will <b>remain Unclassified</b>.</li>
+                </ul>
+                <p style="margin-top:6px;">
+                    This relabeling occurs in the data cleaning step before any downstream charts/tables,
+                    so all occupancy analyses reflect the updated <code>OCC_CLS</code>.
+                </p>
+                </div>
+
+                <!-- Unclassified Resolution: Detailed Summary -->
+                <div class="chart-container" id="unclassifiedResolutionSection">
+                <div class="section-header" style="margin-top: 0; padding-top: 20px; border: none;">
+                    <h3 style="color:#2c3e50;">Unclassified Reclassification Summary</h3>
+                    <p style="color:#555;">How many Unclassified records were re-labeled into each class</p>
+                </div>
+
+                <!-- quick stats cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                    <div class="stat-value" id="unclsTotalBefore">—</div>
+                    <div class="stat-label">Total Unclassified (Before)</div>
+                    </div>
+                    <div class="stat-card">
+                    <div class="stat-value" id="unclsWithOccDict">—</div>
+                    <div class="stat-label">With OCC_DICT</div>
+                    </div>
+                    <div class="stat-card">
+                    <div class="stat-value" id="unclsChanged">—</div>
+                    <div class="stat-label">Changed</div>
+                    </div>
+                    <div class="stat-card">
+                    <div class="stat-value" id="unclsUnchanged">—</div>
+                    <div class="stat-label">Kept Unclassified</div>
+                    </div>
+                </div>
+
+                <!-- table breakdown -->
+                <div id="unclassifiedResolutionTable" style="margin-top:16px;"></div>
+                <div id="unclassifiedTieBreakerSection" style="margin-top: 24px; border: 1px solid #dee2e6; border-radius: 4px; background: #fdfdfd;">
+                    <details>
+                        <summary style="padding: 12px; font-weight: 600; color: #2c3e50; cursor: pointer; list-style: inside;">
+                            Tie-Breaker Situations (Kept as Unclassified) - Click to expand
+                        </summary>
+                        <div id="unclassifiedTieBreakerTable" style="padding: 0 12px 12px 12px; border-top: 1px solid #eee; max-height: 300px; overflow-y: auto;">
+                            </div>
+                    </details>
+                </div>
+                </div>
+                <!-- Unclassified Details (Full from JSON, paginated) -->
+                <div id="unclassifiedDetailsSection" class="info-box" style="margin-top:16px; display:none;">
+                <h3>Reclassification Details</h3>
+                <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
+                    <label for="reclassFilter">Filter by New Class:</label>
+                    <select id="reclassFilter">
+                    <option value="All">All</option>
+                    <option value="R">Residential</option>
+                    <option value="C">Commercial</option>
+                    <option value="I">Industrial</option>
+                    <option value="G">Government</option>
+                    <option value="E">Education</option>
+                    <option value="A">Agriculture</option>
+                    </select>
+
+                    <div style="margin-left:auto;">
+                    <button id="prevPageBtn">Prev</button>
+                    <span id="pageInfo" style="margin:0 8px;">–/–</span>
+                    <button id="nextPageBtn">Next</button>
+                    </div>
+                </div>
+
+                <div id="unclassifiedDetailsTable" style="overflow:auto; max-height:460px; border:1px solid #eee;"></div>
+                
+
+
+                <div id="unclassifiedDetailsTable" style="overflow:auto; max-height:420px; border:1px solid #eee;"></div>
                 </div>
 
                 
@@ -3120,6 +3198,152 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         Plotly.newPlot('buildingDistributionSankey', plotData, layout, { responsive: true });
         }
 
+        function renderUnclassifiedResolution() {
+        try {
+            const stats = buildingData?.data_flow_stats?.unclassified_resolution;
+            const section = document.getElementById('unclassifiedResolutionSection');
+            if (!section) return;
+
+            if (!stats) { section.style.display = 'none'; return; }
+
+            // --------- Summary cards ----------
+            const fmt = (v) => (typeof v === 'number' ? v.toLocaleString() : '—');
+            document.getElementById('unclsTotalBefore').textContent = fmt(stats.total_unclassified_before);
+            document.getElementById('unclsWithOccDict').textContent = fmt(stats.with_occdict);
+            document.getElementById('unclsChanged').textContent = fmt(stats.changed);
+            document.getElementById('unclsUnchanged').textContent = fmt(stats.unchanged_zero_or_unparsable);
+
+            // --------- Breakdown table ----------
+            const legend = stats?.meta?.class_legend || {R:'Residential',C:'Commercial',I:'Industrial',G:'Government',E:'Education'};
+            const counts = stats.changed_to_counts || {};
+            // Get all class names directly from the counts dictionary keys
+            const classNames = Object.keys(counts);
+
+            // Optional: Sort the class names, e.g., alphabetically or by count descending
+            classNames.sort((a, b) => counts[b] - counts[a]); // Sort by count descending
+
+            // Dynamically create rows for ALL classes found in the counts object
+            const rows = classNames
+                .map(className => `<tr><td style="padding:6px 10px;">${className}</td><td style="padding:6px 10px; text-align:right;">${fmt(counts[className])}</td></tr>`)
+                .join('');
+            const tableHTML = `
+            <table style="width:100%; border-collapse:collapse; border:1px solid #eee;">
+                <thead>
+                <tr style="background:#fafafa;">
+                    <th style="text-align:left; padding:8px 10px; border-bottom:1px solid #eee;">New Class</th>
+                    <th style="text-align:right; padding:8px 10px; border-bottom:1px solid #eee;">Reclassified Count</th>
+                </tr>
+                </thead>
+                <tbody>
+                ${rows || `<tr><td colspan="2" style="padding:10px;">No aggregate counts (but see details below).</td></tr>`}
+                </tbody>
+            </table>`;
+            document.getElementById('unclassifiedResolutionTable').innerHTML = tableHTML;
+
+
+            const ties = stats.tie_situations_logged || {};
+            const tieTableEl = document.getElementById('unclassifiedTieBreakerTable');
+            const tieSectionEl = document.getElementById('unclassifiedTieBreakerSection');
+
+            if (tieTableEl && tieSectionEl) {
+                if (Object.keys(ties).length > 0) {
+
+                    tieSectionEl.style.display = 'block'; 
+                    const tie_rows = Object.entries(ties)
+                        .map(([combination, count]) => 
+                            `<tr>
+                                <td style="padding:6px 10px;"><code>${combination}</code></td>
+                                <td style="padding:6px 10px; text-align:right;">${fmt(count)}</td>
+                            </tr>`
+                        )
+                        .join('');
+
+                    const tieTableHTML = `
+                    <table style="width:100%; border-collapse:collapse; border:1px solid #eee;">
+                        <thead>
+                        <tr style="background:#fafafa;">
+                            <th style="text-align:left; padding:8px 10px; border-bottom:1px solid #eee;">Tie-Breaker Combination</th>
+                            <th style="text-align:right; padding:8px 10px; border-bottom:1px solid #eee;">Count</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        ${tie_rows}
+                        </tbody>
+                    </table>`;
+                    tieTableEl.innerHTML = tieTableHTML;
+                } else {
+
+                    tieSectionEl.style.display = 'none';
+                    tieTableEl.innerHTML = '';
+                }
+            }
+
+            // --------- Details (full map from JSON, paginated) ----------
+            const detailsSection = document.getElementById('unclassifiedDetailsSection');
+            const detailsTableEl = document.getElementById('unclassifiedDetailsTable');
+            const sel = document.getElementById('reclassFilter');
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+            const pageInfo = document.getElementById('pageInfo');
+
+            const pairs = Array.isArray(stats.unclassified_map) ? stats.unclassified_map : [];
+            if (!pairs.length) {
+            detailsSection.style.display = 'none';
+            return;
+            }
+            detailsSection.style.display = '';
+
+            // Pagination state
+            const PAGE_SIZE = 50;
+            let page = 1;
+
+            function filtered() {
+            const f = sel.value || 'All';
+            return (f === 'All') ? pairs : pairs.filter(p => p[1] === f);
+            }
+
+            function renderPage() {
+            const data = filtered();
+            const total = data.length;
+            const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+            if (page > maxPage) page = maxPage;
+
+            const start = (page - 1) * PAGE_SIZE;
+            const slice = data.slice(start, start + PAGE_SIZE);
+
+            const thead = `
+                <thead>
+                <tr style="background:#fafafa;">
+                    <th style="padding:6px 8px; text-align:left;">${stats?.meta?.id_field || 'Record ID'}</th>
+                    <th style="padding:6px 8px; text-align:left;">New Class</th>
+                </tr>
+                </thead>`;
+
+            const tbody = slice.map(([rid, code]) => `
+                <tr>
+                <td style="padding:6px 8px;">${rid}</td>
+                <td style="padding:6px 8px;">${legend[code] || code}</td>
+                </tr>
+            `).join('');
+
+            detailsTableEl.innerHTML = `<table style="width:100%; border-collapse:collapse;">${thead}<tbody>${tbody}</tbody></table>`;
+            pageInfo.textContent = `${page}/${maxPage}`;
+            prevBtn.disabled = (page <= 1);
+            nextBtn.disabled = (page >= maxPage);
+            }
+
+            sel.onchange = () => { page = 1; renderPage(); };
+            prevBtn.onclick = () => { if (page > 1) { page--; renderPage(); } };
+            nextBtn.onclick = () => { page++; renderPage(); };
+
+            renderPage();
+        } catch (e) {
+            console.warn('Failed to render Unclassified Resolution section:', e);
+            const section = document.getElementById('unclassifiedResolutionSection');
+            if (section) section.style.display = 'none';
+        }
+        }
+
         function createYearOccSankey() {
         const containerId = 'yearOccSankey';
         const el = document.getElementById(containerId);
@@ -3716,6 +3940,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             populateOverviewFilters();
             createOverviewMap();
             createDataPipelinesDiagrams();
+            renderUnclassifiedResolution();
             updateClustering();
             updateTemporalChart();
             updatePre1940Charts();
@@ -5387,7 +5612,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             Plotly.newPlot('clusterTable', tableData, tableLayout, { responsive: true });
 
             // Treemap
-            updateClusterTreemap(displayClusters); // Pass the correct data to the treemap function
+            updateClusterTreemap(); // Pass the correct data to the treemap function
         } else {
             // Handle cases where data for a specific K might be missing
             document.getElementById('clusterTable').innerHTML = `<p>No statistics available for K=${currentClusterK}.</p>`;
@@ -5397,10 +5622,19 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
     // You also need to slightly modify `updateClusterTreemap` to accept data as an argument.
     // Find `updateClusterTreemap()` and replace it with this new version.
-    function updateClusterTreemap(clusters) {
-        if (!buildingData || !clusters) return;
-        
-        const sizeBy = document.getElementById('treemapSizeBy').value;
+    function updateClusterTreemap() {
+            if (!buildingData) return;
+
+
+            const allClustersData = buildingData.occupancy_clusters?.all?.k_values;
+            if (!allClustersData) return;
+            
+            const clusterStatsForK = allClustersData[currentClusterK]; // 'currentClusterK' 
+            if (!clusterStatsForK || !clusterStatsForK.clusters) return;
+            
+            const clusters = clusterStatsForK.clusters; 
+            
+            const sizeBy = document.getElementById('treemapSizeBy').value;
         
         const labels = ['All Clusters'];
         const parents = [''];
@@ -5417,7 +5651,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             if (sizeBy === 'count') {
                 values.push(cluster.count);
             } else {
-                values.push(cluster.count * cluster.avg_sqmeters);
+
+                values.push(cluster.count * (cluster.avg_gfa || cluster.avg_sqmeters));
             }
             colors.push(plasmaColors[index % plasmaColors.length]);
         });
