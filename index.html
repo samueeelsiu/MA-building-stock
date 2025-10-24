@@ -1521,8 +1521,94 @@
                                 <p>49 Columns (38 Base + 11 from NSI)</p>
                                 <small>A Left Join was performed, so all original buildings were retained. Unmatched buildings(405,037 in total) have NaN values for NSI columns(year_built, foundation_type, etc.).</small>
                             </div>
-                        </div>
+
+
+                        
                     </div>
+                </div>
+
+                </div> <div class="flow-stage">
+                    <h3 class="stage-title collapsible-trigger">
+                        Stage 1.5: 'Unclassified' buildings from USA Structures were re-defined using NSI point data
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div class="collapsible-content">
+                        <div class="info-box" style="border-left-color:#00b894; margin-top:16px;">
+                            <h3>How we re-label “Unclassified” using <code>OCC_DICT</code></h3>
+                            <ul style="margin-left: 16px;">
+                                <li><b>Vote by counts</b> in <code>OCC_DICT</code> (e.g., <code>RES: 0, COM: 8, IND: 1, GOV: 0, EDU: 0 ...</code> → Commercial).</li>
+                                <li><b>REL is counted as COM</b> (e.g., <code>COM: 1, IND: 1, REL: 1</code> → Commercial because <code>COM + REL = 2</code>).</li>
+                                <li>If all <code>RES/COM/IND/GOV/EDU/AGR</code> are 0 → keep <b>Unclassified</b>.</li>
+                                <li>If there is a tie in the vote (e.g., <code>RES: 1, COM: 1</code>), the building will <b>remain Unclassified</b>.</li>
+                            </ul>
+                            <p style="margin-top:6px;">
+                                This relabeling occurs in the data cleaning step before any downstream charts/tables,
+                                so all occupancy analyses reflect the updated <code>OCC_CLS</code>.
+                            </p>
+                        </div>
+
+                        <div class="chart-container" id="unclassifiedResolutionSection">
+                            <div class="section-header" style="margin-top: 0; padding-top: 20px; border: none;">
+                                <h3 style="color:#2c3e50;">Unclassified Reclassification Summary</h3>
+                                <p style="color:#555;">How many Unclassified records were re-labeled into each class</p>
+                            </div>
+
+                            <div class="stats-grid">
+                                <div class="stat-card">
+                                <div class="stat-value" id="unclsTotalBefore">—</div>
+                                <div class="stat-label">Total Unclassified (Before)</div>
+                                </div>
+                                <div class="stat-card">
+                                <div class="stat-value" id="unclsWithOccDict">—</div>
+                                <div class="stat-label">With OCC_DICT</div>
+                                </div>
+                                <div class="stat-card">
+                                <div class="stat-value" id="unclsChanged">—</div>
+                                <div class="stat-label">Changed</div>
+                                </div>
+                                <div class="stat-card">
+                                <div class="stat-value" id="unclsUnchanged">—</div>
+                                <div class="stat-label">Kept Unclassified</div>
+                                </div>
+                            </div>
+
+                            <div id="unclassifiedResolutionTable" style="margin-top:16px;"></div>
+                            <div id="unclassifiedTieBreakerSection" style="margin-top: 24px; border: 1px solid #dee2e6; border-radius: 4px; background: #fdfdfd;">
+                                <details>
+                                    <summary style="padding: 12px; font-weight: 600; color: #2c3e50; cursor: pointer; list-style: inside;">
+                                        Tie-Breaker Situations (Kept as Unclassified) - Click to expand
+                                    </summary>
+                                    <div id="unclassifiedTieBreakerTable" style="padding: 0 12px 12px 12px; border-top: 1px solid #eee; max-height: 300px; overflow-y: auto;">
+                                        </div>
+                                </details>
+                            </div>
+                        </div>
+                        <div id="unclassifiedDetailsSection" class="info-box" style="border-left-color:#00b894; margin-top:16px; display:none;">
+                            <h3>Reclassification Details</h3>
+                            <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
+                                <label for="reclassFilter">Filter by New Class:</label>
+                                <select id="reclassFilter">
+                                <option value="All">All</option>
+                                <option value="R">Residential</option>
+                                <option value="C">Commercial</option>
+                                <option value="I">Industrial</option>
+                                <option value="G">Government</option>
+                                <option value="E">Education</option>
+                                <option value="A">Agriculture</option>
+                                </select>
+
+                                <div style="margin-left:auto;">
+                                <button id="prevPageBtn">Prev</button>
+                                <span id="pageInfo" style="margin:0 8px;">–/–</span>
+                                <button id="nextPageBtn">Next</button>
+                                </div>
+                            </div>
+
+                            <div id="unclassifiedDetailsTable" style="overflow:auto; max-height:460px; border:1px solid #eee;"></div>
+                            
+                            <div id="unclassifiedDetailsTable" style="overflow:auto; max-height:420px; border:1px solid #eee;"></div>
+                        </div>
+                        </div>
                 </div>
 
                 <!-- Stage 2 -->
@@ -1630,6 +1716,8 @@
                     <div id="dataCleaningSankey"></div>
                 </div>
 
+
+
                 <!-- NSI Data Sources Sankey -->
                 <div class="chart-container">
                     <div class="info-box">
@@ -1648,89 +1736,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         <p>Lightbox provides 2,542,265 total MA building data records. Building material data is available for 1,208,023 records (47.52% coverage), 
                         and foundation type data for 54,497 records (2.14% coverage). Missing values are predicted using HAZUS methodology.</p>
                     </div>
-                </div>
-
-                <!-- INFO: Unclassified relabeling note (append near the end of Data Pipelines section) -->
-                <div class="info-box" style="border-left-color:#00b894; margin-top:16px;">
-                <h3>How we re-label “Unclassified” using <code>OCC_DICT</code></h3>
-                <ul style="margin-left: 16px;">
-                    <li><b>Vote by counts</b> in <code>OCC_DICT</code> (e.g., <code>RES: 0, COM: 8, IND: 1, GOV: 0, EDU: 0 ...</code> → Commercial).</li>
-                    <li><b>REL is counted as COM</b> (e.g., <code>COM: 1, IND: 1, REL: 1</code> → Commercial because <code>COM + REL = 2</code>).</li>
-                    <li>If all <code>RES/COM/IND/GOV/EDU/AGR</code> are 0 → keep <b>Unclassified</b>.</li>
-                    <li>If there is a tie in the vote (e.g., <code>RES: 1, COM: 1</code>), the building will <b>remain Unclassified</b>.</li>
-                </ul>
-                <p style="margin-top:6px;">
-                    This relabeling occurs in the data cleaning step before any downstream charts/tables,
-                    so all occupancy analyses reflect the updated <code>OCC_CLS</code>.
-                </p>
-                </div>
-
-                <!-- Unclassified Resolution: Detailed Summary -->
-                <div class="chart-container" id="unclassifiedResolutionSection">
-                <div class="section-header" style="margin-top: 0; padding-top: 20px; border: none;">
-                    <h3 style="color:#2c3e50;">Unclassified Reclassification Summary</h3>
-                    <p style="color:#555;">How many Unclassified records were re-labeled into each class</p>
-                </div>
-
-                <!-- quick stats cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                    <div class="stat-value" id="unclsTotalBefore">—</div>
-                    <div class="stat-label">Total Unclassified (Before)</div>
-                    </div>
-                    <div class="stat-card">
-                    <div class="stat-value" id="unclsWithOccDict">—</div>
-                    <div class="stat-label">With OCC_DICT</div>
-                    </div>
-                    <div class="stat-card">
-                    <div class="stat-value" id="unclsChanged">—</div>
-                    <div class="stat-label">Changed</div>
-                    </div>
-                    <div class="stat-card">
-                    <div class="stat-value" id="unclsUnchanged">—</div>
-                    <div class="stat-label">Kept Unclassified</div>
-                    </div>
-                </div>
-
-                <!-- table breakdown -->
-                <div id="unclassifiedResolutionTable" style="margin-top:16px;"></div>
-                <div id="unclassifiedTieBreakerSection" style="margin-top: 24px; border: 1px solid #dee2e6; border-radius: 4px; background: #fdfdfd;">
-                    <details>
-                        <summary style="padding: 12px; font-weight: 600; color: #2c3e50; cursor: pointer; list-style: inside;">
-                            Tie-Breaker Situations (Kept as Unclassified) - Click to expand
-                        </summary>
-                        <div id="unclassifiedTieBreakerTable" style="padding: 0 12px 12px 12px; border-top: 1px solid #eee; max-height: 300px; overflow-y: auto;">
-                            </div>
-                    </details>
-                </div>
-                </div>
-                <!-- Unclassified Details (Full from JSON, paginated) -->
-                <div id="unclassifiedDetailsSection" class="info-box" style="margin-top:16px; display:none;">
-                <h3>Reclassification Details</h3>
-                <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
-                    <label for="reclassFilter">Filter by New Class:</label>
-                    <select id="reclassFilter">
-                    <option value="All">All</option>
-                    <option value="R">Residential</option>
-                    <option value="C">Commercial</option>
-                    <option value="I">Industrial</option>
-                    <option value="G">Government</option>
-                    <option value="E">Education</option>
-                    <option value="A">Agriculture</option>
-                    </select>
-
-                    <div style="margin-left:auto;">
-                    <button id="prevPageBtn">Prev</button>
-                    <span id="pageInfo" style="margin:0 8px;">–/–</span>
-                    <button id="nextPageBtn">Next</button>
-                    </div>
-                </div>
-
-                <div id="unclassifiedDetailsTable" style="overflow:auto; max-height:460px; border:1px solid #eee;"></div>
-                
-
-
-                <div id="unclassifiedDetailsTable" style="overflow:auto; max-height:420px; border:1px solid #eee;"></div>
                 </div>
 
                 
