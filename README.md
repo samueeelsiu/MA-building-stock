@@ -23,7 +23,7 @@ This dashboard visualizes and analyzes the complete Massachusetts building inven
 - **Web Soil Survey**: Soil-related details
 - **Boston Permit Dataset**: Demolition records(Boston only)
 
-The final dataset contains **63 columns** of rich building attributes, processed through advanced spatial joins and machine learning techniques.
+The final dataset contains **63 columns** of building attributes
 
 ## Key Features
 
@@ -70,7 +70,7 @@ The final dataset contains **63 columns** of rich building attributes, processed
 #### 7. **Multi-Dimensional Occupancy Clustering**
 - 4D to 6D dynamic clustering
 - Feature selection (Material/Foundation)
-- Balanced vs Random sampling (up to 20,000 points)
+- Balanced vs Random sampling (up to 25,000 points)
 - Pre-computed clustering for all combinations
 
 #### 8. **Materials & Foundation Analysis**
