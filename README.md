@@ -310,15 +310,10 @@ python data_preprocessor.py --production
 - **Course**: CS 5520 - Mobile Application Development
 
 ### Data Sources
-- USA Structures Dataset © Microsoft
-- National Structure Inventory (NSI) © USACE
-- Web Soil Survey © USDA-NRCS
-- Boston Permits © City of Boston
-
-### Acknowledgments
-Special thanks to the Structural Futures Lab for guidance and support throughout this project.
-
-
+- USA Structures Dataset From Microsoft
+- National Structure Inventory (NSI) From USACE
+- Web Soil Survey From USDA-NRCS
+- Boston Permits From City of Boston
 
 ## Support
 
