@@ -14,6 +14,9 @@ An interactive web-based visualization dashboard for analyzing Massachusetts bui
 - [Installation](#installation)
 - [Usage Guide](#usage-guide)
 - [Data Structure](#data-structure)
+- [Methodology](#methodology)
+- [Technologies](#technologies)
+- [Support](#support)
 
 ## Overview
 
