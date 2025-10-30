@@ -137,7 +137,7 @@ MA-building-stock/
 ├── index.html                              # Main dashboard
 ├── building_data.json                      # Core dataset
 ├── building_data_samples_random_*.json     # Random samples (15 files)
-├── building_data_samples_balanced_*.json   # Balanced samples (15 files)
+├── building_data_samples_balanced_*.json   # Balanced samples (4 files)
 ├── historic_shoreline_buildings.json       # Boston shoreline data
 ├── boston_shoreline_1630.png              # Historic map image
 └── README.md                               # This file
