@@ -6,7 +6,7 @@ An interactive web-based visualization dashboard for analyzing Massachusetts bui
 
 [View Live Dashboard](https://samueeelsiu.github.io/MA-building-stock/)
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Key Features](#key-features)
@@ -27,7 +27,7 @@ The final dataset contains **63 columns** of building attributes
 
 ## Key Features
 
-### 📊 10 Interactive Analysis Sections
+### 10 Interactive Analysis Sections
 
 #### 1. **Overview Dashboard**
 - Real-time statistics for 1.68M cleaned buildings
