@@ -1,218 +1,353 @@
-# MA-building-stock
-
 # Massachusetts Building Analysis Dashboard
+
+An interactive web-based visualization dashboard for analyzing Massachusetts building inventory data from the NSI-Enhanced USA Structures Dataset. This comprehensive tool provides multi-dimensional analysis of 2.09M+ buildings with advanced clustering, temporal patterns, and geospatial visualizations.
+
+## Live Demo
+
+[View Live Dashboard](https://samueeelsiu.github.io/MA-building-stock/)
+
+## 📋 Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Data Pipeline](#data-pipeline)
+- [Installation](#installation)
+- [Usage Guide](#usage-guide)
+- [Data Structure](#data-structure)
+- [Technologies](#technologies)
+- [Performance Notes](#performance-notes)
+- [Contributing](#contributing)
+- [Credits](#credits)
+- [License](#license)
 
 ## Overview
 
-An interactive web-based dashboard for analyzing building inventory data from the NSI(National Structural Inventory Dataset) enhanced USA Structures Dataset for Massachusetts. This dashboard can provide comprehensive visualization and analysis tools for exploring building patterns, temporal distributions, and material characteristics across different time periods.
+This dashboard visualizes and analyzes the complete Massachusetts building inventory, integrating data from multiple authoritative sources:
+- **USA Structures**: 2,091,488 building footprints
+- **National Structure Inventory (NSI)**: Detailed building characteristics
+- **Web Soil Survey**: Geotechnical and environmental data
+- **Boston Permit Dataset**: Demolition records
 
-## Features
+The final dataset contains **63 columns** of rich building attributes, processed through advanced spatial joins and machine learning techniques.
 
-### 8 Interactive Analysis Sections
+## Key Features
 
-1. **Overview**
-   - Total building statistics
-   - Building distribution by occupancy class
-   - Construction timeline visualization
-   - Export capabilities for charts and data
+### 📊 10 Interactive Analysis Sections
 
-2. **Clustering Analysis**
-   - K-means clustering results (K=5 to K=9)
-   - Elbow method for optimal K selection
-   - Interactive scatter plots and treemaps
-   - Cluster statistics table
+#### 1. **Overview Dashboard**
+- Real-time statistics for 1.68M cleaned buildings
+- Interactive occupancy distribution visualizations
+- Construction timeline from pre-1940 to 2024
+- Multi-level hierarchical Sankey diagrams
+- 75,000-point interactive map with dynamic filtering
 
-3. **Temporal Distribution**
-   - Building construction patterns over time
-   - Multiple visualization options (Stacked Area, Line Plot, Normalized, Cumulative)
-   - Building type filters (All, Residential, Non-Residential)
-   - Floor area analysis by year
+#### 2. **Data Pipelines & Processing**
+- Visual representation of 4-source data integration
+- Data cleaning funnel (2.09M → 1.68M buildings)
+- Unclassified building reclassification algorithm
+- NSI point-to-polygon spatial join visualization
 
-4. **Pre-1940 Buildings**
-   - Historic building analysis
-   - Distribution by occupancy class
-   - Residential vs Non-Residential comparison
-   - Total floor area statistics
+#### 3. **Clustering Analysis**
+- K-means clustering (K=2 to 9)
+- Real pre-computed clusters on full dataset
+- Elbow method optimization
+- Interactive 3D scatter plots
+- Cluster statistics and treemap visualizations
 
-5. **Post-1940 Buildings**
-   - Modern construction patterns (1940-present)
-   - Annual construction data
-   - Decade-by-decade comparison
-   - Normalized stacking option
+#### 4. **Temporal Distribution**
+- Annual construction patterns analysis
+- 4 visualization modes (Stacked, Line, Normalized, Cumulative)
+- Building type filters (All/Residential/Non-Residential)
+- Total floor area trends over time
 
-6. **Occupancy-Specific Clustering**
-   - Detailed clustering by occupancy class
-   - Balanced vs Random sampling options
-   - Sample size selection (1,000 to 20,000 buildings)
-   - Elbow method visualization per occupancy
+#### 5. **Pre-1940 Historic Buildings**
+- 305,547 historic buildings analysis
+- Occupancy class distribution
+- Preservation insights
+- Area-weighted statistics
 
-7. **Materials & Foundation Analysis**
-   - Material type vs Foundation type correlation heatmap
-   - Interactive occupancy breakdown (click cells for details)
-   - Material usage trends over time
-   - Pre-1940 vs Post-1940 comparison
+#### 6. **Post-1940 Modern Construction**
+- Decade-by-decade patterns
+- Annual construction tracking
+- Occupancy evolution analysis
+- Normalized percentage views
 
-8. **Interactive Explorer**
-   - Custom data filtering by year and area
-   - 6 visualization types:
-     - Box Plot
-     - 3D Scatter Plot
-     - Sunburst Chart
-     - Parallel Coordinates
-     - Violin Plot
-     - Treemap
+#### 7. **Multi-Dimensional Occupancy Clustering**
+- 4D to 6D dynamic clustering
+- Feature selection (Material/Foundation)
+- Balanced vs Random sampling (up to 20,000 points)
+- Pre-computed clustering for all combinations
 
-## Getting Started!
+#### 8. **Materials & Foundation Analysis**
+- Interactive correlation heatmaps
+- Click-through occupancy breakdowns
+- Material usage evolution (1940-2024)
+- Count and area-based visualizations
 
-### Prerequisites
+#### 9. **Soil Properties & Risk Assessment**
+- Drainage class analysis
+- Water table depth distribution
+- Engineering property evaluation
+- 50,000-point risk mapping
+- High-risk building identification
 
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-- Local web server (optional, but recommended for better performance)
-- `building_data.json` file in the same directory as the HTML file
+#### 10. **Boston Historic Shoreline**
+- Buildings on land reclaimed since 1630
+- Interactive historic map overlay
+- Filled land construction patterns
+- Material/foundation analysis on reclaimed areas
 
-### Installation
+### Some Features
 
-1. Download the HTML file (`index.html`)
-2. Place your `building_data.json` file in the same directory
-3. Open the HTML file in a web browser
+- **MIX_SC Homogeneity Scoring**: Mixed-use building pattern analysis
+- **Dynamic Reclassification**: "Unclassified" building categorization
+- **Professional/Modern Theme Toggle**: Customizable UI appearance
 
-### Using a Local Server (Recommended)
+## Data Pipeline
 
+### Processing Stages
+
+```
+Stage 1: Spatial Join Enhancement
+├── Input: 2,091,488 USA Structures + 2,095,529 NSI Points
+├── Process: Multi-stage intelligent matching
+│   ├── Strategy 1: Single-family one-to-one matching
+│   ├── Strategy 2: Multi-unit aggregation
+│   └── Strategy 3: 5-meter buffer nearest neighbor
+└── Output: 1,686,451 matched buildings (80.63% match rate)
+
+Stage 1.5: Unclassified Resolution
+├── Input: Buildings with OCC_DICT voting data
+├── Process: Majority voting with tie-breaking
+└── Output: Reclassified occupancy categories
+
+Stage 2: Soil Data Integration
+├── Input: Web Soil Survey (3 source files)
+├── Process: Double-filtering for dominant components
+└── Output: 12 soil property columns
+
+Stage 3: Demolition Data
+├── Input: Boston Approved Permits
+├── Process: 30-meter radius spatial join
+└── Output: 1,236 buildings with demolition data
+```
+
+## Installation
+
+### Quick Start
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/your-username/MA-building-stock.git
+cd MA-building-stock
+```
+
+2. **File Structure Required**
+```
+MA-building-stock/
+├── index.html                              # Main dashboard
+├── building_data.json                      # Core dataset
+├── building_data_samples_random_*.json     # Random samples (15 files)
+├── building_data_samples_balanced_*.json   # Balanced samples (15 files)
+├── historic_shoreline_buildings.json       # Boston shoreline data
+├── boston_shoreline_1630.png              # Historic map image
+└── README.md                               # This file
+```
+
+3. **Launch the Dashboard**
+
+Option A: Direct file opening
+```bash
+# Simply open index.html in your browser
+open index.html  # macOS
+start index.html # Windows
+```
+
+Option B: Local server (recommended)
 ```bash
 # Python 3
 python -m http.server 8000
 
-# Python 2
-python -m SimpleHTTPServer 8000
+# Node.js
+npx http-server
 
-# Node.js (if http-server is installed)
-http-server
+# Then navigate to http://localhost:8000
 ```
 
-Then navigate to `http://localhost:8000` in your browser.
+### Data Processing (Optional)
 
-## 📁 Data Requirements
+If you want to regenerate the data files:
 
-### Data File Structure
+```bash
+# Install dependencies
+pip install pandas numpy scikit-learn geopandas matplotlib
 
-The dashboard expects a `building_data.json` file with the following structure:
+# Run the main processor
+python data_preprocessor.py
 
-```json
+# Process historic shoreline data
+python process_shoreline.py
+```
+
+## Usage Guide
+
+### Navigation
+
+1. Use the top navigation tabs to switch between analysis sections
+2. Each section has its own control panel for filtering and customization
+3. Hover over any data point for detailed information
+4. Click on charts for interactive features
+
+### Key Interactions
+
+- **Map Controls**: Zoom with scroll, pan with drag, filter with dropdowns
+- **3D Plots**: Rotate with mouse, zoom with scroll
+- **Sankey Diagrams**: Click nodes for details, drag to reposition
+- **Heatmaps**: Click cells for occupancy breakdown
+- **Export**: Use export buttons for PNG/JSON downloads
+
+## Data Structure
+
+### Main Dataset Schema
+
+```javascript
 {
   "metadata": {
-    "total_buildings": 2500000,
-    "date_processed": "2024-01-01T00:00:00Z",
-    "source_file": "ma_buildings.csv"
+    "total_buildings": 1686451,
+    "version": "3.2",
+    "samples_files": [...],      // References to chunk files
+    "date_processed": "2025-01-XX"
   },
   "summary_stats": {
-    "total_buildings": 2500000,
+    "total_buildings": 1686451,
     "avg_year_built": 1978,
     "avg_area_sqm": 285.5,
-    "occupancy_classes": ["Residential", "Commercial", ...]
+    "occupancy_classes": [9 categories]
   },
-  "temporal_data": [
-    {
-      "year": 1900,
-      "occupancy": "Residential",
-      "count": 1000,
-      "avg_area": 250,
-      "total_area": 250000
-    }
-  ],
-  "clustering": {
-    "elbow_k_values": [2, 3, 4, ...],
-    "elbow_wcss_values": [50000, 35000, ...],
-    "clusters": [...]
-  },
-  "pre1940": {...},
-  "post1940": {...},
-  "materials_foundation": {...},
-  "building_samples_random": [...],
-  "building_samples_balanced": [...]
+  "hierarchical_distribution": {...},   // Sankey data
+  "year_occ_flow": {...},               // Year→Occ→Material→Foundation→Soil
+  "temporal_data": [...],               // Time series
+  "clustering": {...},                  // K-means results
+  "soil_analysis": {...},               // Geotechnical data
+  "data_flow_stats": {...}              // Pipeline metrics
 }
 ```
 
-### Occupancy Classes
+### Building Attributes (Key Columns)
 
-- Residential
-- Commercial
-- Industrial
-- Agriculture
-- Government
-- Assembly
-- Education
-- Utility and Misc
-- Unclassified
+- **Identification**: BUILD_ID, UUID, OBJECTID
+- **Location**: LONGITUDE, LATITUDE, PROP_ADDR, PROP_CITY
+- **Physical**: HEIGHT, SQMETERS, Est GFA sqmeters
+- **Classification**: OCC_CLS, PRIM_OCC, MIX_SC
+- **Construction**: year_built, material_type, foundation_type
+- **Soil**: drainagecl, wtdepannmin, flodfreqcl, compname
 
-### Material Types
+## Technologies
 
-- **M**: Masonry
-- **W**: Wood
-- **H**: Manufactured
-- **S**: Steel
-- **C**: Concrete
+### Frontend
+- **HTML5/CSS3**: Responsive design with modern/professional themes
+- **JavaScript ES6+**: Dynamic interactions and data processing
+- **Plotly.js v2.27.0**: Advanced interactive visualizations
 
-### Foundation Types
+### Backend Processing
+- **Python 3.x**
+  - pandas: Data manipulation
+  - scikit-learn: K-means clustering
+  - geopandas: Spatial operations
+  - numpy: Numerical computations
 
-- **C**: Crawl Space
-- **B**: Basement
-- **S**: Slab
-- **P**: Pier
-- **I**: Pile
-- **F**: Fill
-- **W**: Solid Wall
+### Data Formats
+- **JSON**: Primary data exchange format
+- **CSV**: Source data files
+- **Shapefile**: Geospatial boundaries
 
-## Configuration
+## Performance Notes
 
-### Customization Options
+### Optimization Strategies
 
-The dashboard includes several configurable elements:
+1. **Data Chunking**: Split into 30 files to handle GitHub's 25MB limit
+2. **Pre-computed Clustering**: All clustering results pre-calculated
+3. **Sampling**: Balanced and random samples for visualization
+4. **Progressive Loading**: Lazy loading of sample chunks
 
-- **Cluster Count**: Adjustable from 5 to 9 clusters
-- **Sample Size**: Choose from 1,000 to 20,000 buildings for visualization
-- **Chart Types**: Multiple visualization options per section
-- **Data Filters**: Year range, area range, building type filters
-- **Export Options**: PNG export for individual charts, JSON export for all data
+### Browser Requirements
 
+- **Minimum**: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+- **Recommended**: Latest stable version with hardware acceleration
+- **Memory**: 4GB RAM minimum, 8GB recommended
+- **Display**: 1920x1080 or higher for optimal experience
 
-## Troubleshooting
+### Known Limitations
 
-### Common Issues
+- Maximum 75,000 points displayed on maps simultaneously
+- Some years (2006, 2009-2011, 2013-2016) have incomplete data
+- Soil data coverage: 11,385 buildings lack soil information
+- Real-time clustering limited to sample data
 
-1. **"Error Loading Data" Message**
-   - Ensure `building_data.json` is in the same directory
-   - Check browser console for specific error messages
-   - Verify JSON file format is valid
+## Contributing
 
-2. **Charts Not Displaying**
-   - Check internet connection (Plotly.js loads from CDN)
-   - Clear browser cache and reload
-   - Ensure JavaScript is enabled
+We welcome contributions! Please follow these guidelines:
 
-3. **Slow Performance**
-   - Reduce sample size in Occupancy and Interactive Explorer sections
-   - Use a modern browser with hardware acceleration
-   - Close unnecessary browser tabs
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## Data Quality Notes
+### Development Setup
 
-- Some years may have incomplete data (2006, 2009-2011, 2013-2016)
-- Pre-1940 buildings are aggregated for temporal analysis
-- Sample data is used for visualization performance
-- Full dataset statistics are calculated separately from samples
+```bash
+# Install development dependencies
+npm install -g http-server
+pip install -r requirements-dev.txt
 
-## Updates and Maintenance
+# Run tests
+python test_data_processor.py
 
-### Version History
+# Build production data
+python data_preprocessor.py --production
+```
 
-- **v1.0.0** (Current): Initial release with 8 analysis sections
+## Credits
 
+### Development Team
+- **Lead Developer**: Vicky (Weiting)
+- **Supervisor**: Prof. Demi Fang
+- **Institution**: [Northeastern University](https://www.northeastern.edu/)
+- **Lab**: [Structural Futures Lab](https://structural-futures.org/)
+- **Course**: CS 5520 - Mobile Application Development
 
-## Support
+### Data Sources
+- USA Structures Dataset © Microsoft
+- National Structure Inventory (NSI) © USACE
+- Web Soil Survey © USDA-NRCS
+- Boston Permits © City of Boston
 
-For issues, questions, or suggestions regarding this dashboard, please contact: shao.la@northeastern.edu
+### Acknowledgments
+Special thanks to the Structural Futures Lab for guidance and support throughout this project.
+
+## License
+
+This project is part of academic coursework at Northeastern University. 
+
+```
+Copyright (c) 2025 Northeastern University - Structural Futures Lab
+
+Permission for academic and research use is granted provided that 
+proper attribution is maintained. For commercial use, please contact 
+the Structural Futures Lab.
+```
+
+## Contact
+
+**Primary Contact**: Vicky (Weiting)  
+**Email**: [Contact through Structural Futures Lab](https://structural-futures.org/contact)  
+**Project Issues**: [GitHub Issues](https://github.com/your-username/MA-building-stock/issues)
 
 ---
 
-*Last Updated: January 2025*
-*Dashboard Version: 1.0.0*
+*Last Updated: January 2025*  
+*Version: 3.2*  
+*Status: Active Development*  
+
+**⭐ If you find this project useful, please consider giving it a star on GitHub!**
