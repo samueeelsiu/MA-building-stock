@@ -24,9 +24,9 @@ An interactive web-based visualization dashboard for analyzing Massachusetts bui
 
 This dashboard visualizes and analyzes the complete Massachusetts building inventory, integrating data from multiple authoritative sources:
 - **USA Structures**: 2,091,488 building footprints
-- **National Structure Inventory (NSI)**: Detailed building characteristics
-- **Web Soil Survey**: Geotechnical and environmental data
-- **Boston Permit Dataset**: Demolition records
+- **National Structure Inventory (NSI)**: Detailed building characteristics(building materials, built year and foudnation materials, etc.)
+- **Web Soil Survey**: Soil-related details
+- **Boston Permit Dataset**: Demolition records(Boston only)
 
 The final dataset contains **63 columns** of rich building attributes, processed through advanced spatial joins and machine learning techniques.
 
@@ -39,7 +39,7 @@ The final dataset contains **63 columns** of rich building attributes, processed
 - Interactive occupancy distribution visualizations
 - Construction timeline from pre-1940 to 2024
 - Multi-level hierarchical Sankey diagrams
-- 75,000-point interactive map with dynamic filtering
+- A Sampled 75,000-point interactive map with dynamic filtering
 
 #### 2. **Data Pipelines & Processing**
 - Visual representation of 4-source data integration
@@ -61,7 +61,7 @@ The final dataset contains **63 columns** of rich building attributes, processed
 - Total floor area trends over time
 
 #### 5. **Pre-1940 Historic Buildings**
-- 305,547 historic buildings analysis
+- 357,200 historic buildings analysis
 - Occupancy class distribution
 - Preservation insights
 - Area-weighted statistics
@@ -88,7 +88,7 @@ The final dataset contains **63 columns** of rich building attributes, processed
 - Drainage class analysis
 - Water table depth distribution
 - Engineering property evaluation
-- 50,000-point risk mapping
+- A sampled 50,000-point risk mapping
 - High-risk building identification
 
 #### 10. **Boston Historic Shoreline**
@@ -96,12 +96,6 @@ The final dataset contains **63 columns** of rich building attributes, processed
 - Interactive historic map overlay
 - Filled land construction patterns
 - Material/foundation analysis on reclaimed areas
-
-### Some Features
-
-- **MIX_SC Homogeneity Scoring**: Mixed-use building pattern analysis
-- **Dynamic Reclassification**: "Unclassified" building categorization
-- **Professional/Modern Theme Toggle**: Customizable UI appearance
 
 ## Data Pipeline
 
@@ -156,11 +150,9 @@ MA-building-stock/
 
 3. **Launch the Dashboard**
 
-Option A: Direct file opening
+Option A: Direct website opening
 ```bash
-# Simply open index.html in your browser
-open index.html  # macOS
-start index.html # Windows
+# Open https://samueeelsiu.github.io/MA-building-stock/
 ```
 
 Option B: Local server (recommended)
