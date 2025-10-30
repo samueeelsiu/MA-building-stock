@@ -1533,19 +1533,19 @@
                         <span class="collapse-icon">▼</span>
                     </h3>
                     <div class="collapsible-content">
-                        <div class="info-box" style="border-left-color:#00b894; margin-top:16px;">
-                            <h3>How we re-label “Unclassified” using <code>OCC_DICT</code></h3>
-                            <ul style="margin-left: 16px;">
-                                <li><b>Vote by counts</b> in <code>OCC_DICT</code> (e.g., <code>RES: 0, COM: 8, IND: 1, GOV: 0, EDU: 0 ...</code> → Commercial).</li>
-                                <li><b>REL is counted as COM</b> (e.g., <code>COM: 1, IND: 1, REL: 1</code> → Commercial because <code>COM + REL = 2</code>).</li>
-                                <li>If all <code>RES/COM/IND/GOV/EDU/AGR</code> are 0 → keep <b>Unclassified</b>.</li>
-                                <li>If there is a tie in the vote (e.g., <code>RES: 1, COM: 1</code>), the building will <b>remain Unclassified</b>.</li>
-                            </ul>
-                            <p style="margin-top:6px;">
-                                This relabeling occurs in the data cleaning step before any downstream charts/tables,
-                                so all occupancy analyses reflect the updated <code>OCC_CLS</code>.
-                            </p>
-                        </div>
+        <div class="info-box" style="border-left-color:#00b894; margin-top:16px;">
+            <h3>How we re-label “Unclassified” using <code>OCC_DICT</code></h3>
+            <ul style="margin-left: 16px;">
+                <li><b>Vote by counts</b> in <code>OCC_DICT</code> (e.g., <code>RES: 0, COM: 8, IND: 1, GOV: 0, EDU: 0 ...</code> → Commercial).</li>
+                <li><b>REL is counted as Assembly</b> according to USA Structure PRIM_OCC column (e.g., <code>RES: 1, IND: 1, REL: 2</code> → Assembly).</li>
+                <li>If all <code>RES/COM/IND/GOV/EDU/AGR/REL</code> are 0 → keep <b>Unclassified</b>.</li>
+                <li>If there is a tie in the vote (e.g., <code>RES: 1, COM: 1</code>), the building will <b>remain Unclassified</b>.</li>
+            </ul>
+            <p style="margin-top:6px;">
+                This relabeling occurs in the data cleaning step before any downstream charts/tables,
+                so all occupancy analyses reflect the updated <code>OCC_CLS</code>.
+            </p>
+        </div>
 
                         <div class="chart-container" id="unclassifiedResolutionSection">
                             <div class="section-header" style="margin-top: 0; padding-top: 20px; border: none;">
@@ -1595,6 +1595,7 @@
                                 <option value="G">Government</option>
                                 <option value="E">Education</option>
                                 <option value="A">Agriculture</option>
+                                <option value="S">Assembly</option>
                                 </select>
 
                                 <div style="margin-left:auto;">

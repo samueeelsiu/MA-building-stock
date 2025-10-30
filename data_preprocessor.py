@@ -220,14 +220,14 @@ class BuildingDataProcessor:
             # Token regex
             pair_re = re.compile(r'([A-Z]{3})\s*:\s*(-?\d+(?:\.\d+)?)', flags=re.IGNORECASE)
 
-            # --- MODIFICATION START: Added 'Agriculture'/'A' ---
+            # --- MODIFICATION START: Added 'Agriculture'/'A' and 'Assembly'/'S' ---
             # Priority and legend (single-letter -> full name)
             priority = ['Residential', 'Commercial', 'Industrial', 'Agriculture', 'Government',
-                        'Education']  # Added Agriculture
+                        'Education', 'Assembly']  # Added Agriculture and Assembly
             to_code = {'Residential': 'R', 'Commercial': 'C', 'Industrial': 'I', 'Agriculture': 'A', 'Government': 'G',
-                       'Education': 'E'}  # Added A
+                       'Education': 'E', 'Assembly': 'S'}  # Added A, S
             legend = {'R': 'Residential', 'C': 'Commercial', 'I': 'Industrial', 'A': 'Agriculture', 'G': 'Government',
-                      'E': 'Education'}  # Added A
+                      'E': 'Education', 'S': 'Assembly'}  # Added A, S
 
             # --- MODIFICATION END ---
 
@@ -279,14 +279,9 @@ class BuildingDataProcessor:
                 agr = int(pairs.get('AGR', 0))  # Extract AGR count
                 # --- MODIFICATION END ---
 
-                # Effective commercial count includes REL
-                com_eff = com + rel
-
-                # --- MODIFICATION START: Include agr in total_votes and scores ---
                 # Calculate total votes across considered categories
-                total_votes = res + com_eff + ind + gov + edu + agr  # Added agr
+                total_votes = res + com + ind + gov + edu + agr + rel
 
-                # If all relevant votes are zero, keep it unclassified
                 if total_votes == 0:
                     unchanged_zero_or_unparsable += 1
                     continue
@@ -294,11 +289,12 @@ class BuildingDataProcessor:
                 # Create a dictionary of scores for comparison
                 scores = {
                     'Residential': res,
-                    'Commercial': com_eff,
+                    'Commercial': com,
                     'Industrial': ind,
-                    'Agriculture': agr,  # Added Agriculture score
+                    'Agriculture': agr,
                     'Government': gov,
                     'Education': edu,
+                    'Assembly': rel
                 }
                 # --- MODIFICATION END ---
 
@@ -404,10 +400,12 @@ class BuildingDataProcessor:
         # 2. Mapping from new 'OCC_CLS' to NSI point types
         CLS_TO_NSI_TYPES = {
             'Residential': ['RES'],
-            'Commercial': ['COM', 'REL'],
+            'Commercial': ['COM'],
             'Industrial': ['IND'],
             'Government': ['GOV'],
-            'Education': ['EDU']
+            'Education': ['EDU'],
+            'Agriculture': ['AGR'],
+            'Assembly': ['REL']
         }
 
         # 3. Regex for parsing 'OCC_DICT' strings
