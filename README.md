@@ -14,11 +14,6 @@ An interactive web-based visualization dashboard for analyzing Massachusetts bui
 - [Installation](#installation)
 - [Usage Guide](#usage-guide)
 - [Data Structure](#data-structure)
-- [Technologies](#technologies)
-- [Performance Notes](#performance-notes)
-- [Contributing](#contributing)
-- [Credits](#credits)
-- [License](#license)
 
 ## Overview
 
@@ -171,6 +166,9 @@ npx http-server
 If you want to regenerate the data files:
 
 ```bash
+
+# Need to contact for requesting the required CSV file
+
 # Install dependencies
 pip install pandas numpy scikit-learn geopandas matplotlib
 
@@ -208,12 +206,12 @@ python process_shoreline.py
     "total_buildings": 1686451,
     "version": "3.2",
     "samples_files": [...],      // References to chunk files
-    "date_processed": "2025-01-XX"
+    "date_processed": ...
   },
   "summary_stats": {
     "total_buildings": 1686451,
-    "avg_year_built": 1978,
-    "avg_area_sqm": 285.5,
+    "avg_year_built": 1962,
+    "avg_area_sqm": 346,
     "occupancy_classes": [9 categories]
   },
   "hierarchical_distribution": {...},   // Sankey data
@@ -227,7 +225,7 @@ python process_shoreline.py
 
 ### Building Attributes (Key Columns)
 
-- **Identification**: BUILD_ID, UUID, OBJECTID
+- **Identification**: BUILD_ID
 - **Location**: LONGITUDE, LATITUDE, PROP_ADDR, PROP_CITY
 - **Physical**: HEIGHT, SQMETERS, Est GFA sqmeters
 - **Classification**: OCC_CLS, PRIM_OCC, MIX_SC
@@ -262,12 +260,6 @@ python process_shoreline.py
 3. **Sampling**: Balanced and random samples for visualization
 4. **Progressive Loading**: Lazy loading of sample chunks
 
-### Browser Requirements
-
-- **Minimum**: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
-- **Recommended**: Latest stable version with hardware acceleration
-- **Memory**: 4GB RAM minimum, 8GB recommended
-- **Display**: 1920x1080 or higher for optimal experience
 
 ### Known Limitations
 
@@ -275,16 +267,6 @@ python process_shoreline.py
 - Some years (2006, 2009-2011, 2013-2016) have incomplete data
 - Soil data coverage: 11,385 buildings lack soil information
 - Real-time clustering limited to sample data
-
-## Contributing
-
-We welcome contributions! Please follow these guidelines:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 
 ## Credits
