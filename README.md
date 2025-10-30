@@ -286,34 +286,20 @@ We welcome contributions! Please follow these guidelines:
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-### Development Setup
-
-```bash
-# Install development dependencies
-npm install -g http-server
-pip install -r requirements-dev.txt
-
-# Run tests
-python test_data_processor.py
-
-# Build production data
-python data_preprocessor.py --production
-```
 
 ## Credits
 
 ### Development Team
-- **Lead Developer**: Lang (Samuel) Shao
+- **Developer**: Lang (Samuel) Shao
 - **Supervisor**: Prof. Demi Fang
 - **Institution**: [Northeastern University](https://www.northeastern.edu/)
 - **Lab**: [Structural Futures Lab](https://structural-futures.org/)
-- **Course**: CS 5520 - Mobile Application Development
 
 ### Data Sources
-- USA Structures Dataset From Microsoft
-- National Structure Inventory (NSI) From USACE
-- Web Soil Survey From USDA-NRCS
-- Boston Permits From City of Boston
+- USA Structures Dataset
+- National Structure Inventory (NSI)
+- Web Soil Survey
+- Boston Permits
 
 ## Support
 
