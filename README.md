@@ -303,7 +303,7 @@ python data_preprocessor.py --production
 ## Credits
 
 ### Development Team
-- **Lead Developer**: Vicky (Weiting)
+- **Lead Developer**: Lang(Samuel) Shao
 - **Supervisor**: Prof. Demi Fang
 - **Institution**: [Northeastern University](https://www.northeastern.edu/)
 - **Lab**: [Structural Futures Lab](https://structural-futures.org/)
@@ -318,28 +318,14 @@ python data_preprocessor.py --production
 ### Acknowledgments
 Special thanks to the Structural Futures Lab for guidance and support throughout this project.
 
-## License
 
-This project is part of academic coursework at Northeastern University. 
 
-```
-Copyright (c) 2025 Northeastern University - Structural Futures Lab
+## Support
 
-Permission for academic and research use is granted provided that 
-proper attribution is maintained. For commercial use, please contact 
-the Structural Futures Lab.
-```
 
-## Contact
 
-**Primary Contact**: Vicky (Weiting)  
-**Email**: [Contact through Structural Futures Lab](https://structural-futures.org/contact)  
-**Project Issues**: [GitHub Issues](https://github.com/your-username/MA-building-stock/issues)
+For issues, questions, or suggestions regarding this dashboard, please contact: shao.la@northeastern.edu
 
----
 
-*Last Updated: January 2025*  
-*Version: 3.2*  
-*Status: Active Development*  
 
-**⭐ If you find this project useful, please consider giving it a star on GitHub!**
+
