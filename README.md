@@ -303,7 +303,7 @@ python data_preprocessor.py --production
 ## Credits
 
 ### Development Team
-- **Lead Developer**: Lang(Samuel) Shao
+- **Lead Developer**: Lang (Samuel) Shao
 - **Supervisor**: Prof. Demi Fang
 - **Institution**: [Northeastern University](https://www.northeastern.edu/)
 - **Lab**: [Structural Futures Lab](https://structural-futures.org/)
@@ -321,8 +321,6 @@ Special thanks to the Structural Futures Lab for guidance and support throughout
 
 
 ## Support
-
-
 
 For issues, questions, or suggestions regarding this dashboard, please contact: shao.la@northeastern.edu
 
