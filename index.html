@@ -1453,7 +1453,7 @@
                                 <div class="flow-box data-source usa-structures">
                                     <h4>USA Structures (Base)</h4>
                                     <p>2,091,488 Records</p>
-                                    <p>38 Columns</p>
+                                    <p>39 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source nsi">
@@ -1518,7 +1518,7 @@
                             <div class="flow-box result nsi-enhanced">
                                 <h4>Result: NSI Enhanced Structures v1</h4>
                                 <p>2,091,488 Records</p>
-                                <p>49 Columns (38 Base + 11 from NSI)</p>
+                                <p>50 Columns (39 Base + 11 from NSI)</p>
                                 <small>A Left Join was performed, so all original buildings were retained. Unmatched buildings(405,037 in total) have NaN values for NSI columns(year_built, foundation_type, etc.).</small>
                             </div>
 
@@ -1624,7 +1624,7 @@
                                 <div class="flow-box data-source nsi-enhanced-input">
                                     <h4>NSI Enhanced Structures v1</h4>
                                     <p>2,091,488 Records (as Points)</p>
-                                    <p>49 Columns</p>
+                                    <p>50 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source soil-survey">
@@ -1658,7 +1658,7 @@
                             <div class="flow-box result final-dataset">
                                 <h4>Result: NSI Enhanced Structures v2</h4>
                                 <p>2,091,488 Records</p>
-                                <p>61 Total Columns (49 + 12 from Soil)</p>
+                                <p>62 Total Columns (50 + 12 from Soil)</p>
                                 <small>A final Left Join ensures all buildings are retained, for those some fall outside the soil map coverage(11,385 buidlings), they haven't been signed any soil-relates data.</small>
                             </div>
                         </div>
@@ -1675,7 +1675,7 @@
                                 <div class="flow-box result final-dataset" style="background-color: #e8f5e9; border-color: #2E7D32;">
                                 <h4>NSI Enhanced Structures v2</h4>
                                 <p>2,091,488 Records</p>
-                                <p>59 Columns</p>
+                                <p>62 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source boston-permits">
@@ -1698,7 +1698,7 @@
                             <div class="flow-box data-source nsi-enhanced-input" style="border-color: #2E7D32; background-color: #e8f5e9;">
                                 <h4>Result: Final NSI-Enhanced USA Structures Dataset</h4>
                                 <p>2,091,488 Records</p>
-                                <p>63 Total Columns (61 + 2 from Permits)</p>
+                                <p>64 Total Columns (62 + 2 from Permits)</p>
                                 <small>A Left Join retains all buildings. <strong>1,236</strong> buildings were successfully matched with demolition data.</small>
                             </div>
                         </div>
@@ -4532,7 +4532,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     'LATITUDE', 'IMAGE_NAME', 'IMAGE_DATE', 'VAL_METHOD', 'REMARKS', 
                     'UUID', 'Est GWP kgCO2e', 'GWP Intensity', 'GWP class', 
                     'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT','OCC_CONFLICT','conflict_type','OCC_DICT',
-                    'MIX_SC'
+                    'MIX_SC','general_fnd_type'
                 ]
             },
             'NSI': {
