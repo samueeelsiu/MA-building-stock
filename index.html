@@ -1166,6 +1166,7 @@
                 <button class="nav-tab soil-tab" onclick="showSection('soilAnalysis')">Soil Analysis</button>
                 <button class="nav-tab" onclick="showSection('historicShoreline')">Boston Historic Shoreline</button>
                 <button class="nav-tab" onclick="showSection('interactive')">Explorer</button>
+                <button class="nav-tab" onclick="showSection('clf')">CLF Analysis</button>
             </div>
         </div>
         
@@ -2281,8 +2282,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 </div>
             </div>
 
-<!-- INTERACTIVE EXPLORER SECTION -->
-            <div id="interactive" class="section">
+<div id="interactive" class="section">
                 <div class="section-header">
                     <h2>Interactive Data Explorer</h2>
                     <p>Explore the data with custom filters and advanced visualizations (using a random sample)</p>
@@ -2327,18 +2327,139 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                        • All charts: Hover for details, double-click to reset view</p>
                 </div>
             </div>
-        </div>
+            
+            <div id="clf" class="section">
+                <div class="section-header">
+                    <h2>CLF Data Analysis</h2>
+                    <p>Analysis of Carbon Leadership Forum dataset for Massachusett</p>
+                </div>
+
+                <div class="info-box">
+                    <h3>CLF Data Preprocessing</h3>
+                    <p>This dataset originates from the CLF building metadata, processed to be compatible with the NSI Enhanced USA Structure dataset. Key transformations include:</p>
+                    
+                    <h4 style="margin-top: 15px;">Occupancy Classification (OCC_CLS)</h4>
+                    <p style="font-size: 0.9em; margin-bottom: 10px;">
+                        Detailed CLF building uses were mapped to NSI Enhanced USA Structure dataset categories. 
+                        <strong>This mapping is primarily based on the definitions from the USA Structure dataset's <code>PRIM_OCC</code> column.</strong>
+                    </p>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                        <thead style="background-color: #f0f4f8;">
+                            <tr>
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">CLF Building Use</th>
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Mapped NSI Category (OCC_CLS)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Multifamily (5 or more units)</td><td style="border: 1px solid #ddd; padding: 8px;">Residential</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Lodging</td><td style="border: 1px solid #ddd; padding: 8px;">Residential</td></tr>
+                            
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Office</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Commercial</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Mercantile</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Commercial</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Food Service</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Commercial</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Laboratory</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Commercial</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Healthcare</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Commercial</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Parking</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Commercial</td></tr>
+
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Public Order and Safety</td><td style="border: 1px solid #ddd; padding: 8px;">Government</td></tr>
+                            
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Warehouse and Storage</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Industrial</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Industrial</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Industrial</td></tr>
+
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Public Assembly</td><td style="border: 1px solid #ddd; padding: 8px;">Assembly</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Religious Worship</td><td style="border: 1px solid #ddd; padding: 8px;">Assembly</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Transportation Hub</td><td style="border: 1px solid #ddd; padding: 8px;">Assembly</td></tr>
+                            
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Education</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Education</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Other</td><td style="border: 1px solid #ddd; padding: 8px;">Utility and Misc</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4 style="margin-top: 20px;">Material Type Encoding (material_type)</h4>
+                    <p style="font-size: 0.9em; margin-bottom: 10px;">
+                        CLF structural systems were mapped to single-letter codes. 
+                        <strong>This mapping was inferred by combining several CLF columns: <code>str_prim_horiz_sys</code>, <code>str_prim_vert_sys</code>, <code>str_lat_sys</code>, and <code>str_sec_vert_sys</code>.</strong>
+                    </p>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                        <thead style="background-color: #f0f4f8;">
+                            <tr>
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">CLF Structural System</th>
+                                <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Mapped Code (material_type)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Steel</td><td style="border: 1px solid #ddd; padding: 8px;">S</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Concrete</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">C</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Steel/Concrete</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">C</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Steel/Masonry</td><td style="border: 1px solid #ddd; padding: 8px;">M</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Wood: Mass Timber</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">W</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">Wood: Light-frame</td><td style="border: 1px solid #ddd; padding: 8px; background-color: #fdfdfd;">W</td></tr>
+                            <tr><td style="border: 1px solid #ddd; padding: 8px;">Other</td><td style="border: 1px solid #ddd; padding: 8px;">H</td></tr>
+                            <tr>
+                                <td colspan="2" style="border: 1px solid #dddddd; padding: 8px; text-align: left; background-color: #9fc5af; font-style: italic;">
+                                    M = Masonry, W = Wood, H = Manufactured, S = Steel, C = Concrete    (in NSI Enhanced USA Strucuture dataset)
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 style="margin-top: 20px;">Other Key Transformations</h4>
+                    <ul style="margin-left: 20px; margin-top: 10px; font-size: 0.9em; list-style-type: '→ '; padding-left: 15px;">
+                        <li style="padding-left: 5px;"><code>bldg_compl_year</code> was mapped to <code>year_built</code></li>
+                        <li style="padding-left: 5px; margin-top: 5px;"><code>bldg_cfa</code> was mapped to <code>Est GFA sqmeters</code></li>
+                        <li style="padding-left: 5px; margin-top: 5px;"><code>str_fdn_type</code> was mapped to <code>general_fnd_type</code></li>
+                        <li style="padding-left: 5px; margin-top: 5px;"><strong>Height Standardization (HEIGHT):</strong> Text descriptions (e.g., "10-12 m") were converted to numeric averages (e.g., 11).</li>
+                        <li style="padding-left: 5px; margin-top: 5px;"><strong>Data Cleaning:</strong> Records with missing floor area data (Est GFA sqmeters) were removed.</li>
+                    </ul>
+                </div>
+
+                <div class="chart-container">
+                    <div class="section-header" style="border: none; margin-bottom: 20px;">
+                        <h3>Scatter Plot CLF MA Data Explorer</h3>
+                        <p>Compare GFA, Total Mass, and GWP, colored by Occupancy Class.</p>
+                    </div>
+                    <div class="controls" style="background: #f8f9fa;">
+                        <div class="control-group">
+                            <label for="clfXAxis">X-Axis:</label>
+                            <select id="clfXAxis" onchange="createCLFScatterPlot()">
+                                <option value="Est GFA sqmeters" selected>Est GFA (sqm)</option>
+                                <option value="mass_total">Total Mass</option>
+                                <option value="gwp_a_to_c">GWP (A-C)</option>
+                            </select>
+                            <label for="clfYAxis">Y-Axis:</label>
+                            <select id="clfYAxis" onchange="createCLFScatterPlot()">
+                                <option value="Est GFA sqmeters">Est GFA (sqm)</option>
+                                <option value="mass_total" selected>Total Mass</option>
+                                <option value="gwp_a_to_c">GWP (A-C)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="clfScatterPlot" style="min-height: 500px;"></div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="section-header" style="border: none; margin-bottom: 20px;">
+                        <h3>Material vs. Foundation Heatmap</h3>
+                        <p>Correlation between structural material and foundation types.</p>
+                    </div>
+                    <div id="clfHeatmap" style="min-height: 500px;"></div>
+                </div>
+            </div>
+            
+            <div class="error-box" id="errorBox">
+                <h3>Error Loading Data</h3>
+                <p id="errorMessage">Unable to load building data. Please ensure building_data.json is in the same directory.</p>
+            </div>
         
-        <div class="error-box" id="errorBox">
-            <h3>Error Loading Data</h3>
-            <p id="errorMessage">Unable to load building data. Please ensure building_data.json is in the same directory.</p>
         </div>
+    
     </div>
     
     <script>
         // Global variables for data
         let buildingData = null;
         let historicShorelineData = null;
+        let clfData = null;
         let isDataLoaded = false;
         let currentClusterK = 7;
         
@@ -3661,6 +3782,156 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         });
         }
 
+        function createCLFCharts() {
+            if (!clfData) {
+                // Safety check: If data isn't loaded, show an error and stop.
+                document.getElementById('clf').innerHTML = '<p style="padding: 50px; text-align: center;">CLF data (clf_data.json) could not be loaded.</p>';
+                return;
+            }
+            // Call the functions to draw the initial charts
+            createCLFScatterPlot();
+            createCLFHeatmap();
+        }
+
+        /**
+         * Creates or updates the CLF 2D scatter plot.
+         * This function reads the dropdowns to determine which axes to plot.
+         */
+        function createCLFScatterPlot() {
+            if (!clfData || !clfData.scatter_data) {
+                document.getElementById('clfScatterPlot').innerHTML = '<p>Scatter data missing.</p>';
+                return;
+            }
+
+            // Get the user's selection from the dropdowns
+            const xSelector = document.getElementById('clfXAxis');
+            const ySelector = document.getElementById('clfYAxis');
+            
+            const xField = xSelector.value;
+            const yField = ySelector.value;
+            const xLabel = xSelector.options[xSelector.selectedIndex].text;
+            const yLabel = ySelector.options[ySelector.selectedIndex].text;
+
+            // Get the scatter plot data from the global clfData object
+            const data = clfData.scatter_data;
+            
+            // Get a list of unique occupancy classes to create separate traces
+            const occClasses = [...new Set(data.OCC_CLS)];
+            const plotData = []; // This array will hold all the traces for Plotly
+
+            // Use the fixed occupancy colors defined elsewhere (FIXED_OCC_COLORS)
+            // or fall back to the plasma array if it's not available.
+            const occColors = (typeof FIXED_OCC_COLORS !== 'undefined') ? FIXED_OCC_COLORS : plasmaColors; 
+
+            // Loop through each occupancy class to create a separate trace
+            // This allows Plotly to assign a unique color and legend entry for each class.
+            occClasses.forEach((occ, i) => {
+                const indices = []; // To store indices of data points belonging to this class
+                const xValues = []; // To store x-values for this class
+                const yValues = []; // To store y-values for this class
+                
+                // Iterate through the main data array to find indices for this class
+                // This is necessary because the data is in a columnar format (e.g., data.OCC_CLS = [All classes])
+                data.OCC_CLS.forEach((c, index) => {
+                    if (c === occ) {
+                        indices.push(index);
+                    }
+                });
+
+                // Use the collected indices to get the matching x and y values from their respective arrays
+                indices.forEach(index => {
+                    xValues.push(data[xField][index]);
+                    yValues.push(data[yField][index]);
+                });
+
+                // Add the trace object for this occupancy class
+                plotData.push({
+                    x: xValues,
+                    y: yValues,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: occ, // This label will appear in the legend
+                    marker: { 
+                        color: occColors[occ] || plasmaColors[i % plasmaColors.length], // Use fixed color or plasma
+                        size: 7, 
+                        opacity: 0.7 
+                    },
+                    // Define the text that appears on hover
+                    hovertemplate: `<b>${occ}</b><br>${xLabel}: %{x:,.2f}<br>${yLabel}: %{y:,.2f}<extra></extra>`
+                });
+            });
+
+            // Define the layout for the scatter plot
+            const layout = {
+                title: `CLF Data: ${yLabel} vs. ${xLabel}`,
+                xaxis: { title: xLabel, type: 'log', autorange: true }, // Use a log scale for large value ranges
+                yaxis: { title: yLabel, type: 'log', autorange: true }, // Use a log scale
+                height: 600,
+                hovermode: 'closest',
+                legend: {
+                    orientation: 'v',
+                    yanchor: 'middle',
+                    y: 0.5,
+                    xanchor: 'left',
+                    x: 1.05 // Position legend outside the plot area
+                },
+                margin: { r: 150 } // Add right margin to make room for the legend
+            };
+
+            // Render the plot using Plotly
+            Plotly.newPlot('clfScatterPlot', plotData, layout, {responsive: true});
+        }
+
+        /**
+         * Creates the CLF materials vs. foundation heatmap.
+         */
+        function createCLFHeatmap() {
+            if (!clfData || !clfData.heatmap_data) {
+                document.getElementById('clfHeatmap').innerHTML = '<p>Heatmap data missing.</p>';
+                return;
+            }
+
+            // Get the heatmap data from the global object
+            const hData = clfData.heatmap_data; // 'hData' is the heatmap_data object from clf_data.json
+            
+            // Get full display names from the maps
+            // hData.x still contains material_type names from the JSON
+            // hData.y still contains general_fnd_type names from the JSON
+            const materialNames = hData.x.map(m => materialTypeMap[m] || m);
+            const foundationNames = hData.y.map(f => foundationTypeMap[f] || f);
+
+            // Define the data for the heatmap
+            const heatmapData = [{
+                z: hData.z,           // The 2D array of counts
+                
+                // START: Swap X and Y
+                x: foundationNames,   // X-axis: NOW general_fnd_type
+                y: materialNames,     // Y-axis: NOW material_type
+                // END: Swap X and Y
+
+                type: 'heatmap',
+                colorscale: 'Plasma', // Use 'Plasma' colorscale as requested
+                showscale: true,
+                colorbar: { title: 'Building Count' },
+                // Update hovertemplate to match the swap
+                hovertemplate: 'Foundation: %{x}<br>Material: %{y}<br>Count: %{z}<extra></extra>'
+            }];
+
+            // Define the layout for the heatmap
+            const layout = {
+                // START: Swap X and Y titles
+                title: 'Foundation Type vs. Material Type (CLF Data)',
+                xaxis: { title: 'Foundation Type' }, // X-axis title
+                yaxis: { title: 'Material Type' },   // Y-axis title
+                // END: Swap X and Y titles
+
+                height: 550,
+                margin: { l: 150, b: 100, t: 80 } // Adjust margins to make room for long labels
+            };
+
+            // Render the plot using Plotly
+            Plotly.newPlot('clfHeatmap', heatmapData, layout, {responsive: true});
+        }
 
 
         
@@ -3688,6 +3959,21 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     console.error('Could not load historic shoreline data:', error);
                     // If the file fails to load, initialize as an empty array to prevent dashboard from breaking.
                     historicShorelineData = []; 
+                }
+
+                try {
+                    console.log('Loading CLF data...');
+                    const clfResponse = await fetch('clf_data.json');
+                    if (clfResponse.ok) {
+                        clfData = await clfResponse.json(); // Store data in the global variable
+                        console.log('CLF data loaded successfully.');
+                    } else {
+                        console.warn('Failed to load clf_data.json. CLF section will be unavailable.');
+                        clfData = null; // Ensure it's null if loading fails
+                    }
+                } catch (error) {
+                    console.error('Error loading CLF data:', error);
+                    clfData = null;
                 }
                 
                 // Store soil analysis data globally
@@ -3958,6 +4244,9 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             createMixScPieChart();
             populateHistoricShorelineFilters();
             updateHistoricShorelineCharts();
+            if (clfData) {
+                createCLFCharts();
+            }
         }
 
         function generateSampleData() {
