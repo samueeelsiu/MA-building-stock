@@ -2285,7 +2285,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 <div id="interactive" class="section">
                 <div class="section-header">
                     <h2>Interactive Data Explorer</h2>
-                    <p>Explore the data with custom filters and advanced visualizations (using a random sample)</p>
+                    <p>Explore the data with custom filters and advanced visualizations (*Data from 75,000 random sampled data from 1.7M cleaned dataset)</p>
                 </div>
                 
                 <div class="controls">
@@ -2448,7 +2448,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 <div class="chart-container">
                     <div class="section-header" style="border: none; margin-bottom: 20px;">
                         <h3>GFA Distribution: Main Dataset vs. CLF Dataset</h3>
-                        <p>Comparison of Est. GFA (sqm) by Occupancy Class. Boxes represent the main dataset (from Explorer); 'x' markers represent the CLF dataset.</p>
+                        <p>Comparison of Est GFA (sqm) by Occupancy Class. Boxes represent the main dataset (from 75,000 random sampled data from 1.7M cleaned dataset); 'x' markers represent the CLF dataset.</p>
                     </div>
                     <div id="clfBoxPlotOverlay" style="min-height: 500px;"></div>
                 </div>
@@ -4008,7 +4008,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             plotData.push({
                 x: clfXValues,
                 y: clfYValues,
-                name: 'CLF Data (x)', // Single legend entry for all 'x' points
+                name: 'CLF Data (x)', 
                 type: 'scatter',
                 mode: 'markers',
                 marker: { 
@@ -4029,15 +4029,15 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 title: 'GFA Distribution: Main Dataset (Boxes) vs. CLF Data (x)',
                 yaxis: { 
                     title: 'Est. GFA (sqm)', 
-                    type: 'log', // GFA must use a log scale
+                    type: 'log',
                     autorange: true
                 },
                 xaxis: { 
                     title: 'Occupancy Class',
-                    categoryorder: 'array', // Use the order we defined
+                    categoryorder: 'array', 
                     categoryarray: allOccClasses
                 },
-                boxmode: 'overlay', // This makes the scatter plot draw on top of the box plot
+                boxmode: 'overlay', 
                 height: 600,
                 hovermode: 'closest',
                 legend: {}
