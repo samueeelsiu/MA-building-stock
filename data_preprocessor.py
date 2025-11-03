@@ -1653,6 +1653,65 @@ class BuildingDataProcessor:
         else:
             return obj
 
+    def process_clf_data(self, csv_path='USASTR_MA.csv', output_path='clf_data.json'):
+        """
+        Processes the CLF dataset (USASTR_MA.csv) for the new dashboard section.
+        """
+        print(f"\nProcessing CLF data from {csv_path}...")
+
+        try:
+            df = pd.read_csv(csv_path)
+        except FileNotFoundError:
+            print(f"Error: CLF file not found at {csv_path}. Skipping CLF processing.")
+            return
+        except Exception as e:
+            print(f"Error reading {csv_path}: {e}. Skipping CLF processing.")
+            return
+
+        # 1. Prepare data for the 2D scatter plot
+        scatter_cols = ['Est GFA sqmeters', 'mass_total', 'gwp_a_to_c', 'OCC_CLS']
+        # Remove any rows that contain NaN values in the key columns
+        df_scatter = df[scatter_cols].dropna()
+
+        # Convert the data to a columnar format, which is more efficient for JSON
+        scatter_data = {col: df_scatter[col].tolist() for col in df_scatter.columns}
+        print(f"  Processed {len(df_scatter)} records for CLF scatter plot.")
+
+        # 2. Prepare data for the heatmap
+        heatmap_cols = ['material_type', 'general_fnd_type']
+        df_heatmap = df[heatmap_cols].dropna()
+
+        # Create a contingency table
+        # As required: x-axis = material_type, y-axis = general_fnd_type
+        contingency = pd.crosstab(
+            df_heatmap['general_fnd_type'],  # This becomes the Y-axis (index)
+            df_heatmap['material_type']  # This becomes the X-axis (columns)
+        )
+
+        heatmap_data = {
+            'z': contingency.values.tolist(),
+            'x': contingency.columns.tolist(),  # X-axis labels (material_type)
+            'y': contingency.index.tolist()  # Y-axis labels (general_fnd_type)
+        }
+        print(f"  Processed heatmap data ({len(heatmap_data['y'])} x {len(heatmap_data['x'])}).")
+
+        # 3. Combine and export to JSON
+        output_data = {
+            'scatter_data': scatter_data,
+            'heatmap_data': heatmap_data
+        }
+
+        # Use the existing clean_for_json method (if defined in the class)
+        if hasattr(self, 'clean_for_json'):
+            output_data = self.clean_for_json(output_data)
+
+        try:
+            with open(output_path, 'w') as f:
+                json.dump(output_data, f, indent=2)  # indent=2 for readability
+            print(f"Successfully saved CLF data to {output_path}")
+        except Exception as e:
+            print(f"Error writing CLF JSON to {output_path}: {e}")
+
     def export_to_json(self, output_path='building_data.json'):
         """Export all processed data to JSON - Split into main and multiple sample files"""
         print("Exporting data to JSON (split into multiple files)...")
@@ -1864,6 +1923,11 @@ def main():
 
     # Export to JSON
     export_data = processor.export_to_json('building_data.json')
+
+    print("\n" + "=" * 60)
+    print("Processing CLF (USASTR_MA.csv) Data...")
+
+    processor.process_clf_data('USASTR_MA.csv', 'clf_data.json')
 
     print("\n" + "="*60)
     print("Processing Complete!")
