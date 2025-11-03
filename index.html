@@ -2444,6 +2444,15 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     </div>
                     <div id="clfHeatmap" style="min-height: 500px;"></div>
                 </div>
+
+                <div class="chart-container">
+                    <div class="section-header" style="border: none; margin-bottom: 20px;">
+                        <h3>GFA Distribution: Main Dataset vs. CLF Dataset</h3>
+                        <p>Comparison of Est. GFA (sqm) by Occupancy Class. Boxes represent the main dataset (from Explorer); 'x' markers represent the CLF dataset.</p>
+                    </div>
+                    <div id="clfBoxPlotOverlay" style="min-height: 500px;"></div>
+                </div>
+
             </div>
             
             <div class="error-box" id="errorBox">
@@ -3791,6 +3800,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // Call the functions to draw the initial charts
             createCLFScatterPlot();
             createCLFHeatmap();
+            createCLFBoxPlotOverlay();
         }
 
         /**
@@ -3931,6 +3941,112 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
             // Render the plot using Plotly
             Plotly.newPlot('clfHeatmap', heatmapData, layout, {responsive: true});
+        }
+
+        function createCLFBoxPlotOverlay() {
+            const chartDiv = document.getElementById('clfBoxPlotOverlay');
+            // We need both datasets for this chart
+            if (!buildingData || !clfData) {
+                chartDiv.innerHTML = '<p>Box plot overlay cannot be drawn. Main data or CLF data is missing.</p>';
+                return;
+            }
+
+            const mainSamples = buildingData.building_samples_random; // Data for boxes
+            const clfScatterData = clfData.scatter_data; // Data for 'x' markers
+            const plotData = [];
+
+            // 1. Get all unique occupancy classes from *both* datasets
+            const mainOccs = new Set(mainSamples.map(d => d.OCC_CLS));
+            const clfOccs = new Set(clfScatterData.OCC_CLS);
+            const allOccClasses = [...new Set([...mainOccs, ...clfOccs])].filter(Boolean);
+            
+            // 2. Sort classes using the same fixed order as your other charts
+            const occOrder = ['Residential', 'Commercial', 'Government', 'Industrial', 
+                            'Assembly', 'Education', 'Utility and Misc', 'Unclassified', 'Agriculture'];
+            allOccClasses.sort((a, b) => {
+                const idxA = occOrder.indexOf(a);
+                const idxB = occOrder.indexOf(b);
+                if (idxA === -1) return 1;
+                if (idxB === -1) return -1;
+                return idxA - idxB;
+            });
+
+            // 3. Create Box Plot Traces (one for each class from the main dataset)
+            allOccClasses.forEach(occ => {
+                const gfaValues = mainSamples
+                    .filter(d => d.OCC_CLS === occ)
+                    .map(d => d['Est GFA sqmeters']);
+
+                plotData.push({
+                    y: gfaValues.length > 0 ? gfaValues : [null], // Use [null] to force category to appear
+                    name: occ,
+                    type: 'box',
+                    boxpoints: false, // Don't show the underlying points for the box plot
+                    marker: { color: FIXED_OCC_COLORS[occ] || '#999' },
+                    line: { width: 2 },
+                    showlegend: true // Show these in the legend
+                });
+            });
+
+            // 4. Create a SINGLE Scatter Trace for all CLF 'x' points
+            const clfXValues = []; // This will hold the category name (e.g., 'Residential')
+            const clfYValues = []; // This will hold the GFA value
+            const clfHoverText = [];
+            
+            const clfOccData = clfScatterData.OCC_CLS;
+            const clfGfaData = clfScatterData['Est GFA sqmeters'];
+            
+            for (let i = 0; i < clfOccData.length; i++) {
+                const occ = clfOccData[i];
+                if (!occ) continue; // Skip if occupancy is null
+                
+                clfXValues.push(occ); // e.g., 'Commercial'
+                clfYValues.push(clfGfaData[i]); // e.g., 1234.5
+                clfHoverText.push(`<b>CLF Data Point</b><br>Occupancy: ${occ}<br>GFA: ${clfGfaData[i].toFixed(0)} sqm`);
+            }
+
+            plotData.push({
+                x: clfXValues,
+                y: clfYValues,
+                name: 'CLF Data (x)', // Single legend entry for all 'x' points
+                type: 'scatter',
+                mode: 'markers',
+                marker: { 
+                    symbol: 'x',
+                    color: 'black', 
+                    size: 6, 
+                    opacity: 0.6
+                },
+                xaxis: 'x',
+                yaxis: 'y',
+                hovertemplate: '%{text}<extra></extra>',
+                text: clfHoverText,
+                showlegend: true
+            });
+
+            // 5. Define Layout
+            const layout = {
+                title: 'GFA Distribution: Main Dataset (Boxes) vs. CLF Data (x)',
+                yaxis: { 
+                    title: 'Est. GFA (sqm)', 
+                    type: 'log', // GFA must use a log scale
+                    autorange: true
+                },
+                xaxis: { 
+                    title: 'Occupancy Class',
+                    categoryorder: 'array', // Use the order we defined
+                    categoryarray: allOccClasses
+                },
+                boxmode: 'overlay', // This makes the scatter plot draw on top of the box plot
+                height: 600,
+                hovermode: 'closest',
+                legend: {}
+            };
+
+
+            
+            // 6. Render the plot
+            Plotly.newPlot(chartDiv, plotData, layout, {responsive: true});
         }
 
 
