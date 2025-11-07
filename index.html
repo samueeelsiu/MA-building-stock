@@ -2413,29 +2413,37 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     </ul>
                 </div>
 
-                <div class="chart-container">
-                    <div class="section-header" style="border: none; margin-bottom: 20px;">
-                        <h3>Scatter Plot CLF MA Data Explorer</h3>
-                        <p>Compare GFA, Total Mass, and GWP, colored by Occupancy Class.</p>
-                    </div>
-                    <div class="controls" style="background: #f8f9fa;">
-                        <div class="control-group">
-                            <label for="clfXAxis">X-Axis:</label>
-                            <select id="clfXAxis" onchange="createCLFScatterPlot()">
-                                <option value="Est GFA sqmeters" selected>Est GFA (sqm)</option>
-                                <option value="mass_total">Total Mass</option>
-                                <option value="gwp_a_to_c">GWP (A-C)</option>
-                            </select>
-                            <label for="clfYAxis">Y-Axis:</label>
-                            <select id="clfYAxis" onchange="createCLFScatterPlot()">
-                                <option value="Est GFA sqmeters">Est GFA (sqm)</option>
-                                <option value="mass_total" selected>Total Mass</option>
-                                <option value="gwp_a_to_c">GWP (A-C)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="clfScatterPlot" style="min-height: 500px;"></div>
-                </div>
+<div class="chart-container">
+    <div class="section-header" style="border: none; margin-bottom: 20px;">
+        <h3>Scatter Plot CLF MA Data Explorer</h3>
+        <p>Compare GFA, Total Mass, and GWP, colored by Occupancy Class.</p>
+    </div>
+
+    <div class="controls" style="background: #f8f9fa;">
+        
+        <div class="control-group">
+            <label for="clfXAxis">X-Axis:</label>
+            <select id="clfXAxis" onchange="createCLFScatterPlot()">
+                <option value="Est GFA sqmeters" selected>Est GFA (sqm)</option>
+                <option value="mass_total">Total Mass</option>
+                <option value="gwp_a_to_c">GWP (A-C)</option>
+            </select>
+            <label for="clfYAxis">Y-Axis:</label>
+            <select id="clfYAxis" onchange="createCLFScatterPlot()">
+                <option value="Est GFA sqmeters">Est GFA (sqm)</option>
+                <option value="mass_total" selected>Total Mass</option>
+                <option value="gwp_a_to_c">GWP (A-C)</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <div class="toggle-switch">
+                <label for="clfLogToggle">Use Log Scale:</label>
+                <input type="checkbox" id="clfLogToggle" onchange="createCLFScatterPlot()" checked>
+            </div>
+        </div>
+
+    </div> <div id="clfScatterPlot" style="min-height: 500px;"></div>
 
                 <div class="chart-container">
                     <div class="section-header" style="border: none; margin-bottom: 20px;">
@@ -3817,6 +3825,11 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const xSelector = document.getElementById('clfXAxis');
             const ySelector = document.getElementById('clfYAxis');
             
+            // **** START: NEW CODE TO READ TOGGLE ****
+            // Read the state of the new log scale toggle
+            const useLogScale = document.getElementById('clfLogToggle').checked;
+            // **** END: NEW CODE TO READ TOGGLE ****
+
             const xField = xSelector.value;
             const yField = ySelector.value;
             const xLabel = xSelector.options[xSelector.selectedIndex].text;
@@ -3834,27 +3847,22 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const occColors = (typeof FIXED_OCC_COLORS !== 'undefined') ? FIXED_OCC_COLORS : plasmaColors; 
 
             // Loop through each occupancy class to create a separate trace
-            // This allows Plotly to assign a unique color and legend entry for each class.
             occClasses.forEach((occ, i) => {
                 const indices = []; // To store indices of data points belonging to this class
                 const xValues = []; // To store x-values for this class
                 const yValues = []; // To store y-values for this class
                 
-                // Iterate through the main data array to find indices for this class
-                // This is necessary because the data is in a columnar format (e.g., data.OCC_CLS = [All classes])
                 data.OCC_CLS.forEach((c, index) => {
                     if (c === occ) {
                         indices.push(index);
                     }
                 });
 
-                // Use the collected indices to get the matching x and y values from their respective arrays
                 indices.forEach(index => {
                     xValues.push(data[xField][index]);
                     yValues.push(data[yField][index]);
                 });
 
-                // Add the trace object for this occupancy class
                 plotData.push({
                     x: xValues,
                     y: yValues,
@@ -3866,16 +3874,30 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         size: 7, 
                         opacity: 0.7 
                     },
-                    // Define the text that appears on hover
                     hovertemplate: `<b>${occ}</b><br>${xLabel}: %{x:,.2f}<br>${yLabel}: %{y:,.2f}<extra></extra>`
                 });
             });
 
             // Define the layout for the scatter plot
             const layout = {
-                title: `CLF Data: ${yLabel} vs. ${xLabel}`,
-                xaxis: { title: xLabel, type: 'log', autorange: true }, // Use a log scale for large value ranges
-                yaxis: { title: yLabel, type: 'log', autorange: true }, // Use a log scale
+                title: `CLF Data: ${yLabel} vs. ${xLabel} ${useLogScale ? '(Log Scale)' : '(Linear Scale)'}`,
+                
+                // **** START: MODIFIED AXES ****
+                xaxis: { 
+                    title: xLabel, 
+                    type: useLogScale ? 'log' : 'linear', // Dynamic type
+                    autorange: true,
+                    // For linear scale, ensuring it starts near zero can be helpful
+                    rangemode: useLogScale ? 'normal' : 'tozero' 
+                },
+                yaxis: { 
+                    title: yLabel, 
+                    type: useLogScale ? 'log' : 'linear', // Dynamic type
+                    autorange: true,
+                    rangemode: useLogScale ? 'normal' : 'tozero'
+                },
+                // **** END: MODIFIED AXES ****
+
                 height: 600,
                 hovermode: 'closest',
                 legend: {
@@ -3973,9 +3995,14 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
             // 3. Create Box Plot Traces (one for each class from the main dataset)
             allOccClasses.forEach(occ => {
+                
+                // **** START: MODIFICATION (THIS IS THE FIX) ****
+                // We MUST filter for > 0, because log axes cannot handle 0, null, or negative values.
+                // This prevents Plotly from incorrectly clipping the whiskers.
                 const gfaValues = mainSamples
-                    .filter(d => d.OCC_CLS === occ)
+                    .filter(d => d.OCC_CLS === occ && d['Est GFA sqmeters'] > 0)
                     .map(d => d['Est GFA sqmeters']);
+                // **** END: MODIFICATION ****
 
                 plotData.push({
                     y: gfaValues.length > 0 ? gfaValues : [null], // Use [null] to force category to appear
@@ -3989,8 +4016,9 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             });
 
             // 4. Create a SINGLE Scatter Trace for all CLF 'x' points
-            const clfXValues = []; // This will hold the category name (e.g., 'Residential')
-            const clfYValues = []; // This will hold the GFA value
+            // (This part remains unchanged)
+            const clfXValues = []; 
+            const clfYValues = []; 
             const clfHoverText = [];
             
             const clfOccData = clfScatterData.OCC_CLS;
@@ -3998,10 +4026,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             for (let i = 0; i < clfOccData.length; i++) {
                 const occ = clfOccData[i];
-                if (!occ) continue; // Skip if occupancy is null
+                if (!occ) continue; 
                 
-                clfXValues.push(occ); // e.g., 'Commercial'
-                clfYValues.push(clfGfaData[i]); // e.g., 1234.5
+                clfXValues.push(occ); 
+                clfYValues.push(clfGfaData[i]); 
                 clfHoverText.push(`<b>CLF Data Point</b><br>Occupancy: ${occ}<br>GFA: ${clfGfaData[i].toFixed(0)} sqm`);
             }
 
@@ -4024,13 +4052,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 showlegend: true
             });
 
-            // 5. Define Layout
+            // 5. Define Layout (This part remains unchanged, keeping our previous fix)
             const layout = {
                 title: 'GFA Distribution: Main Dataset (Boxes) vs. CLF Data (x)',
                 yaxis: { 
                     title: 'Est. GFA (sqm)', 
                     type: 'log',
-                    autorange: true
+                    range: [0, 7]  // Keep this: 10^0 (1) to 10^7 (10M)
                 },
                 xaxis: { 
                     title: 'Occupancy Class',
@@ -4042,8 +4070,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 hovermode: 'closest',
                 legend: {}
             };
-
-
             
             // 6. Render the plot
             Plotly.newPlot(chartDiv, plotData, layout, {responsive: true});
