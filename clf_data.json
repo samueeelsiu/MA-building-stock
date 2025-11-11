@@ -71,26 +71,114 @@
       "Residential",
       "Commercial",
       "Commercial"
+    ],
+    "material_type": [
+      "S",
+      "S",
+      "S",
+      "S",
+      "S",
+      "S",
+      "S",
+      "W",
+      "S",
+      "S",
+      "S",
+      "S",
+      "S",
+      "S",
+      "S",
+      "S"
     ]
   },
-  "heatmap_data": {
+  "heatmap_material_count": {
     "z": [
       [
         5,
-        0
+        10
       ],
       [
-        10,
+        0,
         1
       ]
     ],
     "x": [
-      "S",
-      "W"
-    ],
-    "y": [
       "Deep foundation < 50' (15m)",
       "Shallow foundation"
+    ],
+    "y": [
+      "S",
+      "W"
+    ]
+  },
+  "heatmap_material_gfa": {
+    "z": [
+      [
+        174590.0,
+        273750.0
+      ],
+      [
+        0.0,
+        5100.0
+      ]
+    ],
+    "x": [
+      "Deep foundation < 50' (15m)",
+      "Shallow foundation"
+    ],
+    "y": [
+      "S",
+      "W"
+    ]
+  },
+  "heatmap_struct_count": {
+    "z": [
+      [
+        4,
+        8
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        0,
+        1
+      ]
+    ],
+    "x": [
+      "Deep foundation < 50' (15m)",
+      "Shallow foundation"
+    ],
+    "y": [
+      "Steel",
+      "Steel/Concrete",
+      "Wood: Mass Timber"
+    ]
+  },
+  "heatmap_struct_gfa": {
+    "z": [
+      [
+        120090.0,
+        158500.0
+      ],
+      [
+        54500.0,
+        115250.0
+      ],
+      [
+        0.0,
+        5100.0
+      ]
+    ],
+    "x": [
+      "Deep foundation < 50' (15m)",
+      "Shallow foundation"
+    ],
+    "y": [
+      "Steel",
+      "Steel/Concrete",
+      "Wood: Mass Timber"
     ]
   }
 }
