@@ -2448,11 +2448,29 @@ The diagram below shows the fill rate of attributes obtained directly from Light
     </div> <div id="clfScatterPlot" style="min-height: 500px;"></div>
 
                 <div class="chart-container">
-                    <div class="section-header" style="border: none; margin-bottom: 20px;">
-                        <h3>Material vs. Foundation Heatmap</h3>
-                        <p>Correlation between structural material and foundation types.</p>
+                    <div class="section-header" style="border: none; margin-bottom: 10px;">
+                        <h3>CLF Heatmap Analysis</h3>
+                        <p>Correlation between foundation types and structural systems.</p>
+                    </div>
+
+                    <div class="heatmap-tabs" style="margin-bottom: 15px;">
+                        <button class="heatmap-tab active" id="clfHeatmapTabCount" onclick="setCLFHeatmapMetric('count')">
+                            By Building Count
+                        </button>
+                        <button class="heatmap-tab" id="clfHeatmapTabGFA" onclick="setCLFHeatmapMetric('gfa')">
+                            By Total Est. GFA (sqm)
+                        </button>
+                    </div>
+
+                    <div class="section-header" style="border: none; margin: 20px 0 10px 0; padding: 0;">
+                        <h4 style="font-size: 1.2em;">Mapped Material Type vs. Foundation Type</h4>
                     </div>
                     <div id="clfHeatmap" style="min-height: 500px;"></div>
+                    
+                    <div class="section-header" style="border: none; margin: 30px 0 10px 0; padding: 0;">
+                        <h4 style="font-size: 1.2em;">Original Structural System vs. Foundation Type</h4>
+                    </div>
+                    <div id="clfStructHeatmap" style="min-height: 500px;"></div>
                 </div>
 
                 <div class="chart-container">
@@ -2479,6 +2497,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         let buildingData = null;
         let historicShorelineData = null;
         let clfData = null;
+        let currentCLFHeatmapMetric = 'count';
         let isDataLoaded = false;
         let currentClusterK = 7;
         
@@ -3851,6 +3870,23 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         });
         }
 
+        /**
+         * Sets the metric for CLF heatmaps (count or gfa) and updates the charts.
+         */
+        function setCLFHeatmapMetric(metric) {
+            currentCLFHeatmapMetric = metric;
+
+            document.getElementById('clfHeatmapTabCount').classList.toggle('active', metric === 'count');
+            document.getElementById('clfHeatmapTabGFA').classList.toggle('active', metric === 'gfa');
+
+            if (typeof createCLFHeatmap === 'function') {
+                createCLFHeatmap();
+            }
+            if (typeof createCLFStructuralSystemHeatmap === 'function') {
+                createCLFStructuralSystemHeatmap();
+            }
+        }
+
         function createCLFCharts() {
             if (!clfData) {
                 // Safety check: If data isn't loaded, show an error and stop.
@@ -3860,161 +3896,238 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // Call the functions to draw the initial charts
             createCLFScatterPlot();
             createCLFHeatmap();
+            createCLFStructuralSystemHeatmap();
             createCLFBoxPlotOverlay();
         }
 
-        /**
-         * Creates or updates the CLF 2D scatter plot.
-         * This function reads the dropdowns to determine which axes to plot.
-         */
         function createCLFScatterPlot() {
             if (!clfData || !clfData.scatter_data) {
-                document.getElementById('clfScatterPlot').innerHTML = '<p>Scatter data missing.</p>';
+                document.getElementById('clfScatterPlot').innerHTML = '<p>Scatter plot data missing.</p>';
+                return;
+            }
+            
+            // Safety check to ensure the Python preprocessing script has been updated
+            if (!clfData.scatter_data.material_type) {
+                document.getElementById('clfScatterPlot').innerHTML = 
+                    '<p style="color: red; padding: 20px;"><b>Error:</b> `material_type` not found in `clf_data.json`.' + 
+                    '<br>Please ensure `data_preprocessor.py` has been updated and re-run as instructed.</p>';
                 return;
             }
 
-            // Get the user's selection from the dropdowns
+            // --- 1. Prepare data and settings ---
+            const data = clfData.scatter_data;
             const xSelector = document.getElementById('clfXAxis');
             const ySelector = document.getElementById('clfYAxis');
-            
-            // **** START: NEW CODE TO READ TOGGLE ****
-            // Read the state of the new log scale toggle
             const useLogScale = document.getElementById('clfLogToggle').checked;
-            // **** END: NEW CODE TO READ TOGGLE ****
 
             const xField = xSelector.value;
             const yField = ySelector.value;
             const xLabel = xSelector.options[xSelector.selectedIndex].text;
             const yLabel = ySelector.options[ySelector.selectedIndex].text;
 
-            // Get the scatter plot data from the global clfData object
-            const data = clfData.scatter_data;
+            const plotData = [];
+            const occColors = FIXED_OCC_COLORS; // Global color map
+            const materialSymbolMap = {
+                'S': 'circle',       // Steel
+                'C': 'square',       // Concrete
+                'W': 'diamond',      // Wood
+                'H': 'cross',        // Prefab / Other
+                'M': 'triangle-up'   // Masonry
+            };
+            const defaultSymbol = 'x';
+
+            // --- 2. Create OCC_CLS (color) legend, sorted by frequency ---
             
-            // Get a list of unique occupancy classes to create separate traces
-            const occClasses = [...new Set(data.OCC_CLS)];
-            const plotData = []; // This array will hold all the traces for Plotly
+            // Count occurrences of each OCC_CLS
+            const occCounts = {};
+            data.OCC_CLS.forEach(occ => {
+                if (occ) {
+                    occCounts[occ] = (occCounts[occ] || 0) + 1;
+                }
+            });
+            
+            // Sort by count (descending)
+            const sortedOccs = Object.keys(occCounts).sort((a, b) => occCounts[b] - occCounts[a]);
 
-            // Use the fixed occupancy colors defined elsewhere (FIXED_OCC_COLORS)
-            // or fall back to the plasma array if it's not available.
-            const occColors = (typeof FIXED_OCC_COLORS !== 'undefined') ? FIXED_OCC_COLORS : plasmaColors; 
+            // Create “dummy” legend entries for each OCC_CLS
+            sortedOccs.forEach(occ => {
+                plotData.push({
+                    x: [null], y: [null], // No real data points
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: `${occ} (${occCounts[occ]})`, // e.g., "Commercial (8)"
+                    marker: { 
+                        color: occColors[occ] || '#999', 
+                        symbol: 'square', // Uniform symbol for color legend
+                        size: 10 
+                    },
+                    showlegend: true,
+                    legendgroup: 'occupancy'
+                });
+            });
 
-            // Loop through each occupancy class to create a separate trace
-            occClasses.forEach((occ, i) => {
-                const indices = []; // To store indices of data points belonging to this class
-                const xValues = []; // To store x-values for this class
-                const yValues = []; // To store y-values for this class
+            // --- 3. Create Material (shape) legend using actual data ---
+            const materialTypes = [...new Set(data.material_type)].filter(Boolean);
+
+            materialTypes.forEach((mat, i) => {
+                const indices = [];
+                data.material_type.forEach((m, index) => {
+                    if (m === mat) indices.push(index);
+                });
+                if (indices.length === 0) return;
+
+                const xValues = indices.map(index => data[xField][index]);
+                const yValues = indices.map(index => data[yField][index]);
+                const occValues = indices.map(index => data.OCC_CLS[index]);
                 
-                data.OCC_CLS.forEach((c, index) => {
-                    if (c === occ) {
-                        indices.push(index);
-                    }
-                });
-
-                indices.forEach(index => {
-                    xValues.push(data[xField][index]);
-                    yValues.push(data[yField][index]);
-                });
+                // Map each point to its color
+                const pointColors = occValues.map(occ => occColors[occ] || '#999999');
+                const materialName = materialTypeMap[mat] || mat;
 
                 plotData.push({
                     x: xValues,
                     y: yValues,
                     mode: 'markers',
                     type: 'scatter',
-                    name: occ, // This label will appear in the legend
+                    name: `${materialName} (${indices.length})`, // e.g., "Steel (10)"
                     marker: { 
-                        color: occColors[occ] || plasmaColors[i % plasmaColors.length], // Use fixed color or plasma
-                        size: 7, 
-                        opacity: 0.7 
+                        color: pointColors,
+                        symbol: materialSymbolMap[mat] || defaultSymbol,
+                        size: 9, 
+                        opacity: 0.8,
+                        line: { color: 'rgba(0,0,0,0.4)', width: 1 }
                     },
-                    hovertemplate: `<b>${occ}</b><br>${xLabel}: %{x:,.2f}<br>${yLabel}: %{y:,.2f}<extra></extra>`
+                    customdata: indices.map(index => ({
+                        occ: data.OCC_CLS[index],
+                        mat: materialTypeMap[data.material_type[index]] || data.material_type[index]
+                    })),
+                    hovertemplate: `<b>%{customdata.occ}</b><br>` +
+                                `Material: %{customdata.mat}<br>` +
+                                `${xLabel}: %{x:,.2f}<br>` +
+                                `${yLabel}: %{y:,.2f}<extra></extra>`,
+                    showlegend: true,
+                    legendgroup: 'material'
                 });
             });
 
-            // Define the layout for the scatter plot
+            // --- 4. Define layout ---
             const layout = {
                 title: `CLF Data: ${yLabel} vs. ${xLabel} ${useLogScale ? '(Log Scale)' : '(Linear Scale)'}`,
-                
-                // **** START: MODIFIED AXES ****
                 xaxis: { 
                     title: xLabel, 
-                    type: useLogScale ? 'log' : 'linear', // Dynamic type
+                    type: useLogScale ? 'log' : 'linear',
                     autorange: true,
-                    // For linear scale, ensuring it starts near zero can be helpful
                     rangemode: useLogScale ? 'normal' : 'tozero' 
                 },
                 yaxis: { 
                     title: yLabel, 
-                    type: useLogScale ? 'log' : 'linear', // Dynamic type
+                    type: useLogScale ? 'log' : 'linear',
                     autorange: true,
                     rangemode: useLogScale ? 'normal' : 'tozero'
                 },
-                // **** END: MODIFIED AXES ****
-
                 height: 600,
                 hovermode: 'closest',
                 legend: {
+                    title: { text: '<b>Legend</b>' },
+                    tracegroupgap: 20, // Add space between legend groups
                     orientation: 'v',
                     yanchor: 'middle',
                     y: 0.5,
                     xanchor: 'left',
-                    x: 1.05 // Position legend outside the plot area
+                    x: 1.05
                 },
-                margin: { r: 150 } // Add right margin to make room for the legend
+                margin: { r: 190 } // Extra right margin for long legend text
             };
 
-            // Render the plot using Plotly
+            // --- 5. Render the plot ---
             Plotly.newPlot('clfScatterPlot', plotData, layout, {responsive: true});
         }
+
 
         /**
          * Creates the CLF materials vs. foundation heatmap.
          */
         function createCLFHeatmap() {
-            if (!clfData || !clfData.heatmap_data) {
-                document.getElementById('clfHeatmap').innerHTML = '<p>Heatmap data missing.</p>';
+            const metric = currentCLFHeatmapMetric; // 'count' or 'gfa'
+            const dataKey = (metric === 'gfa') ? 'heatmap_material_gfa' : 'heatmap_material_count';
+
+            if (!clfData || !clfData[dataKey]) {
+                document.getElementById('clfHeatmap').innerHTML = `<p>Heatmap data ('${dataKey}') missing.</p>`;
                 return;
             }
 
-            // Get the heatmap data from the global object
-            const hData = clfData.heatmap_data; // 'hData' is the heatmap_data object from clf_data.json
-            
-            // Get full display names from the maps
-            // hData.x still contains material_type names from the JSON
-            // hData.y still contains general_fnd_type names from the JSON
-            const materialNames = hData.x.map(m => materialTypeMap[m] || m);
-            const foundationNames = hData.y.map(f => foundationTypeMap[f] || f);
+            const hData = clfData[dataKey];
 
-            // Define the data for the heatmap
+            const materialNames = hData.y.map(m => materialTypeMap[m] || m); // y-axis from python
+            const foundationNames = hData.x.map(f => foundationTypeMap[f] || f); // x-axis from python
+
             const heatmapData = [{
-                z: hData.z,           // The 2D array of counts
-                
-                // START: Swap X and Y
-                x: foundationNames,   // X-axis: NOW general_fnd_type
-                y: materialNames,     // Y-axis: NOW material_type
-                // END: Swap X and Y
-
+                z: hData.z,
+                x: foundationNames, // JS x-axis uses python's x-data (foundation)
+                y: materialNames,   // JS y-axis uses python's y-data (material)
                 type: 'heatmap',
-                colorscale: 'Plasma', // Use 'Plasma' colorscale as requested
+                colorscale: 'Plasma',
                 showscale: true,
-                colorbar: { title: 'Building Count' },
-                // Update hovertemplate to match the swap
-                hovertemplate: 'Foundation: %{x}<br>Material: %{y}<br>Count: %{z}<extra></extra>'
+
+                colorbar: { title: (metric === 'gfa') ? 'Total Est. GFA (sqm)' : 'Building Count' },
+                hovertemplate: 'Foundation: %{x}<br>Material: %{y}<br>' + 
+                            ((metric === 'gfa') ? 'GFA: %{z:,.0f} sqm' : 'Count: %{z}') +
+                            '<extra></extra>'
             }];
 
-            // Define the layout for the heatmap
             const layout = {
-                // START: Swap X and Y titles
-                title: 'Foundation Type vs. Material Type (CLF Data)',
-                xaxis: { title: 'Foundation Type' }, // X-axis title
-                yaxis: { title: 'Material Type' },   // Y-axis title
-                // END: Swap X and Y titles
-
+                title: `Mapped Material Type vs. Foundation Type (${metric === 'gfa' ? 'by GFA' : 'by Count'})`,
+                xaxis: { title: 'Foundation Type' },
+                yaxis: { title: 'Mapped Material Type' },
                 height: 550,
-                margin: { l: 150, b: 100, t: 80 } // Adjust margins to make room for long labels
+                margin: { l: 150, b: 100, t: 80 }
             };
 
-            // Render the plot using Plotly
             Plotly.newPlot('clfHeatmap', heatmapData, layout, {responsive: true});
+        }
+
+        /**
+         * Creates the NEW CLF structural system vs. foundation heatmap.
+         * Reads 'currentCLFHeatmapMetric' to toggle between count and GFA.
+         */
+        function createCLFStructuralSystemHeatmap() {
+       
+            const metric = currentCLFHeatmapMetric; // 'count' or 'gfa'
+            const dataKey = (metric === 'gfa') ? 'heatmap_struct_gfa' : 'heatmap_struct_count';
+
+            if (!clfData || !clfData[dataKey]) {
+                document.getElementById('clfStructHeatmap').innerHTML = `<p>Heatmap data ('${dataKey}') missing.</p>`;
+                return;
+            }
+
+            const hData = clfData[dataKey];
+
+
+            const structSystemNames = hData.y; // y-axis from python
+            const foundationNames = hData.x.map(f => foundationTypeMap[f] || f); // x-axis from python
+
+            const heatmapData = [{
+                z: hData.z,
+                x: foundationNames, // JS x-axis
+                y: structSystemNames,   // JS y-axis
+                type: 'heatmap',
+                colorscale: 'Plasma',
+                showscale: true,
+                colorbar: { title: (metric === 'gfa') ? 'Total Est. GFA (sqm)' : 'Building Count' },
+                hovertemplate: 'Foundation: %{x}<br>Struct System: %{y}<br>' + 
+                            ((metric === 'gfa') ? 'GFA: %{z:,.0f} sqm' : 'Count: %{z}') +
+                            '<extra></extra>'
+            }];
+
+            const layout = {
+                title: `Original Structural System vs. Foundation Type (${metric === 'gfa' ? 'by GFA' : 'by Count'})`,
+                xaxis: { title: 'Foundation Type' },
+                yaxis: { title: 'Original Structural System' },
+                height: 550,
+                margin: { l: 150, b: 100, t: 80 }
+            };
+
+            Plotly.newPlot('clfStructHeatmap', heatmapData, layout, {responsive: true});
         }
 
         function createCLFBoxPlotOverlay() {
@@ -5224,6 +5337,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             'Utility and Misc': '#fb9f3a', // Light orange
             'Agriculture': '#f0f921'       // Brightest yellow
         };
+
 
         // Fixed colors for materials (dark to light as specified)
         const FIXED_MATERIAL_COLORS = {

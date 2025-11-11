@@ -75,15 +75,14 @@ class BuildingDataProcessor:
         self.df_cleaned = self.df[self.df['year_built'] > 0].copy()
         cleaning_stats['after_year_filter'] = len(self.df_cleaned)
 
-        # Step 2: Track and remove missing area
-        missing_area_mask = self.df_cleaned['Est GFA sqmeters'].isna()
-        cleaning_stats['missing_area_count'] = missing_area_mask.sum()
+        # Step 2: Track and remove missing OR zero/negative area
+        invalid_area_mask = (self.df_cleaned['Est GFA sqmeters'].isna()) | (self.df_cleaned['Est GFA sqmeters'] <= 0)
+        cleaning_stats['missing_area_count'] = invalid_area_mask.sum()
 
-        # Remove rows with missing area
+        # Remove rows with invalid area
         if cleaning_stats['missing_area_count'] > 0:
-            self.df_cleaned = self.df_cleaned[~missing_area_mask].copy()
+            self.df_cleaned = self.df_cleaned[~invalid_area_mask].copy()
         cleaning_stats['after_missing_area'] = len(self.df_cleaned)
-
 
         # Step 4: Track and remove area outliers (optional step)
         cleaning_stats['area_outliers_count'] = 0
@@ -121,8 +120,19 @@ class BuildingDataProcessor:
             print("Warning: 'foundation_type' column not found. Filling with None.")
             self.df_cleaned['foundation_type'] = None
 
-        # Create a unified height field for clustering and stats
-        # Prefer measured HEIGHT when it is valid (>0); otherwise fall back to PRED_HEIGHT
+        print("  Applying new filter: Removing all rows with original HEIGHT <= 0...")
+        h_numeric_raw = pd.to_numeric(self.df_cleaned['HEIGHT'], errors='coerce')
+        invalid_h_mask = (h_numeric_raw.notna()) & (h_numeric_raw <= 0)
+        invalid_h_count = int(invalid_h_mask.sum())
+
+        if invalid_h_count > 0:
+            self.df_cleaned = self.df_cleaned[~invalid_h_mask].copy()
+
+
+        cleaning_stats['invalid_raw_height_count'] = invalid_h_count
+
+
+
         h = (self.df_cleaned['HEIGHT'].apply(pd.to_numeric, errors='coerce')
              if 'HEIGHT' in self.df_cleaned.columns
              else pd.Series(np.nan, index=self.df_cleaned.index))
@@ -131,7 +141,47 @@ class BuildingDataProcessor:
               if 'PRED_HEIGHT' in self.df_cleaned.columns
               else pd.Series(np.nan, index=self.df_cleaned.index))
 
+
         self.df_cleaned['HEIGHT_USED'] = np.where(h.notna() & (h > 0), h, ph)
+        self.df_cleaned['Assumed height'] = self.df_cleaned['HEIGHT_USED']
+
+
+        count_before_height_filter = len(self.df_cleaned)
+
+        invalid_assumed_height_mask = (self.df_cleaned['Assumed height'].isna()) | (
+                    self.df_cleaned['Assumed height'] <= 0)
+        num_invalid_assumed_heights = int(invalid_assumed_height_mask.sum())
+
+        cleaning_stats['invalid_assumed_height_count'] = num_invalid_assumed_heights
+
+        if num_invalid_assumed_heights > 0:
+            self.df_cleaned = self.df_cleaned[~invalid_assumed_height_mask].copy()
+
+        cleaning_stats['after_height_filter'] = len(self.df_cleaned)
+
+        h_final = pd.to_numeric(self.df_cleaned['HEIGHT'], errors='coerce')
+
+
+        mask_used_height = (h_final.notna())
+        count_used_height = int(mask_used_height.sum())
+        count_used_pred_height = len(self.df_cleaned) - count_used_height
+
+        cleaning_stats['assumed_height_source'] = {
+            'used_height': count_used_height,
+            'used_pred_height': count_used_pred_height
+        }
+
+
+
+
+        cleaning_stats['final_count'] = len(self.df_cleaned)
+        cleaning_stats['total_removed'] = cleaning_stats['initial_count'] - cleaning_stats['final_count']
+        cleaning_stats['removal_percentage'] = round(
+            (cleaning_stats['total_removed'] / cleaning_stats['initial_count']) * 100, 2
+        ) if cleaning_stats['initial_count'] > 0 else 0
+
+        # Store cleaning statistics in data flow stats
+        self.data_flow_stats['cleaning_pipeline'] = cleaning_stats
 
         # Print summary of cleaning process
         print(f"Cleaned data: {len(self.df_cleaned)} records")
@@ -139,10 +189,25 @@ class BuildingDataProcessor:
         print(f"    - Invalid/zero: {cleaning_stats['invalid_year_details']['negative_or_zero']}")
         print(f"    - NaN values: {cleaning_stats['invalid_year_details']['nan_values']}")
         print(f"  Removed {cleaning_stats['missing_area_count']} records with missing area")
+
+
+        print(
+            f"  Removed {cleaning_stats.get('invalid_raw_height_count', 0)} records with original HEIGHT <= 0 (Step 1)")
+        print(
+            f"  Removed {cleaning_stats.get('invalid_assumed_height_count', 0)} records with invalid Assumed height (e.g., PRED_HEIGHT <= 0) (Step 2)")
+
+
         print(f"  Removed {cleaning_stats['area_outliers_count']} area outliers")
         if cleaning_stats['area_outlier_threshold']:
             print(f"    - Outlier threshold: {cleaning_stats['area_outlier_threshold']:,.2f} sqm")
         print(f"  Total removed: {cleaning_stats['total_removed']} ({cleaning_stats['removal_percentage']}%)")
+
+
+        if 'assumed_height_source' in cleaning_stats:
+            print(f"  Assumed height source (final data):")
+            print(f"    - From HEIGHT: {cleaning_stats['assumed_height_source']['used_height']:,}")
+            print(f"    - From PRED_HEIGHT: {cleaning_stats['assumed_height_source']['used_pred_height']:,}")
+
 
         # Store the cleaning stats for later use
         self.data_flow_stats['cleaning_stats'] = cleaning_stats
@@ -1579,7 +1644,7 @@ class BuildingDataProcessor:
 
         # --- FINAL FIX: Include 'Est GFA sqmeters' for JS visualizations that use samples ---
         features = ['Est GFA sqmeters', 'SQMETERS', 'HEIGHT_USED','PRED_HEIGHT', 'year_built',
-                    'OCC_CLS', 'material_type', 'foundation_type']
+                    'OCC_CLS', 'material_type', 'foundation_type', 'Assumed height']
 
         # Add soil features if they exist
         soil_features = ['drainagecl', 'flodfreqcl', 'eng_property', 'wtdepannmin', 'compname', 'LONGITUDE', 'LATITUDE']
@@ -1656,6 +1721,12 @@ class BuildingDataProcessor:
     def process_clf_data(self, csv_path='USASTR_MA.csv', output_path='clf_data.json'):
         """
         Processes the CLF dataset (USASTR_MA.csv) for the new dashboard section.
+        NOW INCLUDES:
+        - 4 heatmap variations:
+          1. Mapped Material vs. Foundation (by Count)
+          2. Mapped Material vs. Foundation (by Est GFA sqmeters)
+          3. Structural System vs. Foundation (by Count)
+          4. Structural System vs. Foundation (by Est GFA sqmeters)
         """
         print(f"\nProcessing CLF data from {csv_path}...")
 
@@ -1669,36 +1740,70 @@ class BuildingDataProcessor:
             return
 
         # 1. Prepare data for the 2D scatter plot
-        scatter_cols = ['Est GFA sqmeters', 'mass_total', 'gwp_a_to_c', 'OCC_CLS']
-        # Remove any rows that contain NaN values in the key columns
+        # (No change here from previous step)
+        scatter_cols = ['Est GFA sqmeters', 'mass_total', 'gwp_a_to_c', 'OCC_CLS', 'material_type']
         df_scatter = df[scatter_cols].dropna()
-
-        # Convert the data to a columnar format, which is more efficient for JSON
         scatter_data = {col: df_scatter[col].tolist() for col in df_scatter.columns}
         print(f"  Processed {len(df_scatter)} records for CLF scatter plot.")
 
-        # 2. Prepare data for the heatmap
-        heatmap_cols = ['material_type', 'general_fnd_type']
-        df_heatmap = df[heatmap_cols].dropna()
+        # 2. Prepare data for all 4 heatmap variations
+        heatmap_cols = ['material_type', 'general_fnd_type', 'str_sys_summary', 'Est GFA sqmeters']
 
-        # Create a contingency table
-        # As required: x-axis = material_type, y-axis = general_fnd_type
-        contingency = pd.crosstab(
-            df_heatmap['general_fnd_type'],  # This becomes the Y-axis (index)
-            df_heatmap['material_type']  # This becomes the X-axis (columns)
-        )
+        # We need to ensure the categorical columns are present, but GFA can be NaN if we're just counting
+        df_heatmap = df[heatmap_cols].dropna(subset=['material_type', 'general_fnd_type', 'str_sys_summary'])
 
-        heatmap_data = {
-            'z': contingency.values.tolist(),
-            'x': contingency.columns.tolist(),  # X-axis labels (material_type)
-            'y': contingency.index.tolist()  # Y-axis labels (general_fnd_type)
-        }
-        print(f"  Processed heatmap data ({len(heatmap_data['y'])} x {len(heatmap_data['x'])}).")
+        print(f"  Processing {len(df_heatmap)} records for CLF heatmaps.")
+
+        def _create_heatmap_dict(df_crosstab, is_gfa=False):
+            """Helper to convert crosstab df to dict format"""
+            # Re-align GFA dataframe if it's sparse (missing combinations)
+            if is_gfa:
+                # Get the full index/columns from a count crosstab to ensure alignment
+                if 'material_type' in df_crosstab.index.name:
+                    base_df = pd.crosstab(df_heatmap['material_type'], df_heatmap['general_fnd_type'])
+                else:
+                    base_df = pd.crosstab(df_heatmap['str_sys_summary'], df_heatmap['general_fnd_type'])
+
+                # Reindex to match the full matrix, filling missing combos with 0
+                df_crosstab = df_crosstab.reindex(index=base_df.index, columns=base_df.columns).fillna(0)
+
+            return {
+                'z': df_crosstab.values.tolist(),
+                'x': df_crosstab.columns.tolist(),  # X-axis labels (general_fnd_type)
+                'y': df_crosstab.index.tolist()  # Y-axis labels (material_type or str_sys_summary)
+            }
+
+        # --- Create all 4 heatmap dataframes ---
+
+        # 1. Mapped Material vs. Foundation (Count)
+        df_mat_fnd_count = pd.crosstab(df_heatmap['material_type'], df_heatmap['general_fnd_type'])
+
+        # 2. Mapped Material vs. Foundation (GFA)
+        df_mat_fnd_gfa = pd.crosstab(df_heatmap['material_type'], df_heatmap['general_fnd_type'],
+                                     values=df_heatmap['Est GFA sqmeters'], aggfunc='sum')
+
+        # 3. Structural System vs. Foundation (Count)
+        df_str_fnd_count = pd.crosstab(df_heatmap['str_sys_summary'], df_heatmap['general_fnd_type'])
+
+        # 4. Structural System vs. Foundation (GFA)
+        df_str_fnd_gfa = pd.crosstab(df_heatmap['str_sys_summary'], df_heatmap['general_fnd_type'],
+                                     values=df_heatmap['Est GFA sqmeters'], aggfunc='sum')
+
+        # --- Convert to dicts for JSON export ---
+        heatmap_material_count = _create_heatmap_dict(df_mat_fnd_count)
+        heatmap_material_gfa = _create_heatmap_dict(df_mat_fnd_gfa, is_gfa=True)
+        heatmap_struct_count = _create_heatmap_dict(df_str_fnd_count)
+        heatmap_struct_gfa = _create_heatmap_dict(df_str_fnd_gfa, is_gfa=True)
+
+        print(f"  Processed 4 heatmap variations (Material/Struct vs. GFA/Count).")
 
         # 3. Combine and export to JSON
         output_data = {
             'scatter_data': scatter_data,
-            'heatmap_data': heatmap_data
+            'heatmap_material_count': heatmap_material_count,
+            'heatmap_material_gfa': heatmap_material_gfa,
+            'heatmap_struct_count': heatmap_struct_count,
+            'heatmap_struct_gfa': heatmap_struct_gfa,
         }
 
         # Use the existing clean_for_json method (if defined in the class)
@@ -1928,6 +2033,30 @@ def main():
     print("Processing CLF (USASTR_MA.csv) Data...")
 
     processor.process_clf_data('USASTR_MA.csv', 'clf_data.json')
+
+
+
+    raw_height_numeric = pd.to_numeric(processor.df['HEIGHT'], errors='coerce')
+    raw_gfa_negative_count = (processor.df['Est GFA sqmeters'] < 0).sum()
+    raw_height_negative_count = (raw_height_numeric < 0).sum()
+
+
+    cleaned_gfa_negative_count = (processor.df_cleaned['Est GFA sqmeters'] < 0).sum()
+
+
+    cleaned_height_numeric = pd.to_numeric(processor.df_cleaned['HEIGHT'], errors='coerce')
+    cleaned_height_negative_count = (cleaned_height_numeric < 0).sum()
+
+    print("Data Quality Checks:")
+    print(f"  Raw Data (Initial Load):")
+    print(f"    - Records with Est GFA sqmeters < 0: {raw_gfa_negative_count:,}")
+    print(f"    - Records with HEIGHT < 0:      {raw_height_negative_count:,}")
+    print(f"  Cleaned Data (Final Dataset):")
+    print(f"    - Records with Est GFA sqmeters < 0: {cleaned_gfa_negative_count:,} (expect 0)")
+    print(f"    - Records with HEIGHT < 0:      {cleaned_height_negative_count:,}")
+    print("-" * 60)
+
+
 
     print("\n" + "="*60)
     print("Processing Complete!")
