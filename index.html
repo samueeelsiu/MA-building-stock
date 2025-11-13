@@ -1682,25 +1682,25 @@
                                 <div class="flow-box data-source boston-permits">
                                 <h4>Boston Approved Permit Dataset</h4>
                                 <p>Demolition Records</p>
-                                <p>2 Columns Added</p>
+                                <p>3 Columns Added</p>
                                 </div>
                             </div>
                             <div class="flow-arrow">▼</div>
                             <div class="flow-box operation">
-                                <h4>Operation: Nearest Neighbor Spatial Join</h4>
+                                <h4>Operation: Intelligent Spatial Enrichment</h4>
                                 <ul>
-                                <li><strong>1. Filter & Deduplicate Permits:</strong> Isolate demolition permits ('EXTDEM', 'INTDEM', 'RAZE') and keep only the most recent permit for each unique address.</li>
-                                <li><strong>2. Project to Local CRS:</strong> Convert both building and permit coordinates to a projected CRS (EPSG:2249) to enable accurate distance calculations in meters.</li>
-                                <li><strong>3. Nearest Neighbor Join:</strong> For each building, find the single closest demolition permit within a <strong>30-meter radius</strong> using `gpd.sjoin_nearest`.</li>
-                                <li><strong>4. Attribute Transfer:</strong> If a match is found, transfer the demolition permit's `worktype` and `issued_date` to the building record, renaming them to `DEMOLITION_TYPE` and `DEMOLITION_DATE`.</li>
+                                <li><strong>1. Priority-Based Deduplication:</strong> Filters permits ('EXTDEM', 'INTDEM', 'RAZE') and selects the "best" record per address, prioritizing <strong>Completed/Closed</strong> status over Open, then the most recent date.</li>
+                                <li><strong>2. Project to Local CRS:</strong> Converts coordinates to EPSG:2249 (MA State Plane) for precise meter-based calculations.</li>
+                                <li><strong>3. Nearest Neighbor Join:</strong> Finds the single closest permit within a <strong>15-meter radius</strong>. Handles ties (equidistant matches) by strictly enforcing one match per building.</li>
+                                <li><strong>4. Non-Destructive Merge:</strong> Uses <strong>Index Alignment</strong> to merge `DEMOLITION_TYPE`, `DEMOLITION_DATE`, and `DEMOLITION_STATUS` back to the original dataset, ensuring zero data loss or row shifting.</li>
                                 </ul>
                             </div>
                             <div class="flow-arrow">▼</div>
                             <div class="flow-box data-source nsi-enhanced-input" style="border-color: #2E7D32; background-color: #e8f5e9;">
                                 <h4>Result: Final NSI-Enhanced USA Structures Dataset</h4>
-                                <p>2,091,488 Records</p>
-                                <p>65 Total Columns (63 + 2 from Permits)</p>
-                                <small>A Left Join retains all buildings. <strong>1,236</strong> buildings were successfully matched with demolition data.</small>
+                                <p>2,091,488 Records (Exact Match Preserved)</p>
+                                <p>65 Total Columns (62 + 3 from Permits)</p>
+                                <small>Successfully enriched buildings with demolition data without altering the original dataset structure or row count.</small>
                             </div>
                         </div>
                     </div>
