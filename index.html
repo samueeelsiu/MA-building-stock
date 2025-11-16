@@ -3927,14 +3927,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
             const plotData = [];
             const occColors = FIXED_OCC_COLORS; // Global color map
-            const materialSymbolMap = {
-                'S': 'circle',       // Steel
-                'C': 'square',       // Concrete
-                'W': 'diamond',      // Wood
-                'H': 'cross',        // Prefab / Other
-                'M': 'triangle-up'   // Masonry
-            };
-            const defaultSymbol = 'x';
+
 
             // --- 2. Create OCC_CLS (color) legend, sorted by frequency ---
             
@@ -3966,13 +3959,28 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 });
             });
 
-            // --- 3. Create Material (shape) legend using actual data ---
-            const materialTypes = [...new Set(data.material_type)].filter(Boolean);
+            // --- 3. Create Structural System (shape) legend using actual data ---
+            
+            // NEW: Define symbols for Structural Systems
+            const structSysSymbolMap = {
+                'Steel': 'circle',
+                'Concrete': 'circle-open',
+                'Steel/Concrete': 'diamond',
+                'Steel/Masonry': 'square-open',
+                'Wood: Mass Timber': 'square',
+                'Wood: Light-frame': 'diamond-open',
+                'Other': 'cross'
+            };
+            const defaultSymbol = 'x'; // Keep 'x' as default
 
-            materialTypes.forEach((mat, i) => {
+            // Get unique structural systems from the data
+            const structSystems = [...new Set(data.str_sys_summary)].filter(Boolean);
+
+            structSystems.forEach((sys, i) => {
                 const indices = [];
-                data.material_type.forEach((m, index) => {
-                    if (m === mat) indices.push(index);
+                // Find all points matching this structural system
+                data.str_sys_summary.forEach((s, index) => {
+                    if (s === sys) indices.push(index);
                 });
                 if (indices.length === 0) return;
 
@@ -3980,33 +3988,33 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 const yValues = indices.map(index => data[yField][index]);
                 const occValues = indices.map(index => data.OCC_CLS[index]);
                 
-                // Map each point to its color
+                // Map each point to its OCC_CLS color
                 const pointColors = occValues.map(occ => occColors[occ] || '#999999');
-                const materialName = materialTypeMap[mat] || mat;
+                const structSysName = sys; // The name is the full string, e.g., "Steel"
 
                 plotData.push({
                     x: xValues,
                     y: yValues,
                     mode: 'markers',
                     type: 'scatter',
-                    name: `${materialName} (${indices.length})`, // e.g., "Steel (10)"
+                    name: `${structSysName} (${indices.length})`, // e.g., "Steel (10)"
                     marker: { 
                         color: pointColors,
-                        symbol: materialSymbolMap[mat] || defaultSymbol,
+                        symbol: structSysSymbolMap[sys] || defaultSymbol, // Use new symbol map
                         size: 9, 
                         opacity: 0.8,
                         line: { color: 'rgba(0,0,0,0.4)', width: 1 }
                     },
                     customdata: indices.map(index => ({
                         occ: data.OCC_CLS[index],
-                        mat: materialTypeMap[data.material_type[index]] || data.material_type[index]
+                        sys: data.str_sys_summary[index] // Add structural system to hover data
                     })),
                     hovertemplate: `<b>%{customdata.occ}</b><br>` +
-                                `Material: %{customdata.mat}<br>` +
+                                `Struct System: %{customdata.sys}<br>` + // Updated hover text
                                 `${xLabel}: %{x:,.2f}<br>` +
                                 `${yLabel}: %{y:,.2f}<extra></extra>`,
                     showlegend: true,
-                    legendgroup: 'material'
+                    legendgroup: 'struct_system' // New legend group
                 });
             });
 

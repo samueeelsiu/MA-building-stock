@@ -1741,7 +1741,7 @@ class BuildingDataProcessor:
 
         # 1. Prepare data for the 2D scatter plot
         # (No change here from previous step)
-        scatter_cols = ['Est GFA sqmeters', 'mass_total', 'gwp_a_to_c', 'OCC_CLS', 'material_type']
+        scatter_cols = ['Est GFA sqmeters', 'mass_total', 'gwp_a_to_c', 'OCC_CLS', 'material_type', 'str_sys_summary']
         df_scatter = df[scatter_cols].dropna()
         scatter_data = {col: df_scatter[col].tolist() for col in df_scatter.columns}
         print(f"  Processed {len(df_scatter)} records for CLF scatter plot.")
