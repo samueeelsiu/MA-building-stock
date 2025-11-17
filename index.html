@@ -6160,7 +6160,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             if (clusterSamples.length > 0) {
                 scatterData.push({
                     x: clusterSamples.map(s => s.year_built < 1940 ? 'pre-1940' : s.year_built),
-                    y: clusterSamples.map(s => s['Est GFA sqmeters']),
+                    y: clusterSamples.map(s => s.SQMETERS),
                     mode: 'markers',
                     type: 'scatter',
                     name: `Cluster ${i + 1}`,
@@ -6172,7 +6172,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         const scatterLayout = {
             title: { text: `K-Means Clustering Results (K=${currentClusterK})`, font: { size: 20, color: '#333' } },
             xaxis: { title: 'Year Built' },
-            yaxis: { title: 'Est GFA (sqm)' },
+            yaxis: { title: 'Footprint Area (sqm)' },
             height: 500,
             hovermode: 'closest'
         };
