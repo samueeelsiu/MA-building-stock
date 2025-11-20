@@ -1159,8 +1159,6 @@
                 <button class="nav-tab" onclick="showSection('dataAnalysis')">Data Pipelines</button>
                 <button class="nav-tab" onclick="showSection('clustering')">Simple Clustering</button>
                 <button class="nav-tab" onclick="showSection('temporal')">Temporal</button>
-                <button class="nav-tab" onclick="showSection('pre1940')">Pre-1940</button>
-                <button class="nav-tab" onclick="showSection('post1940')">Post-1940</button>
                 <button class="nav-tab" onclick="showSection('occupancy')">Occupancy Clustering</button>
                 <button class="nav-tab" onclick="showSection('materials')">Materials</button>
                 <button class="nav-tab soil-tab" onclick="showSection('soilAnalysis')">Soil Analysis</button>
@@ -1454,13 +1452,13 @@
                                 <div class="flow-box data-source usa-structures">
                                     <h4>USA Structures (Base)</h4>
                                     <p>2,091,488 Records</p>
-                                    <p>40 Columns</p>
+                                    <p>38 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source nsi">
                                     <h4>NSI Data Points</h4>
                                     <p>2,095,529 Records</p>
-                                    <p>11 Columns Added</p>
+                                    <p>15 Columns Added</p>
                                 </div>
                             </div>
 
@@ -1519,7 +1517,7 @@
                             <div class="flow-box result nsi-enhanced">
                                 <h4>Result: NSI Enhanced Structures v1</h4>
                                 <p>2,091,488 Records</p>
-                                <p>51 Columns (40 Base + 11 from NSI)</p>
+                                <p>53 Columns (38 Base + 15 from NSI)</p>
                                 <small>A Left Join was performed, so all original buildings were retained. Unmatched buildings(405,037 in total) have NaN values for NSI columns(year_built, foundation_type, etc.).</small>
                             </div>
 
@@ -1613,7 +1611,6 @@
                         </div>
                 </div>
 
-                <!-- Stage 2 -->
                 <div class="flow-stage">
                     <h3 class="stage-title collapsible-trigger">
                         Stage 2: Building the Enhanced Soil Layer & Final Join
@@ -1623,33 +1620,41 @@
                         <div class="flow-content">
                             <div class="flow-inputs">
                                 <div class="flow-box data-source nsi-enhanced-input">
-                                    <h4>NSI Enhanced Structures v1</h4>
-                                    <p>2,091,488 Records (as Points)</p>
-                                    <p>50 Columns</p>
+                                    <h4>NSI-Enhanced USA Structures Dataset v1</h4>
+                                    <p>2,091,488 Records (Polygons)</p>
+                                    <p>53 Columns</p>
+                                    <small>Input: GPKG (Preserves footprints)</small>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source soil-survey">
                                     <h4>Web Soil Survey (WSS) Data</h4>
-                                    <p>Multiple Source Files:</p>
-                                    <small>gsmsoilmu_a_ma.shp, comp.txt, chorizon.txt</small>
+                                    <p>Sources: gsmsoilmu_a_ma.shp</p>
+                                    <p>Tables: comp.txt, chorizon.txt</p>
+                                    <p>12 Columns</p>
                                 </div>
                             </div>
 
                             <div class="flow-arrow">▼</div>
                             <div class="flow-box operation">
-                                <h4>Operation: Multi-Step Data Enrichment</h4>
+                                <h4>Operation: Soil Enrichment & Area-Weighted Spatial Join</h4>
                                 <ul>
-                                    <li><strong>Part A: Preparing the Enhanced Soil Layer (Double-Filtering)</strong>
+                                    <li><strong>Part A: Preparing the Enhanced Soil Layer</strong>
                                         <ul>
-                                            <li><strong>1. Simplify Soil Components (from `comp.txt`):</strong> For each map unit (`mukey`), only the single **dominant component** (the one with the highest percentage, `comppct_r`) is selected. This provides key attributes like drainage and flooding.</li>
-                                            <li><strong>2. Simplify Soil Horizons (from `chorizon.txt`):</strong> For each soil component, only the properties from the **topsoil layer** (`hzdept_r < 10`) are selected to get the engineering properties.</li>
-                                            <li><strong>3. Attribute Joins:</strong> The simplified data from steps 1 and 2 are merged (using `cokey`), and then joined with the soil map (`.shp` via `mukey`) to create a single, enriched soil layer where each area is represented by its dominant, topsoil characteristics.</li>
+                                            <li><strong>1. Component Filtering:</strong> Reads <code>comp.txt</code> and selects only the single <strong>Dominant Component</strong> (highest percentage) for each Map Unit.</li>
+                                            <li><strong>2. Horizon Filtering:</strong> Reads <code>chorizon.txt</code> and selects only <strong>Topsoil</strong> properties (depth < 10cm) to capture engineering characteristics relevant to foundations.</li>
+                                            <li><strong>3. Merge:</strong> Attributes are merged onto the Soil Shapefile to create a single, simplified soil layer.</li>
                                         </ul>
                                     </li>
-                                    <li><strong>Part B: Final Spatial Join</strong>
+                                    <li><strong>Part B: Spatial Intersection (EPSG:26986)</strong>
                                         <ul>
-                                            <li><strong>Method:</strong> Point-in-Polygon intersection (`gpd.sjoin`).</li>
-                                            <li><strong>Action:</strong> Each building point is spatially joined with the *enhanced soil layer* from Part A to attach all relevant soil properties.</li>
+                                            <li>Data is projected to <strong>Mass State Plane (Meters)</strong> for accurate area measurement.</li>
+                                            <li>A <strong>Polygon-on-Polygon</strong> intersection (<code>predicate='intersects'</code>) is performed between buildings and soil layers.</li>
+                                        </ul>
+                                    </li>
+                                    <li><strong>Part C: Area-Weighted Conflict Resolution</strong>
+                                        <ul>
+                                            <li><strong>Problem:</strong> Some buildings straddle the boundary between two or more soil map units.</li>
+                                            <li><strong>Solution:</strong> The script calculates the exact <strong>Overlap Area</strong> for every match. If a building touches multiple soil units, it is assigned to the one with the <strong>largest intersection area</strong>.</li>
                                         </ul>
                                     </li>
                                 </ul>
@@ -1657,14 +1662,86 @@
                             <div class="flow-arrow">▼</div>
                             
                             <div class="flow-box result final-dataset">
-                                <h4>Result: NSI Enhanced Structures v2</h4>
+                                <h4>Result: NSI-Enhanced USA Structures Dataset v2</h4>
                                 <p>2,091,488 Records</p>
-                                <p>63 Total Columns (51 + 12 from Soil)</p>
-                                <small>A final Left Join ensures all buildings are retained, for those some fall outside the soil map coverage(11,385 buidlings), they haven't been signed any soil-relates data.</small>
+                                <p>65 Total Columns (53 + 12 from Soil)</p>
+                                <p>Preserved Geometry: Polygons</p>
+                                <small>
+                                    <strong>Cleanup:</strong> IDs renamed to <code>soil_mukey</code>/<code>soil_cokey</code>. 
+                                    Buildings outside soil map coverage are labeled as "Unmatched" (retained via Left Join).
+                                </small>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="flow-stage">
+                    <h3 class="stage-title collapsible-trigger">
+                        Stage 2.5: CLF-Based Foundation Classification
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div class="collapsible-content">
+                        <div class="flow-content">
+                            <div class="flow-inputs">
+                                <div class="flow-box data-source final-dataset">
+                                    <h4>NSI-Enhanced USA Structures Dataset v2</h4>
+                                    <p>Input: GPKG (Polygons)</p>
+                                    <p>Target Column: <code>foundation_type</code></p>
+                                    <p>65 Columns</p>
+                                </div>
+                                <div class="plus-icon">+</div>
+                                <div class="flow-box data-source" style="background-color: #fff8e1; border-color: #ffc107;">
+                                    <h4>CLF Categorization</h4>
+                                    <p>Carbon Leadership Forum</p>
+                                    <p>Target Column: <code>str_fdn_type</code></p>
+                                </div>
+                            </div>
+
+                            <div class="flow-arrow">▼</div>
+
+                            <div class="flow-box operation">
+                                <h4>Operation: Dictionary Mapping & Type Cleaning</h4>
+                                <p>Mapping specific NSI foundation codes to broader str_fdn_type for standardized Carbon Analysis.</p>
+                                
+                                <div style="margin-top: 15px; background: white; border: 1px solid #eee; border-radius: 6px; overflow: hidden;">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                                        <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                                            <th style="padding: 8px; text-align: left;">NSI Codes (Original)</th>
+                                            <th style="padding: 8px; text-align: left;">General Type (Mapped)</th>
+                                        </tr>
+                                        <tr style="border-bottom: 1px solid #eee;">
+                                            <td style="padding: 8px;">
+                                                <strong>C, B, S, W, F</strong><br>
+                                                <span style="color: #666; font-size: 0.85em;">(Crawl, Basement, Slab, Wall, Fill)</span>
+                                            </td>
+                                            <td style="padding: 8px; color: #2E7D32; font-weight: bold;">Shallow Foundation</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 8px;">
+                                                <strong>P, I</strong><br>
+                                                <span style="color: #666; font-size: 0.85em;">(Pier, Pile)</span>
+                                            </td>
+                                            <td style="padding: 8px; color: #d35400; font-weight: bold;">Deep Foundation &lt; 50' (15m)</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="flow-arrow">▼</div>
+                            
+                            <div class="flow-box result nsi-enhanced-input">
+                                <h4>Result: NSI-Enhanced USA Structures Dataset v2.5</h4>
+                                <p>2,091,488 Records (Polygons Preserved)</p>
+                                <p>+1 Column: <code>general_fnd_type</code></p>
+                                <p>66 Columns</p>
+                                <small>
+                                    <strong>Data Cleaning:</strong> All object columns converted to String to ensure GPKG stability and prevent "Error adding field" issues.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flow-stage">
                     <h3 class="stage-title collapsible-trigger">
                         Stage 3: Enriching with Demolition Permit Data
@@ -1674,37 +1751,161 @@
                         <div class="flow-content">
                             <div class="flow-inputs">
                                 <div class="flow-box result final-dataset" style="background-color: #e8f5e9; border-color: #2E7D32;">
-                                <h4>NSI Enhanced Structures v2</h4>
-                                <p>2,091,488 Records</p>
-                                <p>62 Columns</p>
+                                    <h4>NSI-Enhanced USA Structures Dataset v2.5</h4>
+                                    <p>Input: GPKG (Polygons)</p>
+                                    <p>66 Columns</p>
+                                    <small>Includes <code>general_fnd_type</code></small>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source boston-permits">
-                                <h4>Boston Approved Permit Dataset</h4>
-                                <p>Demolition Records</p>
-                                <p>3 Columns Added</p>
+                                    <h4>Boston Approved Permit Dataset</h4>
+                                    <p>Source: tmpbtz4x7bc.csv</p>
+                                    <p>Worktypes: EXTDEM, INTDEM, RAZE</p>
+                                    <p>3 Columns</p>
                                 </div>
                             </div>
                             <div class="flow-arrow">▼</div>
                             <div class="flow-box operation">
-                                <h4>Operation: Intelligent Spatial Enrichment</h4>
+                                <h4>Operation: Spatial Join(Polygons Preserved)</h4>
                                 <ul>
-                                <li><strong>1. Priority-Based Deduplication:</strong> Filters permits ('EXTDEM', 'INTDEM', 'RAZE') and selects the "best" record per address, prioritizing <strong>Completed/Closed</strong> status over Open, then the most recent date.</li>
-                                <li><strong>2. Project to Local CRS:</strong> Converts coordinates to EPSG:2249 (MA State Plane) for precise meter-based calculations.</li>
-                                <li><strong>3. Nearest Neighbor Join:</strong> Finds the single closest permit within a <strong>15-meter radius</strong>. Handles ties (equidistant matches) by strictly enforcing one match per building.</li>
-                                <li><strong>4. Non-Destructive Merge:</strong> Uses <strong>Index Alignment</strong> to merge `DEMOLITION_TYPE`, `DEMOLITION_DATE`, and `DEMOLITION_STATUS` back to the original dataset, ensuring zero data loss or row shifting.</li>
+                                <li><strong>1. Priority-Based Deduplication:</strong> Filters permits and selects the "best" record per address. 
+                                    <br><em>Priority Rule:</em> <strong>Closed/Completed</strong> > Open > Most Recent Date.</li>
+                                <li><strong>2. CRS Alignment (EPSG:2249):</strong> Both datasets are projected to <strong>MA State Plane (Meters)</strong> for precise distance calculation. The structure geometry is copied for calculation only, leaving the original Polygons untouched.</li>
+                                <li><strong>3. Nearest Neighbor Join (15m Buffer):</strong> Finds the single closest permit within <strong>15 meters</strong>. 
+                                    <br><em>Conflict Resolution:</em> Strictly enforces one match per building index to prevent row duplication.</li>
+                                <li><strong>4. Non-Destructive Merge:</strong> New attributes (`DEMOLITION_TYPE`, `DATE`, `STATUS`) are joined back to the original GeoDataFrame using <strong>Index Alignment</strong>. This guarantees zero data loss and preserves the original Polygon geometry.</li>
                                 </ul>
                             </div>
                             <div class="flow-arrow">▼</div>
                             <div class="flow-box data-source nsi-enhanced-input" style="border-color: #2E7D32; background-color: #e8f5e9;">
-                                <h4>Result: Final NSI-Enhanced USA Structures Dataset</h4>
-                                <p>2,091,488 Records (Exact Match Preserved)</p>
-                                <p>65 Total Columns (62 + 3 from Permits)</p>
-                                <small>Successfully enriched buildings with demolition data without altering the original dataset structure or row count.</small>
+                                <h4>Result: NSI-Enhanced USA Structures Dataset v3</h4>
+                                <p>2,091,488 Records</p>
+                                <p>69 Total Columns (66 + 3 from Permits)</p>
+                                <p>Geometry: Polygons</p>
+                                <small>
+                                    <strong>Validation:</strong> Original row count (2,091,488) perfectly preserved.
+                                    <br><strong>Final Format:</strong> GPKG (Layer: <code>structures_demolition</code>)
+                                </small>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="flow-stage">
+                    <h3 class="stage-title collapsible-trigger">
+                        Stage 4: MassGIS Parcel Integration & Temporal Fusion Strategy
+                        <span class="collapse-icon">▼</span>
+                    </h3>
+                    <div class="collapsible-content">
+                        <div class="flow-content">
+                            <div class="flow-inputs">
+                                <div class="flow-box result final-dataset">
+                                    <h4>NSI-Enhanced USA Structures Dataset v3</h4>
+                                    <p>Input: GPKG (Polygons)</p>
+                                    <p>2,091,488 Records</p>
+                                    <p>69 Columns</p>
+                                    <small>Contains original NSI Year Data</small>
+                                </div>
+                                <div class="plus-icon">+</div>
+                                <div class="flow-box data-source" style="background-color: #fb9f3a20; border-color: #fb9f3a;">
+                                    <h4>MassGIS Parcels L3 Data</h4>
+                                    <p>Source: Parquet (Chunked)</p>
+                                    <p>Unique Parcels: 2,623,246</p>
+                                    <p>1 Column</p>
+                                    <small>Processed via Dask LocalCluster</small>
+                                </div>
+                            </div>
+
+                            <div class="flow-arrow">▼</div>
+
+                            <div class="flow-box operation" style="max-width: 800px;">
+                                <h4>Operation: High-Performance Spatial Join & Logic-Based Fusion</h4>
+                                <ul>
+                                    <li><strong>1. Centroid-Based Spatial Indexing:</strong> 
+                                        To optimize performance and accuracy, building geometries were converted to <strong>Centroids</strong> before performing a `within` spatial join against the MassGIS Parcel polygons.
+                                    </li>
+                                    <li><strong>2. Temporal Conflict Resolution (Latest Year Heuristic):</strong>
+                                        <br><span style="font-size:0.9em; color:#666;">Handling parcels with multiple build years:</span>
+                                        <ul>
+                                            <li>When a single building matched multiple parcel records (potential duplicates or subdivisions), the system prioritized the <strong>most recent construction year</strong>.</li>
+                                            <li>Method: Data was sorted by <code>[BUILD_ID, YEAR_BUILT]</code> in <code>[Ascending, Descending]</code> order, retaining only the top record.</li>
+                                        </ul>
+                                    </li>
+                                    <li><strong>3. Data Cleaning:</strong> 
+                                        Outliers were removed by filtering <code>massgis_yr_built</code> to the valid range of <strong>1630 - 2025</strong>. (1,709 invalid values detected and removed).
+                                    </li>
+                                    <li><strong>4. Source Prioritization Strategy:</strong>
+                                        <p style="margin-top: 8px; margin-bottom: 8px; color: #555;">
+                                            The decision logic for merging MassGIS and NSI year data is illustrated below:
+                                        </p>
+                                        <img src="workflow.png" alt="Source Tracking Workflow Logic" style="max-width: 100%; height: auto; border: 1px solid #dee2e6; border-radius: 6px; padding: 4px; background: white;">
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="flow-arrow">▼</div>
+
+                            <div class="flow-box result final-dataset" style="max-width: 800px; background: #fff;">
+                                <h4 style="margin-bottom: 15px;">Data Fusion Statistics</h4>
+                                
+                                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 0;">
+                                    <div class="stat-card" style="padding: 15px; background: white; border: 1px solid #eee; border-top: 4px solid #fb9f3a; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
+                                        <div class="stat-value" style="font-size: 1.8em; color: #2c3e50;">97.79%</div>
+                                        <div class="stat-label" style="color: #666;">Sourced from MassGIS</div>
+                                        <div style="font-size: 0.85em; color: #999; margin-top: 5px;">(2,045,196 buildings)</div>
+                                    </div>
+                                    
+                                    <div class="stat-card" style="padding: 15px; background: white; border: 1px solid #eee; border-top: 4px solid #764ba2; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
+                                        <div class="stat-value" style="font-size: 1.8em; color: #2c3e50;">0.66%</div>
+                                        <div class="stat-label" style="color: #666;">Filled by NSI</div>
+                                        <div style="font-size: 0.85em; color: #999; margin-top: 5px;">(13,720 buildings)</div>
+                                    </div>
+                                    
+                                    <div class="stat-card" style="padding: 15px; background: white; border: 1px solid #eee; border-top: 4px solid #95a5a6; box-shadow: 0 2px 5px rgba(0,0,0,0.03);">
+                                        <div class="stat-value" style="font-size: 1.8em; color: #2c3e50;">1.55%</div>
+                                        <div class="stat-label" style="color: #666;">No Year Data</div>
+                                        <div style="font-size: 0.85em; color: #999; margin-top: 5px;">(32,572 buildings)</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flow-arrow">▼</div>
+                            
+                            <div class="flow-box result final-dataset">
+                                <h4>Result: Final Integrated Dataset</h4>
+                                <p>2,091,488 Records (Polygons Preserved)</p>
+                                <p>+3 Columns: <code>massgis_yr_built</code>, <code>nsi_yr_built</code>, <code>yr_built_belong</code></p>
+                                <p>72 Columns Total</p>
+                                <small>
+                                    <strong>Output:</strong> ma_structures_FINAL_with_YR_SOURCE.gpkg
+                                </small>
+                            </div>
+
+                            <div class="chart-container" style="margin-top: 30px; border-top: 2px dashed #eee; padding-top: 30px; width: 100%;">
+                                <div class="section-header" style="border: none; margin-bottom: 15px;">
+                                    <h3 style="color: #2c3e50;">Data Sources vs. Final Result</h3>
+                                    <p style="color: #555;">Compare the original data sources (NSI vs MassGIS) or view the final cleaned distribution.</p>
+                                </div>
+
+                                <div class="controls" style="background: #f8f9fa; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center;">
+                                    <div class="toggle-switch">
+                                        <label style="cursor: pointer; display: flex; align-items: center;">
+                                            <input type="checkbox" id="toggleShowFinal" onchange="createYearSourceComparisonChart()">
+                                            <span style="font-weight: 600; color: #495057; margin-left: 8px;">Switch to Final Cleaned Dataset</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="yearSourceComparisonChartCount" style="height: 450px; margin-bottom: 30px;"></div>
+                                
+                                <div id="yearSourceComparisonChartGFA" style="height: 450px;"></div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                
             </div>
 
 
@@ -1867,21 +2068,31 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             <!-- TEMPORAL SECTION -->
             <div id="temporal" class="section">
                 <div class="section-header">
-                    <h2>Temporal Distribution</h2>
-                    <p>Building construction patterns over time with multiple visualization options</p>
-                </div>
-                
-                <div class="warning-box">
-                    <h4>Data Quality Note</h4>
-                    <p>Some years may have missing or incomplete data (2006, 2009, 2010, 2011, 2013, 2014, 2015, 2016). Years with notably low counts may indicate data collection gaps rather than actual construction patterns. We are currently working on addressing and correcting these gaps. </p>
+                    <h2>Temporal Distribution (1630 - 2025)</h2>
+                    <p>Building construction patterns over four centuries</p>
                 </div>
                 
                 <div class="controls">
                     <div class="control-group">
+                        <label>Year Range:</label>
+                        <input type="number" id="temporalStart" value="1630" min="1630" max="2025" style="width: 80px" onchange="updateTemporalChart()">
+                        <span style="margin: 0 10px; align-self: center;">to</span>
+                        <input type="number" id="temporalEnd" value="2025" min="1630" max="2025" style="width: 80px" onchange="updateTemporalChart()">
+                    </div>
+
+                    <div class="control-group">
+                        <div class="toggle-switch" style="margin-right: 20px;">
+                            <label style="cursor:pointer;">
+                                <input type="checkbox" id="temporalDecadeToggle" onchange="updateTemporalChart()" checked>
+                                <span style="font-weight:600; color:#555;">Group by Decade</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
                         <label>Chart Type:</label>
                         <select id="chartType" onchange="updateTemporalChart()">
-                            <option value="stacked">Stacked Area</option>
-                            <option value="line">Line Plot</option>
+                            <option value="bar" selected>Bar Chart</option> <option value="line">Line Chart</option>    <option value="stacked">Stacked Area</option>
                             <option value="normalized">Normalized (100%)</option>
                             <option value="cumulative">Cumulative</option>
                         </select>
@@ -1908,100 +2119,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 </div>
             </div>
             
-            <!-- PRE-1940 SECTION -->
-            <div id="pre1940" class="section">
-                <div class="section-header">
-                    <h2>Pre-1940 Building Analysis</h2>
-                    <p>Detailed analysis of historic buildings constructed before 1940</p>
-                </div>
-                
-                <div class="controls">
-                    <div class="control-group">
-                        <label>Building Type Filter:</label>
-                        <select id="pre1940Filter" onchange="updatePre1940Charts()">
-                            <option value="all">All Buildings</option>
-                            <option value="residential">Residential Only</option>
-                            <option value="non-residential">Non-Residential Only</option>
-                        </select>
-                        
-                        <div class="toggle-switch">
-                            <label></label>
-                            <input type="checkbox" id="pre1940Normalize" onchange="updatePre1940Charts()">
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-value" id="pre1940Count">Loading...</div>
-                        <div class="stat-label">Pre-1940 Buildings</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="pre1940Percent">Loading...</div>
-                        <div class="stat-label">Percentage of Total</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="pre1940Residential">Loading...</div>
-                        <div class="stat-label">Residential Buildings</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="pre1940NonRes">Loading...</div>
-                        <div class="stat-label">Non-Residential</div>
-                    </div>
-                </div>
-                
-                <div class="chart-container">
-                    <div id="pre1940PieChart"></div>
-                </div>
-                
-                <div class="chart-container">
-                    <div id="pre1940BarChart"></div>
-                </div>
-                
-                <div class="chart-container">
-                    <div id="pre1940ComparisonChart"></div>
-                </div>
-                
-                <div class="chart-container">
-                    <div id="pre1940AreaChart"></div>
-                </div>
-            </div>
-            
-            <!-- POST-1940 SECTION -->
-            <div id="post1940" class="section">
-                <div class="section-header">
-                    <h2>Post-1940 Building Analysis</h2>
-                    <p>Modern building construction patterns from 1940 to present (annual data)</p>
-                </div>
-                
-                <div class="controls">
-                    <div class="control-group">
-                        <label>Building Type:</label>
-                        <select id="post1940BuildingType" onchange="updatePost1940()">
-                            <option value="all">All Buildings</option>
-                            <option value="residential">Residential Only</option>
-                            <option value="non-residential">Non-Residential Only</option>
-                        </select>
-                        
-                        <div class="toggle-switch">
-                            <label>Normalize (100% Stack):</label>
-                            <input type="checkbox" id="post1940Normalize" onchange="updatePost1940()">
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="chart-container">
-                    <div id="post1940Chart"></div>
-                </div>
-                
-                <div class="chart-container">
-                    <div id="post1940AreaChart"></div>
-                </div>
-                
-                <div class="chart-container">
-                    <div id="decadeComparisonChart"></div>
-                </div>
-            </div>
+
 
             <!-- ENHANCED OCCUPANCY CLUSTERING SECTION -->
             <div id="occupancy" class="section">
@@ -2145,8 +2263,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         <label>Data Filter:</label>
                         <select id="materialFilter" onchange="updateMaterialsHeatmap()">
                             <option value="all">All Buildings</option>
-                            <option value="pre1940">Pre-1940 Only</option>
-                            <option value="post1940">Post-1940 Only</option>
                         </select>
                         
                         <div class="toggle-switch">
@@ -2616,6 +2732,154 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         });
         
         
+        /**
+         * FIXED: createYearSourceComparisonChart
+         * 1. Fixed Date Range: 1630 to 2025 (Full History).
+         * 2. Fixed Y-Axis Scale: Stable axis when toggling.
+         * 3. Toggle Logic: Final Only vs. Sources Comparison.
+         */
+        function createYearSourceComparisonChart() {
+            // 1. Get Data
+            if (!buildingData || !buildingData.building_samples_random) {
+                document.getElementById('yearSourceComparisonChartCount').innerHTML = '<p style="text-align:center; padding:40px;">No sample data available.</p>';
+                return;
+            }
+            
+            const samples = buildingData.building_samples_random;
+            
+            // Safety Check
+            if (samples.length > 0 && samples[0].massgis_yr_built === undefined) {
+                document.getElementById('yearSourceComparisonChartCount').innerHTML = '<div class="warning-box"><p>Missing column: <code>massgis_yr_built</code>. Please update data processor.</p></div>';
+                return;
+            }
+
+            // 2. Get Control State
+            const showFinalOnly = document.getElementById('toggleShowFinal').checked;
+
+            // 3. Filter Helpers & Config
+            // CHANGED: Start from 1630
+            const START_YEAR = 1630;
+            const END_YEAR = 2025;
+            
+            const validYear = (y) => y >= START_YEAR && y <= END_YEAR;
+            const getGFA = (d) => d['Est GFA sqmeters'] || 0;
+            
+            // Histogram Bin Settings
+            const commonBinSettings = { start: START_YEAR, end: END_YEAR, size: 5 }; 
+
+            // --- 4. PRE-CALCULATE GLOBAL MAX Y (To fix axis scale) ---
+            // We need to calculate the max height across the FULL range (1630-2025)
+            
+            function calculateMaxBinHeight(dataKey, isGFA) {
+                const bins = {};
+                samples.forEach(d => {
+                    const yr = d[dataKey];
+                    if (validYear(yr)) {
+                        // Binning logic: Floor to nearest 5
+                        const bin = Math.floor(yr / 5) * 5;
+                        const val = isGFA ? getGFA(d) : 1;
+                        bins[bin] = (bins[bin] || 0) + val;
+                    }
+                });
+                const values = Object.values(bins);
+                return values.length ? Math.max(...values) : 0;
+            }
+
+            // Calculate global maximums (add 10% headroom for better visuals)
+            const maxCount = Math.max(
+                calculateMaxBinHeight('massgis_yr_built', false),
+                calculateMaxBinHeight('nsi_yr_built', false),
+                calculateMaxBinHeight('year_built', false)
+            ) * 1.1;
+
+            const maxGFA = Math.max(
+                calculateMaxBinHeight('massgis_yr_built', true),
+                calculateMaxBinHeight('nsi_yr_built', true),
+                calculateMaxBinHeight('year_built', true)
+            ) * 1.1;
+
+            // 5. Build Traces based on Toggle
+            const tracesCount = [];
+            const tracesGFA = [];
+
+            // Helper to add a trace
+            const addTrace = (xKey, name, color, opacity) => {
+                const filteredData = samples.filter(d => validYear(d[xKey]));
+                
+                const props = {
+                    type: 'histogram',
+                    autobinx: false, 
+                    xbins: commonBinSettings,
+                    opacity: opacity,
+                    marker: { color: color, line: { width: 1, color: 'white' } }
+                };
+
+                // Count Trace
+                tracesCount.push({
+                    ...props,
+                    x: filteredData.map(d => d[xKey]),
+                    name: name,
+                    hovertemplate: `${name}: %{x}<br>Count: %{y:,}<extra></extra>`
+                });
+
+                // GFA Trace
+                tracesGFA.push({
+                    ...props,
+                    x: filteredData.map(d => d[xKey]),
+                    y: filteredData.map(getGFA),
+                    histfunc: 'sum',
+                    name: name,
+                    hovertemplate: `${name}: %{x}<br>GFA: %{y:,.0f} sqm<extra></extra>`
+                });
+            };
+
+            if (showFinalOnly) {
+                // MODE B: FINAL RESULT ONLY (Opaque Green)
+                addTrace('year_built', 'Final Dataset (Cleaned)', '#2E7D32', 0.85);
+            } else {
+                // MODE A: SOURCE COMPARISON (Transparent Overlap)
+                addTrace('massgis_yr_built', 'MassGIS (Original)', '#fb9f3a', 0.6);
+                addTrace('nsi_yr_built', 'NSI (Original)', '#764ba2', 0.6);
+            }
+
+            // 6. Layouts with FIXED Y-AXIS RANGE
+            const baseLayout = {
+                xaxis: { 
+                    title: 'Year Built', 
+                    range: [START_YEAR, END_YEAR] // CHANGED: 1630 - 2025
+                },
+                barmode: 'overlay',
+                height: 450,
+                margin: { t: 40, b: 40 },
+                hovermode: 'x unified',
+                legend: { x: 0.01, y: 0.99, bgcolor: 'rgba(255,255,255,0.8)' }
+            };
+
+            const titleSuffix = showFinalOnly ? '(Final Cleaned)' : '(Original Sources)';
+
+            const layoutCount = { 
+                ...baseLayout, 
+                title: { text: `Building Count Distribution ${titleSuffix}`, font: { size: 18, color: '#333' } }, 
+                yaxis: { 
+                    title: 'Number of Buildings',
+                    range: [0, maxCount] // FIXED SCALE
+                } 
+            };
+            
+            const layoutGFA = { 
+                ...baseLayout, 
+                title: { text: `Total Est. GFA Distribution ${titleSuffix}`, font: { size: 18, color: '#333' } }, 
+                yaxis: { 
+                    title: 'Total Est GFA (sqm)',
+                    range: [0, maxGFA] // FIXED SCALE
+                } 
+            };
+
+            // 7. Render
+            Plotly.newPlot('yearSourceComparisonChartCount', tracesCount, layoutCount, {responsive: true});
+            Plotly.newPlot('yearSourceComparisonChartGFA', tracesGFA, layoutGFA, {responsive: true});
+        }
+
         // NEW: Data Pipelines Section Functions
         function createDataPipelinesDiagrams() {
             // This function calls all the necessary functions to build the charts in the "Data Pipelines" section.
@@ -2625,6 +2889,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             createDataCleaningSankey();
             createBuildingDistributionSankey(); // This will call the function we previously fixed.
             createYearOccSankey();
+            createYearSourceComparisonChart();
         }
 
         
@@ -3104,17 +3369,14 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
         
         function createDataCleaningSankey() {
-            // Reads the cleaning_pipeline object from building_data.json
             const cleaningData = buildingData.data_flow_stats?.cleaning_pipeline;
             
             if (!cleaningData) {
-                // If data is missing, use a fallback function
                 console.warn('No cleaning pipeline data found, using fallback values');
                 createFallbackDataCleaningSankey();
                 return;
             }
             
-            // Helper function: format numbers for display
             function formatCount(num) {
                 if (num === undefined || num === null) return 'N/A'; 
                 if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
@@ -3123,16 +3385,24 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 return num.toString();
             }
             
-            // --- 1. Retrieve all variables (including new ones from the .py file) ---
+            // --- 1. Retrieve variables ---
             const rawData = cleaningData.initial_count;
+            
+            // Step 1: Year
             const invalidYear = cleaningData.invalid_year_count;
             const afterYearFilter = cleaningData.after_year_filter;
+            
+            // Step 2: Material & Foundation (NEW)
+            const missingMatFound = cleaningData.missing_mat_found_count || 0;
+
+            const afterMatFoundFilter = cleaningData.after_mat_found_filter || afterYearFilter;
+            
+            // Step 3: Area
             const missingArea = cleaningData.missing_area_count;
             const afterMissingArea = cleaningData.after_missing_area;
             
-            // [FIX]: Use the correct variable name as defined in the Python script
+            // Step 4: Height
             const invalidRawHeight = cleaningData.invalid_raw_height_count || 0;
-            // [NEW]: Add the second height filter defined in the Python script
             const invalidAssumedHeight = cleaningData.invalid_assumed_height_count || 0;
 
             const finalCleaned = cleaningData.final_count;
@@ -3144,68 +3414,58 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 node: {
                     pad: 15, thickness: 30, line: { color: 'white', width: 2 },
                     label: [
-                        `Raw Data<br>(${formatCount(rawData)} records)`, // Node 0
-                        `Unmatched USA Structure polygons...<br>(${formatCount(invalidYear)} removed)`, // Node 1
-                        `After Year Filter (Cleaned year_built <= 0)<br>(${formatCount(afterYearFilter)} records)`, // Node 2
-                        `Missing Area (Cleaned <= 0 & NaN)<br>(${formatCount(missingArea)} removed)`, // Node 3
-                        `After Missing Area Filter (Cleaned <= 0 & NaN)<br>(${formatCount(afterMissingArea)} records)`, // Node 4
+                        `Raw Data<br>(${formatCount(rawData)})`,                  // 0
+                        `Invalid Year<br>(${formatCount(invalidYear)})`,            // 1
+                        `After Year Filter<br>(${formatCount(afterYearFilter)})`,   // 2
                         
-                        // [FIX]: Node 5
-                        `Invalid Raw HEIGHT (HEIGHT <= 0)<br>(${formatCount(invalidRawHeight)} removed)`,
-                        // [NEW]: Node 6
-                        `Invalid Assumed Height (NaN or <=0)<br>(${formatCount(invalidAssumedHeight)} removed)`,
+                        `Missing Mat/Found Type(Unmatched USA Structure polygons)<br>(${formatCount(missingMatFound)})`,   // 3 [NEW]
+                        `After Mat/Found Type Filter(Unmatched USA Structure polygons)<br>(${formatCount(afterMatFoundFilter)})`, // 4 [NEW]
                         
-                        // Node 7 (formerly Node 5)
-                        `Final Cleaned Dataset<br>(${formatCount(finalCleaned)} records)` 
+                        `Missing Area(Est GFA sqmeters)<br>(${formatCount(missingArea)})`,            // 5
+                        `After Area Filter(Est GFA sqmeters)<br>(${formatCount(afterMissingArea)})`,  // 6
+                        
+                        `Invalid Raw Height(HEIGHT <= 0)<br>(${formatCount(invalidRawHeight)})`,      // 7
+                        `Invalid Assumed Height(PRED_HEIGHT <= 0)<br>(${formatCount(invalidAssumedHeight)})`, // 8
+                        `Final Dataset<br>(${formatCount(finalCleaned)})`           // 9
                     ],
-                    // --- 3. Update node colors (8 nodes total) ---
                     color: [
                         '#667eea',   // 0: Raw
-                        '#E53935',   // 1: Removed (Year)
+                        '#E53935',   // 1: Removed Year
                         '#764ba2',   // 2: After Year
-                        '#E53935',   // 3: Removed (Area)
-                        '#bd3786',   // 4: After Area
-                        '#E53935',   // 5: Removed (Raw Height) [NEW]
-                        '#E53935',   // 6: Removed (Assumed Height) [NEW]
-                        '#2E7D32'    // 7: Final
+                        
+                        '#E53935',   // 3: Removed Mat/Found [RED]
+                        '#9c179e',   // 4: After Mat/Found [Purple]
+                        
+                        '#E53935',   // 5: Removed Area
+                        '#bd3786',   // 6: After Area
+                        
+                        '#E53935',   // 7: Removed Raw H
+                        '#E53935',   // 8: Removed Assumed H
+                        '#2E7D32'    // 9: Final [Green]
                     ]
                 },
-                // --- 4. Update links ---
                 link: {
-                    // The flow from Node 4 splits into 3 directions
-                    source: [0, 0, 2, 2, 4, 4, 4], 
-                    target: [1, 2, 3, 4, 5, 6, 7], // 4->5 (new), 4->6 (new), 4->7 (original 4->5)
+                    // Flow: Raw -> Year -> Mat/Found -> Area -> Height -> Final
+                    source: [0, 0, 2, 2, 4, 4, 6, 6, 6],
+                    target: [1, 2, 3, 4, 5, 6, 7, 8, 9],
                     value:  [
-                        invalidYear, 
-                        afterYearFilter, 
-                        missingArea, 
-                        afterMissingArea, 
-                        
-                        // [FIX]: Use the correct variable
-                        invalidRawHeight, 
-                        // [NEW]: Add the new value
-                        invalidAssumedHeight, 
-                        
-                        finalCleaned
+                        invalidYear, afterYearFilter,      // From Raw
+                        missingMatFound, afterMatFoundFilter, // From Year Filtered
+                        missingArea, afterMissingArea,     // From Mat/Found Filtered
+                        invalidRawHeight, invalidAssumedHeight, finalCleaned // From Area Filtered
                     ],
                     color:  [
-                        '#E5393540', 
-                        '#764ba240', 
-                        '#E5393540', 
-                        '#bd378640', 
-
-                        // [NEW]: Two new removal link colors
-                        '#E5393540', // 4->5
-                        '#E5393540', // 4->6
-                        
-                        '#2E7D3240'  // 4->7
+                        '#E5393540', '#764ba240', // 0->
+                        '#E5393540', '#9c179e40', // 2->
+                        '#E5393540', '#bd378640', // 4->
+                        '#E5393540', '#E5393540', '#2E7D3240' // 6->
                     ]
                 }
             }];
             
             const layout = {
-                title: { text: `Data Cleaning Pipeline (${cleaningData.removal_percentage}% removed)`, font: { size: 18, color: '#333' } },
-                font: { size: 8 }, height: 550,
+                title: { text: `Data Cleaning Pipeline`, font: { size: 18, color: '#333' } },
+                font: { size: 10 }, height: 550,
                 annotations: [{
                     x: 0.5, y: -0.1, xref: 'paper', yref: 'paper',
                     text: `Total removed: ${formatCount(cleaningData.total_removed)} records`,
@@ -4398,15 +4658,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     }));
                 }
                 
-                // Process temporal data
-                if (buildingData.temporal_data) {
-                    buildingData.temporal_data = buildingData.temporal_data.map(d => {
-                        if (d.year === 1939) {
-                            d.display_year = 'pre-1940';
-                        }
-                        return d;
-                    });
-                }
                 
                 isDataLoaded = true;
                 document.getElementById('loadingOverlay').classList.add('hidden');
@@ -4550,8 +4801,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             renderUnclassifiedResolution();
             updateClustering();
             updateTemporalChart();
-            updatePre1940Charts();
-            updatePost1940();
             updateOccupancyClustering();
             updateMaterialsHeatmap();
             updateSoilAnalysis();
@@ -4721,7 +4970,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             if (!buildingData) return;
             
             const stats = buildingData.summary_stats;
-            const pre1940 = buildingData.pre1940;
             
             const formatNumber = (num) => {
                 if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -4733,11 +4981,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             document.getElementById('avgYear').textContent = Math.round(stats.avg_year_built).toString();
             document.getElementById('avgArea').textContent = Math.round(stats.avg_area_sqm) + ' m²';
             document.getElementById('numClusters').textContent = currentClusterK.toString();
-            
-            document.getElementById('pre1940Count').textContent = formatNumber(pre1940.total_count);
-            document.getElementById('pre1940Percent').textContent = pre1940.percentage_of_total + '%';
-            document.getElementById('pre1940Residential').textContent = formatNumber(pre1940.residential_count);
-            document.getElementById('pre1940NonRes').textContent = formatNumber(pre1940.non_residential_count);
             
             // Update soil statistics if available
             if (soilAnalysisData) {
@@ -5129,14 +5372,15 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 icon: '🏢',
                 description: 'Original building footprint and property data',
                 columns: [
-                    'Shape_Length', 'Shape_Area','BUILD_ID', 'OCC_CLS', 'PRIM_OCC', 'SEC_OCC', 'PROP_ADDR', 
+                    'fid', 'geom', 'BUILD_ID', 'OCC_CLS', 'PRIM_OCC', 'SEC_OCC', 'PROP_ADDR', 
                     'PROP_CITY', 'PROP_ST', 'PROP_ZIP', 'OUTBLDG', 'HEIGHT', 
                     'SQMETERS', 'SQFEET', 'H_ADJ_ELEV', 'L_ADJ_ELEV', 'FIPS', 
                     'CENSUSCODE', 'PROD_DATE', 'SOURCE', 'USNG', 'LONGITUDE', 
                     'LATITUDE', 'IMAGE_NAME', 'IMAGE_DATE', 'VAL_METHOD', 'REMARKS', 
                     'UUID', 'Est GWP kgCO2e', 'GWP Intensity', 'GWP class', 
-                    'Est GFA sqft', 'Est GFA sqmeters','PRED_HEIGHT','OCC_CONFLICT','conflict_type','OCC_DICT',
-                    'MIX_SC','general_fnd_type','Assumed Height'
+                    'Est GFA sqft', 'Est GFA sqmeters', 'PRED_HEIGHT', 'OCC_CONFLICT', 
+                    'conflict_type_details', 'OCC_DICT', 'MIX_SC', 'general_fnd_type', 
+                    'Assumed Height', 'Shape_Length', 'Shape_Area'
                 ]
             },
             'NSI': {
@@ -5144,10 +5388,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 icon: '📊',
                 description: 'National Structure Inventory enhancement data',
                 columns: [
-                     'year_built', 'material_type', 
-                    'material_type_desc', 'foundation_type', 'match_type', 
-                    'match_method', 'nsi_num_story', 'structure_value', 
-                    'nsi_sqft', 'nsi_unit_count','nsi_occtype'
+                    'nsi_id', 'year_built', 'material_type', 'material_type_desc', 
+                    'foundation_type', 'nsi_occtype', 'nsi_num_story', 'structure_value', 
+                    'nsi_sqft', 'nsi_unit_count', 'match_type', 'match_method',
+                    'nsi_yr_built', 'yr_built_belong'
                 ]
             },
             'Web Soil Survey': {
@@ -5155,16 +5399,22 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 icon: '🌍',
                 description: 'Soil properties and engineering characteristics',
                 columns: [
-                     'AREASYMBOL', 'SPATIALVER', 'MUSYM', 'MUKEY', 
-                    'mukey', 'comppct_r', 'compname', 'drainagecl', 'wtdepannmin', 
-                    'flodfreqcl', 'cokey', 'eng_property'
+                    'AREASYMBOL', 'SPATIALVER', 'MUSYM', 'MUKEY', 'soil_mukey', 
+                    'comppct_r', 'compname', 'drainagecl', 'wtdepannmin', 
+                    'flodfreqcl', 'soil_cokey', 'eng_property'
                 ]
             },
-            'Boston Approved Permit Dataset*': {
+            'Boston Approved Permit Dataset': {
                 color: '#009688', // Teal color matching the CSS
                 icon: '👷‍♂️',
                 description: 'Demolition permit data for Boston',
                 columns: ['DEMOLITION_TYPE', 'DEMOLITION_DATE']
+            },
+            'MassGIS': {
+                color: '#fb9f3a', 
+                icon: '🏛️',
+                description: 'Massachusetts tax parcel GIS dataset', 
+                columns: ['massgis_yr_built']
             }
         };
         
@@ -5898,7 +6148,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 type: 'sankey',
                 orientation: 'h',
                 node: {
-                    pad: 15,
+                    pad: 30,
                     thickness: 30,
                     line: {
                         color: 'white',
@@ -5926,7 +6176,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             const sankeyLayout = {
                 font: { size: 14, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-                height: 400,
+                height: 550,
                 margin: { t: 20, b: 20, l: 150, r: 150 },
                 plot_bgcolor: 'transparent',
                 paper_bgcolor: 'transparent'
@@ -6080,8 +6330,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             // Add summary stats as floating badges
             const stats = [
-                { label: 'Total Columns', value: '65', color: '#2c3e50' },
-                { label: 'Data Sources', value: '4', color: '#667eea' },
+                { label: 'Total Columns', value: '72', color: '#2c3e50' },
+                { label: 'Data Sources', value: '5', color: '#667eea' },
                 { label: 'MA Buildings', value: '2.09M+', color: '#764ba2' }
             ];
             
@@ -6287,721 +6537,237 @@ The diagram below shows the fill rate of attributes obtained directly from Light
     }
 
 
-        function updateTemporalChart() {
-            if (!buildingData) return;
-            
-            const chartType = document.getElementById('chartType').value;
-            const buildingType = document.getElementById('buildingType').value;
-            
-            const yearlyData = {};
-            const yearlyAreaData = {};
-            
-            buildingData.temporal_data.forEach(d => {
-                const key = d.year < 1940 ? 'pre-1940' : d.year.toString();
-                
-                if (!yearlyData[key]) {
-                    yearlyData[key] = {};
-                    yearlyAreaData[key] = {};
-                }
-                if (!yearlyData[key][d.occupancy]) {
-                    yearlyData[key][d.occupancy] = 0;
-                    yearlyAreaData[key][d.occupancy] = 0;
-                }
-                yearlyData[key][d.occupancy] += d.count;
-                yearlyAreaData[key][d.occupancy] += d.total_area || (d.count * d.avg_area);
-            });
-            
-            let occupancyClasses = buildingData.summary_stats.occupancy_classes;
-            if (buildingType === 'residential') {
-                occupancyClasses = ['Residential'];
-            } else if (buildingType === 'non-residential') {
-                occupancyClasses = occupancyClasses.filter(o => o !== 'Residential');
-            }
-            
-            occupancyClasses = occupancyClasses.sort((a, b) => {
-                if (a === 'Residential') return -1;
-                if (b === 'Residential') return 1;
-                return a.localeCompare(b);
-            });
-            
-            const xValues = Object.keys(yearlyData).sort((a, b) => {
-                if (a === 'pre-1940') return -1;
-                if (b === 'pre-1940') return 1;
-                return parseInt(a) - parseInt(b);
-            });
-            
-            const tickvals = xValues.filter((y, i) => {
-                if (y === 'pre-1940') return false;
-                const year = parseInt(y);
-                return year % 10 === 0;
-            });
-            
-            const traces = [];
-            const occupancyColors = getPlasmaColors(occupancyClasses.length);
-            
-            if (chartType === 'line') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => yearlyData[year][occ] || 0);
-                    traces.push({
-                        x: xValues,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines+markers',
-                        line: { color: occupancyColors[index], width: 2 },
-                        marker: { color: occupancyColors[index], size: 4 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,}<extra></extra>`
-                    });
-                });
-            } else if (chartType === 'stacked') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => yearlyData[year][occ] || 0);
-                    traces.push({
-                        x: xValues,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,}<extra></extra>`
-                    });
-                });
-            } else if (chartType === 'normalized') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => {
-                        const total = occupancyClasses.reduce((sum, o) => 
-                            sum + (yearlyData[year][o] || 0), 0);
-                        return total > 0 ? ((yearlyData[year][occ] || 0) / total) * 100 : 0;
-                    });
-                    traces.push({
-                        x: xValues,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        groupnorm: 'percent',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:.1f}%<extra></extra>`
-                    });
-                });
-            } else if (chartType === 'cumulative') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => yearlyData[year][occ] || 0);
-                    const cumulativeY = yValues.reduce((acc, val) => {
-                        acc.push((acc.length > 0 ? acc[acc.length - 1] : 0) + val);
-                        return acc;
-                    }, []);
-                    traces.push({
-                        x: xValues,
-                        y: cumulativeY,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        fill: 'tozeroy',
-                        fillcolor: occupancyColors[index] + '40',
-                        line: { color: occupancyColors[index], width: 2 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,}<extra></extra>`
-                    });
-                });
-            }
-            
-            const layout = {
-                title: {
-                    text: chartType === 'cumulative' ? 'Cumulative Buildings Over Time' : 'Buildings Constructed Over Time',
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Year',
-                    type: 'category',
-                    tickmode: 'array',
-                    tickvals: tickvals,
-                    ticktext: tickvals,
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: chartType === 'normalized' ? 'Percentage (%)' : 
-                           chartType === 'cumulative' ? 'Cumulative Number of Buildings' : 
-                           'Number of Buildings Constructed Per Year',
-                    range: chartType === 'normalized' ? [0, 100] : undefined
-                },
-                height: 500,
-                hovermode: 'x unified',
-                showlegend: true,
-                legend: {
-                    orientation: 'v',
-                    yanchor: 'middle',
-                    y: 0.5,
-                    xanchor: 'left',
-                    x: 1.02
-                }
-            };
-            
-            Plotly.newPlot('temporalChart', traces, layout, {responsive: true});
-            
-            // Area chart
-            const areaTraces = [];
-            
-            if (chartType === 'line') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => yearlyAreaData[year][occ] || 0);
-                    areaTraces.push({
-                        x: xValues,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines+markers',
-                        line: { color: occupancyColors[index], width: 2 },
-                        marker: { color: occupancyColors[index], size: 4 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,.0f} sqm<extra></extra>`
-                    });
-                });
-            } else if (chartType === 'stacked') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => yearlyAreaData[year][occ] || 0);
-                    areaTraces.push({
-                        x: xValues,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,.0f} sqm<extra></extra>`
-                    });
-                });
-            } else if (chartType === 'normalized') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => {
-                        const total = occupancyClasses.reduce((sum, o) => 
-                            sum + (yearlyAreaData[year][o] || 0), 0);
-                        return total > 0 ? ((yearlyAreaData[year][occ] || 0) / total) * 100 : 0;
-                    });
-                    areaTraces.push({
-                        x: xValues,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        groupnorm: 'percent',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:.1f}%<extra></extra>`
-                    });
-                });
-            } else if (chartType === 'cumulative') {
-                occupancyClasses.forEach((occ, index) => {
-                    const yValues = xValues.map(year => yearlyAreaData[year][occ] || 0);
-                    const cumulativeY = yValues.reduce((acc, val) => {
-                        acc.push((acc.length > 0 ? acc[acc.length - 1] : 0) + val);
-                        return acc;
-                    }, []);
-                    areaTraces.push({
-                        x: xValues,
-                        y: cumulativeY,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        fill: 'tozeroy',
-                        fillcolor: occupancyColors[index] + '40',
-                        line: { color: occupancyColors[index], width: 2 },
-                        hovertemplate: `%{fullData.name}<br>%{x}: %{y:,.0f} sqm<extra></extra>`
-                    });
-                });
-            }
-            
-            const areaLayout = {
-                title: {
-                    text: chartType === 'cumulative' ? 'Cumulative Total Est GFA sqmeters' : 'Total Est GFA sqmeters Constructed Per Year',
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Year',
-                    type: 'category',
-                    tickmode: 'array',
-                    tickvals: tickvals,
-                    ticktext: tickvals,
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: chartType === 'normalized' ? 'Percentage (%)' : 
-                           chartType === 'cumulative' ? 'Cumulative Est GFA sqmeters' :
-                           'Total Est GFA sqmeters Constructed Per Year',
-                    range: chartType === 'normalized' ? [0, 100] : undefined
-                },
-                height: 500,
-                hovermode: 'x unified',
-                showlegend: true,
-                legend: {
-                    orientation: 'v',
-                    yanchor: 'middle',
-                    y: 0.5,
-                    xanchor: 'left',
-                    x: 1.02
-                }
-            };
-            
-            Plotly.newPlot('temporalAreaChart', areaTraces, areaLayout, {responsive: true});
-            
-            // Trend chart
-            const trendData = [];
-            const years = Object.keys(yearlyData).sort((a, b) => {
-                if (a === 'pre-1940') return -1;
-                if (b === 'pre-1940') return 1;
-                return parseInt(a) - parseInt(b);
-            });
-            
-            const residentialPercentages = years.map(year => {
-                const residential = yearlyData[year]['Residential'] || 0;
-                const total = Object.values(yearlyData[year]).reduce((sum, val) => sum + val, 0);
-                return total > 0 ? (residential / total) * 100 : 0;
-            });
-            
-            trendData.push({
-                x: years,
-                y: residentialPercentages,
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Residential %',
-                line: { 
-                    color: '#bd3786',
-                    width: 3
-                },
-                marker: {
-                    size: 6,
-                    color: '#bd3786'
-                },
-                hovertemplate: 'Year: %{x}<br>Residential: %{y:.1f}%<extra></extra>'
-            });
-            
-            const trendTickvals = years.filter((y, i) => {
-                if (y === 'pre-1940') return false;
-                const year = parseInt(y);
-                return year % 10 === 0;
-            });
-            
-            const trendLayout = {
-                title: {
-                    text: 'Residential Building Percentage Trend',
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Year',
-                    type: 'category',
-                    tickmode: 'array',
-                    tickvals: trendTickvals,
-                    ticktext: trendTickvals,
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: 'Percentage (%)', 
-                    range: [0, 100]
-                },
-                height: 400,
-                hovermode: 'x'
-            };
-            
-            Plotly.newPlot('temporalTrendChart', trendData, trendLayout, {responsive: true});
+/**
+ * FIXED: updateTemporalChart
+ * 1. Syncs styling (fillcolor/line width) between Count and Area charts to fix transparency mismatch.
+ * 2. Enables Legend for Area chart.
+ * 3. Uses 'legendgroup' so toggling one legend item updates both charts simultaneously.
+ */
+function updateTemporalChart() {
+    // 1. Safety Check
+    if (!buildingData || !buildingData.temporal_data) return;
+
+    // 2. Get UI States
+    const chartType = document.getElementById('chartType').value;
+    const buildingType = document.getElementById('buildingType').value;
+    const isDecadeMode = document.getElementById('temporalDecadeToggle').checked;
+    
+    const startYearInput = document.getElementById('temporalStart');
+    const endYearInput = document.getElementById('temporalEnd');
+    const startYear = startYearInput ? parseInt(startYearInput.value) || 1630 : 1630;
+    const endYear = endYearInput ? parseInt(endYearInput.value) || 2025 : 2025;
+
+    // 3. Filter Data
+    let filteredData = buildingData.temporal_data;
+    let occupancyClasses = buildingData.summary_stats.occupancy_classes;
+
+    if (buildingType === 'residential') {
+        occupancyClasses = ['Residential'];
+        filteredData = filteredData.filter(d => d.occupancy === 'Residential');
+    } else if (buildingType === 'non-residential') {
+        occupancyClasses = occupancyClasses.filter(o => o !== 'Residential');
+        filteredData = filteredData.filter(d => d.occupancy !== 'Residential');
+    }
+
+    filteredData = filteredData.filter(d => d.year >= startYear && d.year <= endYear);
+
+    occupancyClasses = occupancyClasses.sort((a, b) => {
+        if (a === 'Residential') return -1;
+        if (b === 'Residential') return 1;
+        return a.localeCompare(b);
+    });
+    const occupancyColors = getPlasmaColors(occupancyClasses.length);
+
+    // =================================================================================
+    // CORE LOGIC: AGGREGATION
+    // =================================================================================
+    
+    const aggData = {};      
+    const aggArea = {};      
+    const aggTotalCount = {}; 
+    const aggTotalArea = {};  
+
+    filteredData.forEach(d => {
+        const timeKey = isDecadeMode ? Math.floor(d.year / 10) * 10 : d.year;
+        
+        if (!aggData[timeKey]) {
+            aggData[timeKey] = {}; aggArea[timeKey] = {};
+            aggTotalCount[timeKey] = 0; aggTotalArea[timeKey] = 0;
+        }
+        if (!aggData[timeKey][d.occupancy]) {
+            aggData[timeKey][d.occupancy] = 0; aggArea[timeKey][d.occupancy] = 0;
         }
 
+        aggData[timeKey][d.occupancy] += d.count;
+        aggTotalCount[timeKey] += d.count;
+        
+        const area = d.total_area || (d.count * d.avg_area) || 0;
+        aggArea[timeKey][d.occupancy] += area;
+        aggTotalArea[timeKey] += area;
+    });
 
-        function updatePre1940Charts() {
-            if (!buildingData) return;
+    const xValues = Object.keys(aggData).map(Number).sort((a, b) => a - b);
+    
+    const range = endYear - startYear;
+    let tickStep;
+    if (isDecadeMode) {
+        tickStep = range > 200 ? 20 : 10;
+    } else {
+        tickStep = range > 200 ? 20 : (range > 50 ? 10 : 5);
+    }
+    const tickvals = xValues.filter(v => v % tickStep === 0);
+    const ticktext = tickvals.map(v => isDecadeMode ? v + 's' : v);
+
+    const isBar = chartType === 'bar'; 
+
+    // Helper to apply consistent styling to both charts
+    const applyTraceStyling = (trace, index, type) => {
+        if (isBar) {
+            trace.marker = { color: occupancyColors[index] };
+        } else {
+            // Scatter/Line Styling
+            trace.mode = (type === 'line' ? 'lines+markers' : 'lines');
+            // Fix transparency issue: Ensure line width is consistent
+            trace.line = { color: occupancyColors[index], width: type === 'line' ? 2 : 0.5 };
             
-            const filter = document.getElementById('pre1940Filter').value;
-            const normalize = document.getElementById('pre1940Normalize').checked;
-            const pre1940 = buildingData.pre1940;
-            let occupancyCounts = {...pre1940.occupancy_counts};
-            
-            if (filter === 'residential') {
-                occupancyCounts = { 'Residential': occupancyCounts['Residential'] };
-            } else if (filter === 'non-residential') {
-                delete occupancyCounts['Residential'];
+            if (type === 'line') {
+                trace.marker = { size: 4 };
             }
             
-            const pieValues = Object.values(occupancyCounts);
-            const pieLabels = Object.keys(occupancyCounts);
-            const total = pieValues.reduce((a, b) => a + b, 0);
+            // Stacking & Filling
+            if (type === 'stacked' || type === 'normalized') {
+                trace.stackgroup = 'one';
+                // FIX 2: Explicitly set fillcolor to avoid transparency default
+                trace.fillcolor = occupancyColors[index]; 
+            }
+            if (type === 'normalized') {
+                trace.groupnorm = 'percent';
+            }
+            if (type === 'cumulative') {
+                trace.fill = 'tozeroy';
+            }
+        }
+    };
 
-            const textArray = pieLabels.map((label, i) => {
-                const percentage = (pieValues[i] / total * 100);
-                
-                if (percentage > 10) {
-                    return `${label}<br>${percentage.toFixed(1)}%`;
-                } else if (percentage > 5) {
-                    return `${percentage.toFixed(1)}%`;
-                } else if (percentage > 2) {
-                    return `${percentage.toFixed(0)}%`;
-                } else {
-                    return '';
-                }
+    // =================================================================================
+    // 1. MAIN CHART: BUILDING COUNT
+    // =================================================================================
+    const countTraces = [];
+    occupancyClasses.forEach((occ, index) => {
+        let yValues = xValues.map(t => aggData[t][occ] || 0);
+
+        if (chartType === 'cumulative') {
+            let sum = 0; yValues = yValues.map(v => { sum += v; return sum; });
+        } else if (chartType === 'normalized') {
+            yValues = xValues.map(t => {
+                const total = aggTotalCount[t];
+                return total > 0 ? ((aggData[t][occ] || 0) / total * 100) : 0;
             });
-
-            const pieData = [{
-                values: pieValues,
-                labels: pieLabels,
-                type: 'pie',
-                hole: 0.4,
-                marker: {
-                    colors: plasmaColors
-                },
-                text: textArray,
-                textinfo: 'text',
-                textposition: 'auto',
-                textfont: {
-                    size: 12,
-                    color: 'white'
-                },
-                insidetextorientation: 'radial',
-                hovertemplate: '%{label}<br>Count: %{value:,}<br>%{percent}<extra></extra>',
-                showlegend: true
-            }];
-            
-            const pieLayout = {
-                title: {
-                    text: `Pre-1940 Building Distribution (${filter})`,
-                    font: { size: 20, color: '#333' }
-                },
-                height: 450,
-                legend: {
-                    orientation: 'v',
-                    yanchor: 'middle',
-                    y: 0.5,
-                    xanchor: 'left',
-                    x: 1.02
-                }
-            };
-            
-            Plotly.newPlot('pre1940PieChart', pieData, pieLayout, {responsive: true});
-            
-            const sortedOccupancies = Object.entries(occupancyCounts)
-                .sort((a, b) => b[1] - a[1]);
-            
-            const barData = [{
-                x: sortedOccupancies.map(([k, v]) => k),
-                y: sortedOccupancies.map(([k, v]) => v),
-                type: 'bar',
-                marker: {
-                    color: plasmaColors,
-                    line: {
-                        color: 'white',
-                        width: 1
-                    }
-                },
-                hovertemplate: '%{x}<br>Count: %{y:,}<extra></extra>'
-            }];
-            
-            const barLayout = {
-                title: {
-                    text: `Pre-1940 Building Counts by Occupancy (${filter})`,
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Occupancy Class',
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: 'Number of Buildings',
-                    type: 'log'
-                },
-                height: 450
-            };
-            
-            Plotly.newPlot('pre1940BarChart', barData, barLayout, {responsive: true});
-            
-            const comparisonData = [
-                {
-                    x: ['Residential', 'Non-Residential'],
-                    y: [pre1940.residential_count, pre1940.non_residential_count],
-                    type: 'bar',
-                    name: 'Pre-1940',
-                    marker: { color: [plasmaColors[3], plasmaColors[6]] }
-                }
-            ];
-            
-            const comparisonLayout = {
-                title: {
-                    text: 'Residential vs Non-Residential (Pre-1940)',
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { title: 'Building Type' },
-                yaxis: { title: 'Number of Buildings' },
-                height: 400
-            };
-            
-            Plotly.newPlot('pre1940ComparisonChart', comparisonData, comparisonLayout, {responsive: true});
-            
-            const pre1940AreaData = {};
-            
-            buildingData.temporal_data.forEach(d => {
-                if (d.year < 1940) {
-                    if (!pre1940AreaData[d.occupancy]) {
-                        pre1940AreaData[d.occupancy] = 0;
-                    }
-                    pre1940AreaData[d.occupancy] += d.total_area || (d.count * d.avg_area);
-                }
-            });
-            
-            let filteredAreaData = {...pre1940AreaData};
-            if (filter === 'residential') {
-                filteredAreaData = { 'Residential': filteredAreaData['Residential'] || 0 };
-            } else if (filter === 'non-residential') {
-                delete filteredAreaData['Residential'];
-            }
-            
-            const sortedAreaData = Object.entries(filteredAreaData)
-                .sort((a, b) => b[1] - a[1]);
-            
-            let areaValues = sortedAreaData.map(([k, v]) => v);
-            
-            if (normalize) {
-                const total = areaValues.reduce((sum, val) => sum + val, 0);
-                areaValues = areaValues.map(val => total > 0 ? (val / total) * 100 : 0);
-            }
-            
-            const areaChartData = [{
-                x: sortedAreaData.map(([k, v]) => k),
-                y: areaValues,
-                type: 'bar',
-                marker: {
-                    color: getPlasmaColors(sortedAreaData.length),
-                    line: {
-                        color: 'white',
-                        width: 1
-                    }
-                },
-                hovertemplate: `%{x}<br>Area: %{y:.0f}${normalize ? '%' : ' sqm'}<extra></extra>`
-            }];
-            
-            const areaChartLayout = {
-                title: {
-                    text: `Pre-1940 Total Est GFA sqmeters by Occupancy (${filter})${normalize ? ' - Normalized' : ''}`,
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Occupancy Class',
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: normalize ? 'Percentage (%)' : 'Total Est GFA sqmeters',
-                    range: normalize ? [0, 100] : undefined
-                },
-                height: 450
-            };
-            
-            Plotly.newPlot('pre1940AreaChart', areaChartData, areaChartLayout, {responsive: true});
         }
 
+        const trace = {
+            x: isDecadeMode && isBar ? xValues.map(v => v + 's') : xValues,
+            y: yValues,
+            name: occ,
+            type: isBar ? 'bar' : 'scatter',
+            legendgroup: occ, // Sync legends
+            hovertemplate: `%{fullData.name}<br>${isDecadeMode ? 'Decade' : 'Year'}: %{x}<br>` +
+                           `${chartType === 'normalized' ? 'Share: %{y:.1f}%' : 'Count: %{y:,}'}<extra></extra>`
+        };
 
-        function updatePost1940() {
-            if (!buildingData) return;
-            
-            const buildingTypeFilter = document.getElementById('post1940BuildingType').value;
-            const normalize = document.getElementById('post1940Normalize').checked;
-            
-            const annualData = {};
-            const annualAreaData = {};
-            
-            buildingData.temporal_data.forEach(d => {
-                if (d.year >= 1940) {
-                    if (!annualData[d.year]) {
-                        annualData[d.year] = {};
-                        annualAreaData[d.year] = {};
-                    }
-                    if (!annualData[d.year][d.occupancy]) {
-                        annualData[d.year][d.occupancy] = 0;
-                        annualAreaData[d.year][d.occupancy] = 0;
-                    }
-                    annualData[d.year][d.occupancy] += d.count;
-                    annualAreaData[d.year][d.occupancy] += d.total_area || (d.count * d.avg_area);
-                }
+        applyTraceStyling(trace, index, chartType);
+        countTraces.push(trace);
+    });
+
+    Plotly.newPlot('temporalChart', countTraces, {
+        title: { 
+            text: `Building Count (${isDecadeMode ? 'by Decade' : 'Annual'})`, 
+            font: { size: 20, color: '#333' } 
+        },
+        xaxis: { 
+            title: isDecadeMode ? 'Decade' : 'Year',
+            tickmode: 'array', tickvals: isDecadeMode && isBar ? undefined : tickvals, ticktext: isDecadeMode && isBar ? undefined : ticktext,
+            tickangle: -45
+        },
+        yaxis: { title: chartType === 'normalized' ? 'Percentage (%)' : 'Number of Buildings' },
+        barmode: isBar ? 'stack' : undefined,
+        height: 500, hovermode: 'x unified',
+        legend: { orientation: 'v', yanchor: 'middle', y: 0.5, xanchor: 'left', x: 1.02 }
+    }, {responsive: true});
+
+    // =================================================================================
+    // 2. SECONDARY CHART: ESTIMATED GFA
+    // =================================================================================
+    const areaTraces = [];
+    occupancyClasses.forEach((occ, index) => {
+        let yValues = xValues.map(t => aggArea[t][occ] || 0);
+
+        if (chartType === 'cumulative') {
+            let sum = 0; yValues = yValues.map(v => { sum += v; return sum; });
+        } else if (chartType === 'normalized') {
+            yValues = xValues.map(t => {
+                const total = aggTotalArea[t];
+                return total > 0 ? ((aggArea[t][occ] || 0) / total * 100) : 0;
             });
-            
-            let occupancyTypes = new Set();
-            Object.values(annualData).forEach(yearData => {
-                Object.keys(yearData).forEach(occ => occupancyTypes.add(occ));
-            });
-            
-            if (buildingTypeFilter === 'residential') {
-                occupancyTypes = new Set(['Residential']);
-            } else if (buildingTypeFilter === 'non-residential') {
-                occupancyTypes.delete('Residential');
-            }
-            
-            const traces = [];
-            const years = Object.keys(annualData).sort((a, b) => a - b);
-            const occupancyColors = getPlasmaColors(occupancyTypes.size);
-            
-            if (normalize) {
-                Array.from(occupancyTypes).forEach((occ, index) => {
-                    const yValues = years.map(year => annualData[year][occ] || 0);
-                    
-                    traces.push({
-                        x: years,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        groupnorm: 'percent',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>`
-                    });
-                });
-            } else {
-                Array.from(occupancyTypes).forEach((occ, index) => {
-                    const yValues = years.map(year => annualData[year][occ] || 0);
-                    
-                    traces.push({
-                        x: years,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Count: %{y:,}<extra></extra>`
-                    });
-                });
-            }
-            
-            const layout = {
-                title: {
-                    text: `Post-1940 Annual Building Construction (${buildingTypeFilter})${normalize ? ' - Normalized 100%' : ''}`,
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Year',
-                    dtick: 10,
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: normalize ? 'Percentage (%)' : 'Number of Buildings',
-                    range: normalize ? [0, 100] : undefined
-                },
-                height: 500,
-                hovermode: 'x unified',
-                showlegend: true,
-                legend: {
-                    orientation: 'v',
-                    yanchor: 'middle',
-                    y: 0.5,
-                    xanchor: 'left',
-                    x: 1.02
-                }
-            };
-            
-            Plotly.newPlot('post1940Chart', traces, layout, {responsive: true});
-            
-            const areaTraces = [];
-            
-            if (normalize) {
-                Array.from(occupancyTypes).forEach((occ, index) => {
-                    const yValues = years.map(year => annualAreaData[year][occ] || 0);
-                    
-                    areaTraces.push({
-                        x: years,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        groupnorm: 'percent',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Percentage: %{y:.1f}%<extra></extra>`
-                    });
-                });
-            } else {
-                Array.from(occupancyTypes).forEach((occ, index) => {
-                    const yValues = years.map(year => annualAreaData[year][occ] || 0);
-                    
-                    areaTraces.push({
-                        x: years,
-                        y: yValues,
-                        name: occ,
-                        type: 'scatter',
-                        mode: 'lines',
-                        stackgroup: 'one',
-                        fillcolor: occupancyColors[index],
-                        line: { color: occupancyColors[index], width: 0.5 },
-                        hovertemplate: `%{fullData.name}<br>Year: %{x}<br>Area: %{y:,.0f} sqm<extra></extra>`
-                    });
-                });
-            }
-            
-            const areaLayout = {
-                title: {
-                    text: `Post-1940 Total Est GFA sqmeters (${buildingTypeFilter})${normalize ? ' - Normalized 100%' : ''}`,
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { 
-                    title: 'Year',
-                    dtick: 10,
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: normalize ? 'Percentage (%)' : 'Total Est GFA sqmeters',
-                    range: normalize ? [0, 100] : undefined
-                },
-                height: 500,
-                hovermode: 'x unified',
-                showlegend: true,
-                legend: {
-                    orientation: 'v',
-                    yanchor: 'middle',
-                    y: 0.5,
-                    xanchor: 'left',
-                    x: 1.02
-                }
-            };
-            
-            Plotly.newPlot('post1940AreaChart', areaTraces, areaLayout, {responsive: true});
-            
-            const decadeData = {};
-            const post1940 = buildingData.post1940;
-            
-            Object.keys(post1940).forEach(decade => {
-                decadeData[decade] = post1940[decade].total || 0;
-            });
-            
-            const decades = Object.keys(decadeData).sort();
-            const decadeColors = getPlasmaColors(decades.length);
-            
-            const comparisonData = [{
-                x: decades,
-                y: decades.map(d => decadeData[d]),
-                type: 'bar',
-                marker: { 
-                    color: decadeColors,
-                    line: {
-                        color: 'white',
-                        width: 1
-                    }
-                },
-                hovertemplate: 'Decade: %{x}<br>Buildings Constructed: %{y:,}<extra></extra>'
-            }];
-            
-            const comparisonLayout = {
-                title: {
-                    text: 'Buildings Constructed by Decade',
-                    font: { size: 20, color: '#333' }
-                },
-                xaxis: { title: 'Decade' },
-                yaxis: { title: 'Number of Buildings Constructed in Decade' },
-                height: 400,
-                showlegend: false
-            };
-            
-            Plotly.newPlot('decadeComparisonChart', comparisonData, comparisonLayout, {responsive: true});
         }
+
+        const trace = {
+            x: isDecadeMode && isBar ? xValues.map(v => v + 's') : xValues,
+            y: yValues,
+            name: occ,
+            type: isBar ? 'bar' : 'scatter',
+            legendgroup: occ, // Sync legends
+            showlegend: true, // FIX 1: Enable Legend
+            hovertemplate: `%{fullData.name}<br>${isDecadeMode ? 'Decade' : 'Year'}: %{x}<br>` +
+                           `${chartType === 'normalized' ? 'Area Share: %{y:.1f}%' : 'GFA: %{y:,.0f} sqm'}<extra></extra>`
+        };
+
+        applyTraceStyling(trace, index, chartType);
+        areaTraces.push(trace);
+    });
+
+    Plotly.newPlot('temporalAreaChart', areaTraces, {
+        title: { 
+            text: `Total Est. GFA (${isDecadeMode ? 'by Decade' : 'Annual'})`, 
+            font: { size: 20, color: '#333' } 
+        },
+        xaxis: { 
+            title: isDecadeMode ? 'Decade' : 'Year',
+            tickmode: 'array', tickvals: isDecadeMode && isBar ? undefined : tickvals, ticktext: isDecadeMode && isBar ? undefined : ticktext,
+            tickangle: -45
+        },
+        yaxis: { title: chartType === 'normalized' ? 'Percentage (%)' : 'Est GFA (sqm)' },
+        barmode: isBar ? 'stack' : undefined,
+        height: 500, hovermode: 'x unified',
+        showlegend: true, // FIX 1: Enable Legend
+        legend: { orientation: 'v', yanchor: 'middle', y: 0.5, xanchor: 'left', x: 1.02 }
+    }, {responsive: true});
+
+    // =================================================================================
+    // 3. TREND CHART: RESIDENTIAL % (Always Line)
+    // =================================================================================
+    const trendY = xValues.map(t => {
+        const total = aggTotalCount[t];
+        if (!total) return null;
+        return ((aggData[t]['Residential'] || 0) / total) * 100;
+    });
+
+    Plotly.newPlot('temporalTrendChart', [{
+        x: xValues, y: trendY, 
+        type: 'scatter', mode: 'lines+markers',
+        line: { color: '#bd3786', width: 2 }, name: 'Residential %', connectgaps: true,
+        marker: { size: isDecadeMode ? 6 : 2 },
+        hovertemplate: `${isDecadeMode ? 'Decade' : 'Year'}: %{x}<br>Res Share: %{y:.1f}%<extra></extra>`
+    }], {
+        title: { text: `Residential % Trend (${isDecadeMode ? 'by Decade' : 'Annual'})`, font: { size: 20, color: '#333' } },
+        xaxis: { 
+            title: isDecadeMode ? 'Decade' : 'Year',
+            tickmode: 'array', tickvals: tickvals, ticktext: ticktext, tickangle: -45 
+        },
+        yaxis: { title: 'Percentage (%)', range: [0, 100] },
+        height: 400, hovermode: 'x'
+    }, {responsive: true});
+}
 
 
         function updateOccupancyClustering() {

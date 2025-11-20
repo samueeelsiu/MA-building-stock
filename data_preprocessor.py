@@ -6,9 +6,10 @@ Split file version to handle GitHub 25MB limit
 Fixed: Proper handling of NaN values for JSON export
 Enhanced: Added compname analysis and data flow statistics
 """
-
+import sqlite3
 import pandas as pd
 import numpy as np
+import geopandas as gpd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
 from sklearn.compose import ColumnTransformer
@@ -30,9 +31,9 @@ def format_large_number(num, is_area=False):
 
 
 class BuildingDataProcessor:
-    def __init__(self, csv_path='ma_structures_with_demolition_FINAL.csv'):
+    def __init__(self, file_path='ma_structures_FINAL_with_YR_SOURCE.gpkg'):
         """Initialize the processor with data path"""
-        self.csv_path = csv_path
+        self.file_path = file_path  # Renamed from csv_path to generic file_path
         self.df = None
         self.df_cleaned = None
         self.df_cluster = None
@@ -41,19 +42,36 @@ class BuildingDataProcessor:
         self.data_flow_stats = {}  # Track data flow statistics
 
     def load_data(self):
-        """Load the CSV data"""
-        print("Loading data...")
-        self.df = pd.read_csv(self.csv_path)
-        print(f"Loaded {len(self.df)} records")
+        """Load data using pyogrio with Arrow engine (Fastest I/O)."""
+        import pyogrio
+        print(f"Loading attributes from {self.file_path} using pyogrio (Arrow engine)...")
 
-        # Track initial data stats
+        try:
+            self.df = pyogrio.read_dataframe(
+                self.file_path,
+                layer='structures_yr_source_updated',
+                ignore_geometry=True,
+                use_arrow=True
+            )
+        except Exception as e:
+            print(f"Error loading with pyogrio: {e}")
+            print("Make sure you have installed pyogrio and pyarrow!")
+            raise
+
+        print(f"Loaded {len(self.df)} records instantly.")
+
+
+        rename_map = {'soil_mukey': 'mukey', 'soil_cokey': 'cokey'}
+        self.df.rename(columns=rename_map, inplace=True)
+
+        # Track initial stats
         self.data_flow_stats['initial_count'] = len(self.df)
         self.data_flow_stats['initial_columns'] = list(self.df.columns)
 
         return self
 
     def clean_data(self):
-        """Clean the data with detailed tracking"""
+        """Clean the data: Year -> Material/Foundation -> Area -> Height"""
         print("Cleaning data...")
 
         # Initialize detailed cleaning statistics
@@ -62,8 +80,8 @@ class BuildingDataProcessor:
             'initial_columns': list(self.df.columns)
         }
 
-        # Step 1: Track invalid year_built (includes <= 0 and NaN)
-        # Note: self.df['year_built'] > 0 returns False for both <= 0 and NaN values
+        # --- Step 1: Year Filter ---
+        # Track invalid year_built (includes <= 0 and NaN)
         valid_year_mask = self.df['year_built'] > 0
         cleaning_stats['invalid_year_count'] = (~valid_year_mask).sum()
         cleaning_stats['invalid_year_details'] = {
@@ -71,108 +89,84 @@ class BuildingDataProcessor:
             'nan_values': self.df['year_built'].isna().sum()
         }
 
-        # Apply year filter using original logic (removes both invalid and NaN)
+        # Apply year filter
         self.df_cleaned = self.df[self.df['year_built'] > 0].copy()
         cleaning_stats['after_year_filter'] = len(self.df_cleaned)
 
-        # Step 2: Track and remove missing OR zero/negative area
-        invalid_area_mask = (self.df_cleaned['Est GFA sqmeters'].isna()) | (self.df_cleaned['Est GFA sqmeters'] <= 0)
-        cleaning_stats['missing_area_count'] = invalid_area_mask.sum()
+        # --- Step 1.5: Material & Foundation Filter (UPDATED) ---
+        # Remove rows where material_type OR foundation_type is NaN
+        print("  Filtering missing Material or Foundation types...")
 
-        # Remove rows with invalid area
+
+        if 'material_type' in self.df_cleaned.columns and 'foundation_type' in self.df_cleaned.columns:
+            missing_mat_found_mask = (self.df_cleaned['material_type'].isna()) | \
+                                     (self.df_cleaned['foundation_type'].isna())
+
+            cleaning_stats['missing_mat_found_count'] = int(missing_mat_found_mask.sum())
+
+            if cleaning_stats['missing_mat_found_count'] > 0:
+                self.df_cleaned = self.df_cleaned[~missing_mat_found_mask].copy()
+        else:
+            print("  Warning: material_type or foundation_type column missing. Skipping this filter.")
+            cleaning_stats['missing_mat_found_count'] = 0
+
+        cleaning_stats['after_mat_found_filter'] = len(self.df_cleaned)
+
+        # --- Step 2: Area Filter ---
+        # Track and remove missing OR zero/negative area
+        invalid_area_mask = (self.df_cleaned['Est GFA sqmeters'].isna()) | (self.df_cleaned['Est GFA sqmeters'] <= 0)
+        cleaning_stats['missing_area_count'] = int(invalid_area_mask.sum())
+
         if cleaning_stats['missing_area_count'] > 0:
             self.df_cleaned = self.df_cleaned[~invalid_area_mask].copy()
         cleaning_stats['after_missing_area'] = len(self.df_cleaned)
 
-        # Step 4: Track and remove area outliers (optional step)
+        # --- Step 3: Outlier Removal (Skipped/Placeholder) ---
         cleaning_stats['area_outliers_count'] = 0
         cleaning_stats['area_outlier_threshold'] = None
-
-        # Check if we have valid area data to calculate outliers
         if 'Est GFA sqmeters' in self.df_cleaned.columns and len(self.df_cleaned) > 0:
-            # Calculate the 99.999th percentile for outlier detection
             area_threshold = self.df_cleaned['Est GFA sqmeters'].quantile(0.99999)
-            outlier_mask = self.df_cleaned['Est GFA sqmeters'] > area_threshold
-            cleaning_stats['area_outliers_count'] = outlier_mask.sum()
             cleaning_stats['area_outlier_threshold'] = float(area_threshold)
+        cleaning_stats['after_outlier_removal'] = len(self.df_cleaned)
 
-            # COMMENTED OUT: Don't remove outliers anymore
-            # if cleaning_stats['area_outliers_count'] > 0:
-            #     self.df_cleaned = self.df_cleaned[~outlier_mask].copy()
-
-        cleaning_stats['after_outlier_removal'] = len(self.df_cleaned)  # This will be same as after_missing_occ
-
-        # Calculate final statistics
-        cleaning_stats['final_count'] = len(self.df_cleaned)
-        cleaning_stats['total_removed'] = cleaning_stats['initial_count'] - cleaning_stats['final_count']
-        cleaning_stats['removal_percentage'] = round(
-            (cleaning_stats['total_removed'] / cleaning_stats['initial_count']) * 100, 2
-        ) if cleaning_stats['initial_count'] > 0 else 0
-
-        # Store cleaning statistics in data flow stats
-        self.data_flow_stats['cleaning_pipeline'] = cleaning_stats
-
-        if 'material_type' not in self.df_cleaned.columns:
-            print("Warning: 'material_type' column not found. Filling with None.")
-            self.df_cleaned['material_type'] = None
-
-        if 'foundation_type' not in self.df_cleaned.columns:
-            print("Warning: 'foundation_type' column not found. Filling with None.")
-            self.df_cleaned['foundation_type'] = None
-
-        print("  Applying new filter: Removing all rows with original HEIGHT <= 0...")
+        # --- Step 4: Height Filters ---
+        # 4a. Raw HEIGHT <= 0
         h_numeric_raw = pd.to_numeric(self.df_cleaned['HEIGHT'], errors='coerce')
         invalid_h_mask = (h_numeric_raw.notna()) & (h_numeric_raw <= 0)
         invalid_h_count = int(invalid_h_mask.sum())
 
         if invalid_h_count > 0:
             self.df_cleaned = self.df_cleaned[~invalid_h_mask].copy()
-
-
         cleaning_stats['invalid_raw_height_count'] = invalid_h_count
 
-
-
+        # 4b. Calculate HEIGHT_USED and filter Assumed Height
         h = (self.df_cleaned['HEIGHT'].apply(pd.to_numeric, errors='coerce')
              if 'HEIGHT' in self.df_cleaned.columns
              else pd.Series(np.nan, index=self.df_cleaned.index))
-
         ph = (self.df_cleaned['PRED_HEIGHT'].apply(pd.to_numeric, errors='coerce')
               if 'PRED_HEIGHT' in self.df_cleaned.columns
               else pd.Series(np.nan, index=self.df_cleaned.index))
 
-
         self.df_cleaned['HEIGHT_USED'] = np.where(h.notna() & (h > 0), h, ph)
         self.df_cleaned['Assumed height'] = self.df_cleaned['HEIGHT_USED']
-
-
-        count_before_height_filter = len(self.df_cleaned)
 
         invalid_assumed_height_mask = (self.df_cleaned['Assumed height'].isna()) | (
                     self.df_cleaned['Assumed height'] <= 0)
         num_invalid_assumed_heights = int(invalid_assumed_height_mask.sum())
 
-        cleaning_stats['invalid_assumed_height_count'] = num_invalid_assumed_heights
-
         if num_invalid_assumed_heights > 0:
             self.df_cleaned = self.df_cleaned[~invalid_assumed_height_mask].copy()
+        cleaning_stats['invalid_assumed_height_count'] = num_invalid_assumed_heights
 
         cleaning_stats['after_height_filter'] = len(self.df_cleaned)
 
+        # --- Final Stats ---
         h_final = pd.to_numeric(self.df_cleaned['HEIGHT'], errors='coerce')
-
-
         mask_used_height = (h_final.notna())
-        count_used_height = int(mask_used_height.sum())
-        count_used_pred_height = len(self.df_cleaned) - count_used_height
-
         cleaning_stats['assumed_height_source'] = {
-            'used_height': count_used_height,
-            'used_pred_height': count_used_pred_height
+            'used_height': int(mask_used_height.sum()),
+            'used_pred_height': int(len(self.df_cleaned) - mask_used_height.sum())
         }
-
-
-
 
         cleaning_stats['final_count'] = len(self.df_cleaned)
         cleaning_stats['total_removed'] = cleaning_stats['initial_count'] - cleaning_stats['final_count']
@@ -180,37 +174,17 @@ class BuildingDataProcessor:
             (cleaning_stats['total_removed'] / cleaning_stats['initial_count']) * 100, 2
         ) if cleaning_stats['initial_count'] > 0 else 0
 
-        # Store cleaning statistics in data flow stats
         self.data_flow_stats['cleaning_pipeline'] = cleaning_stats
-
-        # Print summary of cleaning process
-        print(f"Cleaned data: {len(self.df_cleaned)} records")
-        print(f"  Removed {cleaning_stats['invalid_year_count']} records with invalid year")
-        print(f"    - Invalid/zero: {cleaning_stats['invalid_year_details']['negative_or_zero']}")
-        print(f"    - NaN values: {cleaning_stats['invalid_year_details']['nan_values']}")
-        print(f"  Removed {cleaning_stats['missing_area_count']} records with missing area")
-
-
-        print(
-            f"  Removed {cleaning_stats.get('invalid_raw_height_count', 0)} records with original HEIGHT <= 0 (Step 1)")
-        print(
-            f"  Removed {cleaning_stats.get('invalid_assumed_height_count', 0)} records with invalid Assumed height (e.g., PRED_HEIGHT <= 0) (Step 2)")
-
-
-        print(f"  Removed {cleaning_stats['area_outliers_count']} area outliers")
-        if cleaning_stats['area_outlier_threshold']:
-            print(f"    - Outlier threshold: {cleaning_stats['area_outlier_threshold']:,.2f} sqm")
-        print(f"  Total removed: {cleaning_stats['total_removed']} ({cleaning_stats['removal_percentage']}%)")
-
-
-        if 'assumed_height_source' in cleaning_stats:
-            print(f"  Assumed height source (final data):")
-            print(f"    - From HEIGHT: {cleaning_stats['assumed_height_source']['used_height']:,}")
-            print(f"    - From PRED_HEIGHT: {cleaning_stats['assumed_height_source']['used_pred_height']:,}")
-
-
-        # Store the cleaning stats for later use
         self.data_flow_stats['cleaning_stats'] = cleaning_stats
+
+        # Print summary
+        print(f"Cleaned data: {len(self.df_cleaned)} records")
+        print(f"  - Removed {cleaning_stats['invalid_year_count']} invalid year")
+        print(f"  - Removed {cleaning_stats['missing_mat_found_count']} missing Material/Foundation")
+        print(f"  - Removed {cleaning_stats['missing_area_count']} missing area")
+        print(f"  - Removed {cleaning_stats['invalid_raw_height_count']} invalid raw height")
+        print(f"  - Removed {cleaning_stats['invalid_assumed_height_count']} invalid assumed height")
+        print(f"  Total removed: {cleaning_stats['total_removed']} ({cleaning_stats['removal_percentage']}%)")
 
         return self
 
@@ -1153,70 +1127,34 @@ class BuildingDataProcessor:
         return {k: int(v) for k, v in mix_sc_data.items() if v > 0}
 
     def process_temporal_data(self):
-        """Process data for temporal analysis"""
-        print("Processing temporal data...")
+        """Process data for temporal analysis (Full range 1630-2025)"""
+        print("Processing temporal data (Full range)...")
 
         temporal_data = []
 
-        # Process by year
-        for year in self.df_cluster['year_built'].unique():
-            year_data = self.df_cluster[self.df_cluster['year_built'] == year]
+        df_valid_years = self.df_cleaned[
+            (self.df_cleaned['year_built'] > 1600) &
+            (self.df_cleaned['year_built'] <= 2030)
+            ].copy()
+
+        for year in sorted(df_valid_years['year_built'].unique()):
+            year_data = df_valid_years[df_valid_years['year_built'] == year]
 
             for occ_cls in year_data['OCC_CLS'].unique():
                 occ_data = year_data[year_data['OCC_CLS'] == occ_cls]
 
                 temporal_data.append({
                     'year': int(year),
-                    'display_year': 'pre-1940' if int(year) < 1940 else str(int(year)),
+                    'display_year': str(int(year)),
                     'occupancy': occ_cls,
                     'count': len(occ_data),
-                    'avg_area': float(occ_data['Est GFA sqmeters'].mean()),
+                    'avg_area': float(occ_data['Est GFA sqmeters'].mean()) if not occ_data[
+                        'Est GFA sqmeters'].isna().all() else 0,
                     'total_area': float(occ_data['Est GFA sqmeters'].sum())
                 })
 
         return temporal_data
 
-    def process_pre1940_data(self):
-        """Process pre-1940 building data"""
-        print("Processing pre-1940 data...")
-
-        df_pre_1940 = self.df_cleaned[self.df_cleaned['year_built'] < 1940].copy()
-
-        # Get occupancy counts
-        occ_counts = df_pre_1940['OCC_CLS'].value_counts()
-
-        pre1940_data = {
-            'total_count': len(df_pre_1940),
-            'occupancy_counts': occ_counts.to_dict(),
-            'residential_count': int(occ_counts.get('Residential', 0)),
-            'non_residential_count': int(occ_counts.drop('Residential', errors='ignore').sum()),
-            'percentage_of_total': round(len(df_pre_1940) / len(self.df_cleaned) * 100, 2)
-        }
-
-        return pre1940_data
-
-    def process_post1940_data(self):
-        """Process post-1940 building data"""
-        print("Processing post-1940 data...")
-
-        df_post_1940 = self.df_cleaned[self.df_cleaned['year_built'] >= 1940].copy()
-
-        # Process by decade
-        decade_data = {}
-        for decade in range(1940, 2030, 10):
-            decade_df = df_post_1940[
-                (df_post_1940['year_built'] >= decade) &
-                (df_post_1940['year_built'] < decade + 10)
-            ]
-
-            if len(decade_df) > 0:
-                decade_counts = decade_df['OCC_CLS'].value_counts()
-                decade_data[f"{decade}s"] = {
-                    'total': len(decade_df),
-                    'occupancy_counts': decade_counts.to_dict()
-                }
-
-        return decade_data
 
     def process_occupancy_clusters_enhanced(self):
         """
@@ -1643,9 +1581,11 @@ class BuildingDataProcessor:
         print("Creating enhanced samples with multi-dimensional clustering...")
 
         # --- FINAL FIX: Include 'Est GFA sqmeters' for JS visualizations that use samples ---
-        features = ['Est GFA sqmeters', 'SQMETERS', 'HEIGHT_USED','PRED_HEIGHT', 'year_built',
-                    'OCC_CLS', 'material_type', 'foundation_type', 'Assumed height']
-
+        features = [
+            'Est GFA sqmeters', 'SQMETERS', 'HEIGHT_USED', 'PRED_HEIGHT', 'year_built',
+            'OCC_CLS', 'material_type', 'foundation_type', 'Assumed height',
+            'massgis_yr_built', 'nsi_yr_built' 
+        ]
         # Add soil features if they exist
         soil_features = ['drainagecl', 'flodfreqcl', 'eng_property', 'wtdepannmin', 'compname', 'LONGITUDE', 'LATITUDE']
         for sf in soil_features:
@@ -1858,7 +1798,7 @@ class BuildingDataProcessor:
             'metadata': {
                 'total_buildings': len(self.df_cleaned),
                 'date_processed': datetime.now().isoformat(),
-                'source_file': self.csv_path,
+                'source_file': self.file_path,
                 'version': '3.2',  # Version 3.2 includes compname and data flow analysis
                 'has_samples_file': True,
                 'samples_split': True,
@@ -1883,8 +1823,6 @@ class BuildingDataProcessor:
                 'clusters': self.get_cluster_analysis()
             },
             'temporal_data': self.process_temporal_data(),
-            'pre1940': self.process_pre1940_data(),
-            'post1940': self.process_post1940_data(),
             'occupancy_clusters': occupancy_clusters_data,
             'occupancy_clusters_enhanced': occupancy_clusters_enhanced,
             'materials_foundation': self.process_materials_foundation(),
@@ -2016,7 +1954,7 @@ def main():
     print("="*60)
 
     # Initialize processor
-    processor = BuildingDataProcessor('ma_structures_with_demolition_FINAL.csv')
+    processor = BuildingDataProcessor('ma_structures_FINAL_with_YR_SOURCE.gpkg')
 
     # Process data
     processor.load_data()
