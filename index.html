@@ -1225,6 +1225,7 @@
                             <option value="OCC_CLS">Occupancy Class</option>
                             <option value="material_type">Material Type</option>
                             <option value="foundation_type">Foundation Type</option>
+                            <option value="Est GFA sqmeters">Total GFA</option>
                         </select>
                     </div>
                 </div>
@@ -5618,105 +5619,207 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         };
 
         function createOverviewMap() {
-            // Get current filter values
+            // 1. Get current filter values from the DOM
             const occFilter = document.getElementById('overviewOccFilter').value;
             const materialFilter = document.getElementById('overviewMaterialFilter').value;
             const foundationFilter = document.getElementById('overviewFoundationFilter').value;
             const colorBy = document.getElementById('overviewColorBy').value;
 
-            // Filter the data
+            // 2. Filter the data based on dropdown selections
+            // We filter from the random samples array
             let filteredData = buildingData.building_samples_random.filter(d => {
                 const occMatch = (occFilter === 'All' || d.OCC_CLS === occFilter);
                 const materialMatch = (materialFilter === 'All' || d.material_type === materialFilter);
                 const foundationMatch = (foundationFilter === 'All' || d.foundation_type === foundationFilter);
+                // Ensure valid coordinates match
                 return d.LATITUDE && d.LONGITUDE && occMatch && materialMatch && foundationMatch;
             });
 
-            // MODIFIED: Increased limit to 75,000
+            // 3. Apply sampling limit to ensure performance
+            // Limit to 75,000 points max for smooth rendering
             if (filteredData.length > 75000) {
                 filteredData = filteredData.sort(() => 0.5 - Math.random()).slice(0, 75000);
             }
 
+            // Check if any data remains after filtering
             if (filteredData.length === 0) {
                 document.getElementById('overviewMapPlot').innerHTML = '<p style="text-align:center; padding-top:100px;">No data available for the current filter selection.</p>';
                 return;
             }
-            
-            // Choose the appropriate fixed color mapping
-            let colorMap;
-            if (colorBy === 'OCC_CLS') {
-                colorMap = FIXED_OCC_COLORS;
-            } else if (colorBy === 'material_type') {
-                colorMap = FIXED_MATERIAL_COLORS;
-            } else if (colorBy === 'foundation_type') {
-                colorMap = FIXED_FOUNDATION_COLORS;
-            }
-            
-            // Get unique categories present in filtered data
-            const colorValues = filteredData.map(d => d[colorBy]);
-            const uniqueCategories = [...new Set(colorValues)].filter(cat => cat != null);
-            
-            if (colorBy === 'OCC_CLS') {
-                const occOrder = ['Residential', 'Commercial', 'Government', 'Industrial', 
-                                'Assembly', 'Unclassified', 'Education', 'Utility and Misc', 'Agriculture'];
-                uniqueCategories.sort((a, b) => occOrder.indexOf(a) - occOrder.indexOf(b));
-            } else if (colorBy === 'material_type') {
-                const materialOrder = ['W', 'M', 'S', 'C', 'H'];  // Wood -> Masonry -> Steel -> Concrete -> Manufactured
-                uniqueCategories.sort((a, b) => materialOrder.indexOf(a) - materialOrder.indexOf(b));
-            } else if (colorBy === 'foundation_type') {
-                const foundationOrder = ['B', 'S', 'C', 'I', 'P', 'W', 'F'];  // Basement -> Slab -> Crawl -> Pile -> Pier -> Solid Wall -> Fill
-                uniqueCategories.sort((a, b) => foundationOrder.indexOf(a) - foundationOrder.indexOf(b));
+
+            let mapData = [];
+            let layoutSettings = {};
+
+            // 4. Handle Coloring Logic
+            // Check if the user selected "Total GFA" (Continuous data) or a Category (Discrete data)
+            if (colorBy === 'Est GFA sqmeters') {
+                // --- CASE A: Continuous Coloring by Total GFA (Log Scale) ---
+
+                // Extract GFA values
+                const gfaValues = filteredData.map(d => d['Est GFA sqmeters']);
+                
+                // Calculate Log10 values for coloring because building areas follow a power law.
+                // Use a small epsilon or check > 0 to avoid Math.log(0) = -Infinity
+                const logValues = gfaValues.map(v => (v > 0 ? Math.log10(v) : 0));
+
+                // Create a single trace for continuous data
+                const mainTrace = {
+                    type: 'scattermapbox',
+                    lon: filteredData.map(d => d.LONGITUDE),
+                    lat: filteredData.map(d => d.LATITUDE),
+                    mode: 'markers',
+                    marker: {
+                        size: 8,
+                        color: logValues,       // Use log values for color mapping
+                        colorscale: [
+                            [0.0, '#0d0887'],
+                            [0.1, '#46039f'],
+                            [0.2, '#7201a8'],
+                            [0.3, '#9c179e'],
+                            [0.4, '#bd3786'],
+                            [0.5, '#d8576b'],
+                            [0.6, '#ed7953'],
+                            [0.7, '#fb9f3a'],
+                            [0.8, '#fdca26'],
+                            [0.9, '#f0f921'],
+                            [1.0, '#f0f921']
+                        ],
+                        showscale: true,        // Show the continuous color bar
+                        opacity: 0.8,
+                        colorbar: {
+                            title: 'GFA (Log Scale)',
+                            titleside: 'right',
+                            // Custom ticks to map Log values back to readable Area strings
+                            // 2->100, 3->1k, 4->10k, 5->100k, 6->1M
+                            tickvals: [2, 3, 4, 5, 6],
+                            ticktext: ['100m²', '1k', '10k', '100k', '1M'] 
+                        }
+                    },
+                    // Tooltip: Display the ACTUAL GFA value (formatted), not the log value
+                    text: filteredData.map(d => 
+                        `<b>Occupancy:</b> ${d.OCC_CLS}<br>` +
+                        `<b>Total GFA:</b> ${Math.round(d['Est GFA sqmeters']).toLocaleString()} sqm<br>` +
+                        `<b>Year:</b> ${d.year_built}`
+                    ),
+                    hovertemplate: '%{text}<extra></extra>',
+                    showlegend: false // No categorical legend needed for continuous data
+                };
+                
+                mapData = [mainTrace];
+
+                // Layout adjustments for continuous mode
+                layoutSettings = {
+                    showlegend: false
+                };
+
             } else {
-                uniqueCategories.sort();
-            }
-            
-            // Create legend traces for categories present in filtered data
-            const legendTraces = uniqueCategories.map(cat => ({
-                type: 'scattermapbox',
-                lon: [null],
-                lat: [null],
-                mode: 'markers',
-                marker: {
-                    size: 10,
-                    color: colorMap[cat] || '#999999'  // Fallback gray for unmapped categories
-                },
-                name: colorBy === 'material_type' ? (materialTypeMap[cat] || cat) :
-                    colorBy === 'foundation_type' ? (foundationTypeMap[cat] || cat) :
-                    cat,
-                showlegend: true,
-                hoverinfo: 'skip'
-            }));
-            
-            // Main map trace
-            const mainTrace = {
-                type: 'scattermapbox',
-                lon: filteredData.map(d => d.LONGITUDE),
-                lat: filteredData.map(d => d.LATITUDE),
-                mode: 'markers',
-                marker: {
-                    size: 10,
-                    color: colorValues.map(v => colorMap[v] || '#999999'),
-                    opacity: 0.8,
-                    line: {
-                        width: 0.5,
-                        color: 'rgba(255,255,255,0.3)'
+                // --- CASE B: Categorical Coloring (Occupancy, Material, Foundation) ---
+
+                // Choose the appropriate fixed color mapping
+                let colorMap;
+                if (colorBy === 'OCC_CLS') {
+                    colorMap = FIXED_OCC_COLORS;
+                } else if (colorBy === 'material_type') {
+                    colorMap = FIXED_MATERIAL_COLORS;
+                } else if (colorBy === 'foundation_type') {
+                    colorMap = FIXED_FOUNDATION_COLORS;
+                }
+                
+                // Get unique categories present in filtered data for the legend
+                const colorValues = filteredData.map(d => d[colorBy]);
+                const uniqueCategories = [...new Set(colorValues)].filter(cat => cat != null);
+                
+                // Sort categories for consistent legend order
+                if (colorBy === 'OCC_CLS') {
+                    const occOrder = ['Residential', 'Commercial', 'Government', 'Industrial', 
+                                    'Assembly', 'Unclassified', 'Education', 'Utility and Misc', 'Agriculture'];
+                    uniqueCategories.sort((a, b) => occOrder.indexOf(a) - occOrder.indexOf(b));
+                } else if (colorBy === 'material_type') {
+                    const materialOrder = ['W', 'M', 'S', 'C', 'H'];
+                    uniqueCategories.sort((a, b) => materialOrder.indexOf(a) - materialOrder.indexOf(b));
+                } else if (colorBy === 'foundation_type') {
+                    const foundationOrder = ['B', 'S', 'C', 'I', 'P', 'W', 'F'];
+                    uniqueCategories.sort((a, b) => foundationOrder.indexOf(a) - foundationOrder.indexOf(b));
+                } else {
+                    uniqueCategories.sort();
+                }
+                
+                // Create dummy traces for the Legend (Categorical)
+                // These are invisible points just to generate the legend items with correct colors
+                const legendTraces = uniqueCategories.map(cat => ({
+                    type: 'scattermapbox',
+                    lon: [null],
+                    lat: [null],
+                    mode: 'markers',
+                    marker: {
+                        size: 10,
+                        color: colorMap[cat] || '#999999'  // Fallback gray
+                    },
+                    // Map codes to names if needed (e.g. 'W' -> 'Wood')
+                    name: colorBy === 'material_type' ? (materialTypeMap[cat] || cat) :
+                        colorBy === 'foundation_type' ? (foundationTypeMap[cat] || cat) :
+                        cat,
+                    showlegend: true,
+                    hoverinfo: 'skip'
+                }));
+                
+                // Main map trace containing all points
+                // We color points individually using the colorMap array
+                const mainTrace = {
+                    type: 'scattermapbox',
+                    lon: filteredData.map(d => d.LONGITUDE),
+                    lat: filteredData.map(d => d.LATITUDE),
+                    mode: 'markers',
+                    marker: {
+                        size: 10,
+                        color: colorValues.map(v => colorMap[v] || '#999999'),
+                        opacity: 0.8,
+                        line: {
+                            width: 0.5,
+                            color: 'rgba(255,255,255,0.3)'
+                        }
+                    },
+                    text: filteredData.map(d => 
+                        `<b>Year Built:</b> ${d.year_built}<br>` +
+                        `<b>Occupancy:</b> ${d.OCC_CLS || 'N/A'}<br>` +
+                        `<b>Material:</b> ${materialTypeMap[d.material_type] || d.material_type || 'N/A'}<br>` +
+                        `<b>Foundation:</b> ${foundationTypeMap[d.foundation_type] || d.foundation_type || 'N/A'}`
+                    ),
+                    hovertemplate: '%{text}<extra></extra>',
+                    showlegend: false // Hide this trace from legend, use dummy traces instead
+                };
+                
+                mapData = [mainTrace, ...legendTraces];
+                
+                // Layout adjustments for categorical mode
+                layoutSettings = {
+                    showlegend: true,
+                    legend: {
+                        x: 1.02,
+                        y: 0.5,
+                        yanchor: 'middle',
+                        bgcolor: 'rgba(255,255,255,0.95)',
+                        bordercolor: '#ccc',
+                        borderwidth: 1,
+                        font: { size: 11 },
+                        title: {
+                            text: colorBy === 'OCC_CLS' ? 'Occupancy Class' :
+                                colorBy === 'material_type' ? 'Material Type' :
+                                'Foundation Type',
+                            font: {
+                                size: 13,
+                                color: '#333',
+                                family: 'Arial, sans-serif'
+                            }
+                        }
                     }
-                },
-                text: filteredData.map(d => 
-                    `<b>Year Built:</b> ${d.year_built}<br>` +
-                    `<b>Occupancy:</b> ${d.OCC_CLS || 'N/A'}<br>` +
-                    `<b>Material:</b> ${materialTypeMap[d.material_type] || d.material_type || 'N/A'}<br>` +
-                    `<b>Foundation:</b> ${foundationTypeMap[d.foundation_type] || d.foundation_type || 'N/A'}`
-                ),
-                hovertemplate: '%{text}<extra></extra>',
-                showlegend: false
-            };
-            
-            const mapData = [mainTrace, ...legendTraces];
-            
+                };
+            }
+
+            // 5. Final Map Layout
             const layout = {
                 title: {
-                    text: `Massachusetts Building Distribution (${filteredData.length} points shown)`,  // Will show up to 50k
+                    text: `Massachusetts Building Distribution (${filteredData.length} points shown)`,
                     font: { size: 20, color: '#333' }
                 },
                 mapbox: {
@@ -5725,31 +5828,12 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     zoom: 8
                 },
                 height: 600,
-                margin: { t: 50, b: 0, l: 0, r: 120 },  // More right margin for legend
-                showlegend: true,
-                legend: {
-                    x: 1.02,
-                    y: 0.5,
-                    yanchor: 'middle',
-                    bgcolor: 'rgba(255,255,255,0.95)',
-                    bordercolor: '#ccc',
-                    borderwidth: 1,
-                    font: {
-                        size: 11
-                    },
-                    title: {
-                        text: colorBy === 'OCC_CLS' ? 'Occupancy Class' :
-                            colorBy === 'material_type' ? 'Material Type' :
-                            'Foundation Type',
-                        font: {
-                            size: 13,
-                            color: '#333',
-                            family: 'Arial, sans-serif'
-                        }
-                    }
-                }
+                // Ensure enough right margin for Legend OR Colorbar
+                margin: { t: 50, b: 0, l: 0, r: 120 },
+                ...layoutSettings // Merge custom settings (legend vs no legend)
             };
 
+            // 6. Render the Plot
             Plotly.newPlot('overviewMapPlot', mapData, layout, {responsive: true});
         }
 
