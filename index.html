@@ -6775,7 +6775,7 @@ function updateTemporalChart() {
         },
         yaxis: { title: chartType === 'normalized' ? 'Percentage (%)' : 'Number of Buildings' },
         barmode: isBar ? 'stack' : undefined,
-        height: 500, hovermode: 'x unified',
+        height: 650, hovermode: 'x unified',
         legend: { orientation: 'v', yanchor: 'middle', y: 0.5, xanchor: 'left', x: 1.02 }
     }, {responsive: true});
 
@@ -6822,7 +6822,7 @@ function updateTemporalChart() {
         },
         yaxis: { title: chartType === 'normalized' ? 'Percentage (%)' : 'Est GFA (sqm)' },
         barmode: isBar ? 'stack' : undefined,
-        height: 500, hovermode: 'x unified',
+        height: 650, hovermode: 'x unified',
         showlegend: true, // FIX 1: Enable Legend
         legend: { orientation: 'v', yanchor: 'middle', y: 0.5, xanchor: 'left', x: 1.02 }
     }, {responsive: true});
