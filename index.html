@@ -5502,7 +5502,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const yearCounts = {};
             
             buildingData.temporal_data.forEach(d => {
-                const displayKey = d.year < 1940 ? 'pre-1940' : d.year.toString();
+                const displayKey = d.year.toString();
                 if (!yearCounts[displayKey]) yearCounts[displayKey] = 0;
                 yearCounts[displayKey] += d.count;
             });
