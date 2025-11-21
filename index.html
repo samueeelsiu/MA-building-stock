@@ -6960,7 +6960,7 @@ function updateTemporalChart() {
             const scatterData = [{
                 x: samplesForViz.map(s => useLogScale ? Math.log10(s.SQMETERS + 1) : s.SQMETERS),
                 y: samplesForViz.map(s => s.PRED_HEIGHT),
-                z: samplesForViz.map(s => s.year_built < 1940 ? 1939 : s.year_built),
+                z: samplesForViz.map(s => s.year_built),
                 mode: 'markers',
                 type: 'scatter3d',
                 marker: {
@@ -7686,7 +7686,7 @@ function updateTemporalChart() {
             switch(vizType) {
                 case 'scatter3d':
                     plotData = [{
-                        x: filteredData.map(d => d.year_built < 1940 ? 1939 : d.year_built),
+                        x: filteredData.map(d => d.year_built),
                         y: filteredData.map(d => d['Est GFA sqmeters']),
                         z: filteredData.map(d => d.cluster),
                         mode: 'markers',
