@@ -6076,7 +6076,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
         /**
          * Creates a bar chart for Year Built distribution.
-         * This version now groups years before 1940 into a "pre-1940" category.
+         * UPDATED: Now groups ALL years by decade (1630s - 2020s), removing the pre-1940 aggregation.
          */
         function createHistoricYearChart(data) {
             const chartDiv = document.getElementById('historicYearChart');
@@ -6089,16 +6089,11 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 const year = d.year_built;
                 let key;
                 
-                // START: MODIFICATION
-                // First, check if 'year' is a valid number to prevent null/NaN from being miscategorized.
+                // START: MODIFICATION - Removed pre-1940 check
+                // First, check if 'year' is a valid number.
                 if (year && !isNaN(year) && year > 0) {
-                    // If the year is before 1940, label it as 'pre-1940'.
-                    if (year < 1940) {
-                        key = 'pre-1940';
-                    } else {
-                        // Otherwise, group by decade.
-                        key = `${Math.floor(year / 10) * 10}s`;
-                    }
+                    // Group ALL years by decade (e.g., 1630 -> "1630s", 1952 -> "1950s")
+                    key = `${Math.floor(year / 10) * 10}s`;
                 } else {
                     // Group all other cases (null, NaN, 0) as 'Unknown'.
                     key = 'Unknown';
@@ -6109,24 +6104,25 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 return acc;
             }, {});
 
-            // Custom sort to ensure 'pre-1940' and 'Unknown' are handled correctly.
+            // Custom sort to ensure decades are ordered numerically and 'Unknown' is last.
             const sorted = Object.entries(counts).sort((a, b) => {
-                if (a[0] === 'pre-1940') return -1;
-                if (b[0] === 'pre-1940') return 1;
-                if (a[0] === 'Unknown') return 1;
+                if (a[0] === 'Unknown') return 1; // Put Unknown at the end
                 if (b[0] === 'Unknown') return -1;
-                return a[0].localeCompare(b[0]);
+                
+                // Convert "1630s" -> 1630 for correct numeric sorting
+                return parseInt(a[0]) - parseInt(b[0]);
             });
 
             const plotData = [{
                 x: sorted.map(d => d[0]),
                 y: sorted.map(d => d[1]),
                 type: 'bar',
+                // Use Plasma colorscale reversed so recent years are brighter/distinct
                 marker: { color: getPlasmaColors(sorted.length).reverse() }
             }];
 
             const layout = {
-                title: { text: 'Distribution by Year Built' },
+                title: { text: 'Distribution by Year Built (Decades)' },
                 xaxis: { title: 'Decade', tickangle: -45 },
                 yaxis: { title: 'Building Count' },
                 height: 400,
