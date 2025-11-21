@@ -1453,7 +1453,7 @@
                                 <div class="flow-box data-source usa-structures">
                                     <h4>USA Structures (Base)</h4>
                                     <p>2,091,488 Records</p>
-                                    <p>38 Columns</p>
+                                    <p>37 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source nsi">
@@ -1518,7 +1518,7 @@
                             <div class="flow-box result nsi-enhanced">
                                 <h4>Result: NSI Enhanced Structures v1</h4>
                                 <p>2,091,488 Records</p>
-                                <p>53 Columns (38 Base + 15 from NSI)</p>
+                                <p>52 Columns (37 Base + 15 from NSI)</p>
                                 <small>A Left Join was performed, so all original buildings were retained. Unmatched buildings(405,037 in total) have NaN values for NSI columns(year_built, foundation_type, etc.).</small>
                             </div>
 
@@ -1623,7 +1623,7 @@
                                 <div class="flow-box data-source nsi-enhanced-input">
                                     <h4>NSI-Enhanced USA Structures Dataset v1</h4>
                                     <p>2,091,488 Records (Polygons)</p>
-                                    <p>53 Columns</p>
+                                    <p>52 Columns</p>
                                     <small>Input: GPKG (Preserves footprints)</small>
                                 </div>
                                 <div class="plus-icon">+</div>
@@ -1665,7 +1665,7 @@
                             <div class="flow-box result final-dataset">
                                 <h4>Result: NSI-Enhanced USA Structures Dataset v2</h4>
                                 <p>2,091,488 Records</p>
-                                <p>65 Total Columns (53 + 12 from Soil)</p>
+                                <p>64 Total Columns (52 + 12 from Soil)</p>
                                 <p>Preserved Geometry: Polygons</p>
                                 <small>
                                     <strong>Cleanup:</strong> IDs renamed to <code>soil_mukey</code>/<code>soil_cokey</code>. 
@@ -1688,7 +1688,7 @@
                                     <h4>NSI-Enhanced USA Structures Dataset v2</h4>
                                     <p>Input: GPKG (Polygons)</p>
                                     <p>Target Column: <code>foundation_type</code></p>
-                                    <p>65 Columns</p>
+                                    <p>64 Columns</p>
                                 </div>
                                 <div class="plus-icon">+</div>
                                 <div class="flow-box data-source" style="background-color: #fff8e1; border-color: #ffc107;">
@@ -1734,7 +1734,7 @@
                                 <h4>Result: NSI-Enhanced USA Structures Dataset v2.5</h4>
                                 <p>2,091,488 Records (Polygons Preserved)</p>
                                 <p>+1 Column: <code>general_fnd_type</code></p>
-                                <p>66 Columns</p>
+                                <p>65 Columns</p>
                                 <small>
                                     <strong>Data Cleaning:</strong> All object columns converted to String to ensure GPKG stability and prevent "Error adding field" issues.
                                 </small>
@@ -1781,7 +1781,7 @@
                             <div class="flow-box data-source nsi-enhanced-input" style="border-color: #2E7D32; background-color: #e8f5e9;">
                                 <h4>Result: NSI-Enhanced USA Structures Dataset v3</h4>
                                 <p>2,091,488 Records</p>
-                                <p>69 Total Columns (66 + 3 from Permits)</p>
+                                <p>68 Total Columns (65 + 3 from Permits)</p>
                                 <p>Geometry: Polygons</p>
                                 <small>
                                     <strong>Validation:</strong> Original row count (2,091,488) perfectly preserved.
@@ -1804,7 +1804,7 @@
                                     <h4>NSI-Enhanced USA Structures Dataset v3</h4>
                                     <p>Input: GPKG (Polygons)</p>
                                     <p>2,091,488 Records</p>
-                                    <p>69 Columns</p>
+                                    <p>68 Columns</p>
                                     <small>Contains original NSI Year Data</small>
                                 </div>
                                 <div class="plus-icon">+</div>
@@ -1876,7 +1876,7 @@
                                 <h4>Result: Final Integrated Dataset</h4>
                                 <p>2,091,488 Records (Polygons Preserved)</p>
                                 <p>+3 Columns: <code>massgis_yr_built</code>, <code>nsi_yr_built</code>, <code>yr_built_belong</code></p>
-                                <p>72 Columns Total</p>
+                                <p>71 Columns Total</p>
                                 <small>
                                     <strong>Output:</strong> ma_structures_FINAL_with_YR_SOURCE.gpkg
                                 </small>
@@ -6414,7 +6414,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             
             // Add summary stats as floating badges
             const stats = [
-                { label: 'Total Columns', value: '72', color: '#2c3e50' },
+                { label: 'Total Columns', value: '71', color: '#2c3e50' },
                 { label: 'Data Sources', value: '5', color: '#667eea' },
                 { label: 'MA Buildings', value: '2.09M+', color: '#764ba2' }
             ];
