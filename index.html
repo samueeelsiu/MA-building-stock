@@ -7007,8 +7007,6 @@ function updateTemporalChart() {
                     },
                     zaxis: { 
                         title: 'Year Built',
-                        tickvals: [1939, 1950, 1970, 1990, 2010, 2020],
-                        ticktext: ['pre-1940', '1950', '1970', '1990', '2010', '2020']
                     },
                     camera: {
                         eye: {x: 1.5, y: 1.5, z: 1.5}
@@ -7409,7 +7407,7 @@ function updateTemporalChart() {
             const normalizeBy = document.getElementById('materialTrendNormalizeBy')?.value || 'count';
 
             let trendData = buildingData.building_samples_random.filter(d =>
-                d.year_built && d.year_built >= 1940 && d.material_type && d['Est GFA sqmeters']
+                d.year_built && d.year_built >= 1630 && d.material_type && d['Est GFA sqmeters']
             );
 
             const yearData = {};
@@ -7450,7 +7448,7 @@ function updateTemporalChart() {
             
             const layout = {
                 title: { text: `Material Usage Trends by Year (Normalized by ${normalizeBy === 'gfa' ? 'GFA' : 'Count'})`, font: { size: 18, color: '#333' } },
-                xaxis: { title: 'Year', type: 'linear', dtick: 10, tickangle: -45, range: [1940, Math.max(...sortedYears.map(y => parseInt(y))) + 1] },
+                xaxis: { title: 'Year', type: 'linear', dtick: 10, tickangle: -45, range: [1630, Math.max(...sortedYears.map(y => parseInt(y))) + 1] },
                 yaxis: { title: 'Percentage of New Construction (%)', ticksuffix: '%', range: [0, 100] },
                 height: 500,
                 hovermode: 'x unified',
