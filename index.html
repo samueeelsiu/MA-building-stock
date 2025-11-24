@@ -4814,6 +4814,21 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             }
         }
 
+        function handleRouting() {
+
+                const hash = window.location.hash.substring(1);
+                
+                if (hash && document.getElementById(hash)) {
+                    showSection(hash);
+                } else {
+                    showSection('overview');
+                }
+            }
+
+        window.addEventListener('popstate', handleRouting);
+
+        handleRouting();
+
         function generateSampleData() {
             console.log('Generating empty data structure (no fake samples)...');
             
@@ -5004,15 +5019,28 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             const sections = document.querySelectorAll('.section');
             sections.forEach(section => section.classList.remove('active'));
             
-            document.getElementById(sectionId).classList.add('active');
-            
+            const targetSection = document.getElementById(sectionId);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+
             const tabs = document.querySelectorAll('.nav-tab');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
+            tabs.forEach(tab => {
+                tab.classList.remove('active');
+
+                if (tab.getAttribute('onclick') && tab.getAttribute('onclick').includes(`'${sectionId}'`)) {
+                    tab.classList.add('active');
+                    
+                    if (sectionId === 'soilAnalysis') {
+                        tab.classList.add('soil-tab');
+                    }
+                }
+            });
             
-            // Special handling for soil analysis tab
-            if (sectionId === 'soilAnalysis') {
-                event.target.classList.add('soil-tab');
+            if (history.pushState) {
+                history.pushState(null, null, '#' + sectionId);
+            } else {
+                window.location.hash = sectionId;
             }
             
             window.dispatchEvent(new Event('resize'));
@@ -6537,11 +6565,12 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // Statistics Table
             const tableData = [{
                 type: 'table',
-                header: { values: ['Cluster', 'Count', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'], align: 'center', line: {width: 1, color: '#dee2e6'}, fill: {color: plasmaColors[3]}, font: {family: "Arial", size: 14, color: "white"} },
+                header: { values: ['Cluster', 'Count','Occupancy', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'], align: 'center', line: {width: 1, color: '#dee2e6'}, fill: {color: plasmaColors[3]}, font: {family: "Arial", size: 14, color: "white"} },
                 cells: {
                     values: [
                         displayClusters.map(c => `Cluster ${c.cluster_id + 1}`),
                         displayClusters.map(c => c.count.toLocaleString()),
+                        displayClusters.map(c => c.most_common_occ || '-'),
                         displayClusters.map(c => Math.round(c.avg_sqmeters)),
                         displayClusters.map(c => c.avg_height.toFixed(1)),
                         displayClusters.map(c => c.avg_year)
@@ -6584,7 +6613,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         
         clusters.forEach((cluster, index) => {
             // The new data doesn't have 'most_common_occ', so we create a simple label.
-            const label = `Cluster ${index + 1}`;
+            const label = `Cluster ${index + 1}<br>(${cluster.most_common_occ || 'N/A'})`;
             labels.push(label);
             parents.push('All Clusters');
             
@@ -7036,10 +7065,11 @@ function updateTemporalChart() {
                 
                 if (kStats && kStats.clusters) {
                     // Create full dataset table with enhanced clustering
-                    let tableHeaders = ['Cluster', 'Total Count', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'];
+                    let tableHeaders = ['Cluster', 'Total Count', 'Occupancy', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'];
                     let tableValues = [
                         kStats.clusters.map(s => `Cluster ${s.cluster_id + 1}`),
                         kStats.clusters.map(s => s.count.toLocaleString()),
+                        kStats.clusters.map(s => s.dominant_occupancy || '-'),
                         kStats.clusters.map(s => Math.round(s.avg_sqmeters)),
                         kStats.clusters.map(s => s.avg_height.toFixed(1)),
                         kStats.clusters.map(s => Math.round(s.avg_year))
@@ -7165,7 +7195,8 @@ function updateTemporalChart() {
                     heightSum: 0, 
                     yearSum: 0, 
                     materials: {},
-                    foundations: {}
+                    foundations: {},
+                    occupancies: {}
                 };
             }
             
@@ -7191,16 +7222,27 @@ function updateTemporalChart() {
                         }
                         sampleStats[cluster].foundations[s.foundation_type]++;
                     }
+
+                    if (s.OCC_CLS) {
+                        if (!sampleStats[cluster].occupancies[s.OCC_CLS]) {
+                            sampleStats[cluster].occupancies[s.OCC_CLS] = 0;
+                        }
+                        sampleStats[cluster].occupancies[s.OCC_CLS]++;
+                    }
                 }
             });
 
             const headerColor = sampleType === 'random' ? '#fb9f3a' : '#7201a8';
             
             // MODIFICATION: Updated table headers and values for the sample statistics.
-            let sampleTableHeaders = ['Cluster', 'Sample Count', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'];
+            let sampleTableHeaders = ['Cluster', 'Sample Count','Occupancy', 'Avg Footprint (m²)', 'Avg Height (m)', 'Avg Year'];
             let sampleTableValues = [
                 Object.keys(sampleStats).map(c => `Cluster ${parseInt(c) + 1}`),
                 Object.values(sampleStats).map(s => s.count.toLocaleString()),
+                Object.values(sampleStats).map(s => {
+                const occs = Object.entries(s.occupancies).sort((a, b) => b[1] - a[1]);
+                return occs.length > 0 ? occs[0][0] : '-';
+            }),
                 Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.sqmetersSum / s.count) : 0),
                 Object.values(sampleStats).map(s => s.count > 0 ? (s.heightSum / s.count).toFixed(1) : 0),
                 Object.values(sampleStats).map(s => s.count > 0 ? Math.round(s.yearSum / s.count) : 0)

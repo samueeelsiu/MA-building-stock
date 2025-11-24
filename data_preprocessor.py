@@ -1022,6 +1022,10 @@ class BuildingDataProcessor:
                     'std_year': float(cluster_data['year_built'].std(ddof=0))
                 }
 
+                if 'OCC_CLS' in cluster_data.columns and not cluster_data.empty:
+                    top_occ = cluster_data['OCC_CLS'].mode()
+                    stats['dominant_occupancy'] = top_occ[0] if not top_occ.empty else 'Unknown'
+
                 # Add dominant material/foundation if applicable
                 if 'material_type' in categorical_features:
                     material_counts = cluster_data['material_type'].value_counts()
@@ -1072,11 +1076,18 @@ class BuildingDataProcessor:
 
                 if len(cluster_data) == 0: continue
 
+                most_common_occ = 'Unknown'
+                if 'OCC_CLS' in cluster_data.columns and not cluster_data.empty:
+                    top_occ = cluster_data['OCC_CLS'].mode()
+                    if not top_occ.empty:
+                        most_common_occ = top_occ[0]
+
                 # MODIFICATION: Changed stats to reflect new dimensions.
                 # PREVIOUSLY: 'avg_area': float(cluster_data['Est GFA sqmeters'].mean()), 'std_area': float(cluster_data['Est GFA sqmeters'].std(ddof=0))
                 cluster_stats.append({
                     'cluster_id': cluster_id,
                     'count': len(cluster_data),
+                    'most_common_occ': most_common_occ,
                     'avg_area': float(cluster_data['SQMETERS'].mean()),
                     'std_area': float(cluster_data['SQMETERS'].std(ddof=0)),
                     'avg_sqmeters': float(cluster_data['SQMETERS'].mean()),
@@ -1584,7 +1595,7 @@ class BuildingDataProcessor:
         features = [
             'Est GFA sqmeters', 'SQMETERS', 'HEIGHT_USED', 'PRED_HEIGHT', 'year_built',
             'OCC_CLS', 'material_type', 'foundation_type', 'Assumed height',
-            'massgis_yr_built', 'nsi_yr_built' 
+            'massgis_yr_built', 'nsi_yr_built'
         ]
         # Add soil features if they exist
         soil_features = ['drainagecl', 'flodfreqcl', 'eng_property', 'wtdepannmin', 'compname', 'LONGITUDE', 'LATITUDE']
