@@ -1157,9 +1157,9 @@
             <div class="nav-tabs">
                 <button class="nav-tab active" onclick="showSection('overview')">Overview</button>
                 <button class="nav-tab" onclick="showSection('dataAnalysis')">Data Pipelines</button>
-                <button class="nav-tab" onclick="showSection('clustering')">Simple Clustering</button>
+                <button class="nav-tab" onclick="showSection('simpleClustering')">Simple Clustering</button>
                 <button class="nav-tab" onclick="showSection('temporal')">Temporal</button>
-                <button class="nav-tab" onclick="showSection('occupancy')">Occupancy Clustering</button>
+                <button class="nav-tab" onclick="showSection('occupancyClustering')">Occupancy Clustering</button>
                 <button class="nav-tab" onclick="showSection('materials')">Materials</button>
                 <button class="nav-tab soil-tab" onclick="showSection('soilAnalysis')">Soil Analysis</button>
                 <button class="nav-tab" onclick="showSection('historicShoreline')">Boston Historic Shoreline</button>
@@ -2022,7 +2022,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             </div>
 
             <!-- CLUSTERING SECTION -->
-            <div id="clustering" class="section">
+            <div id="simpleClustering" class="section">
                 <div class="section-header">
                     <h2>Clustering Analysis</h2>
                     <p>K-means clustering results based on building area, year built, and occupancy class (using a random sample for visualization)</p>
@@ -2123,7 +2123,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
 
             <!-- ENHANCED OCCUPANCY CLUSTERING SECTION -->
-            <div id="occupancy" class="section">
+            <div id="occupancyClustering" class="section">
                 <div class="section-header">
                     <h2>Multi-Dimensional Occupancy Clustering Analysis</h2>
                     <p>Advanced clustering analysis with dynamic feature selection for true multi-dimensional clustering</p>
