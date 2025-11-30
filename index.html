@@ -1761,20 +1761,26 @@
                                 <div class="flow-box data-source boston-permits">
                                     <h4>Boston Approved Permit Dataset</h4>
                                     <p>Source: tmpbtz4x7bc.csv</p>
-                                    <p>Worktypes: EXTDEM, INTDEM, RAZE</p>
-                                    <p>3 Columns</p>
+                                    <p>Filter: EXTDEM, INTDEM, RAZE</p>
+                                    <p>3 Key Columns</p>
                                 </div>
                             </div>
                             <div class="flow-arrow">▼</div>
                             <div class="flow-box operation">
-                                <h4>Operation: Spatial Join(Polygons Preserved)</h4>
+                                <h4>Operation: Spatial Join (Polygons Preserved)</h4>
                                 <ul>
                                 <li><strong>1. Priority-Based Deduplication:</strong> Filters permits and selects the "best" record per address. 
                                     <br><em>Priority Rule:</em> <strong>Closed/Completed</strong> > Open > Most Recent Date.</li>
-                                <li><strong>2. CRS Alignment (EPSG:2249):</strong> Both datasets are projected to <strong>MA State Plane (Meters)</strong> for precise distance calculation. The structure geometry is copied for calculation only, leaving the original Polygons untouched.</li>
-                                <li><strong>3. Nearest Neighbor Join (15m Buffer):</strong> Finds the single closest permit within <strong>15 meters</strong>. 
-                                    <br><em>Conflict Resolution:</em> Strictly enforces one match per building index to prevent row duplication.</li>
-                                <li><strong>4. Non-Destructive Merge:</strong> New attributes (`DEMOLITION_TYPE`, `DATE`, `STATUS`) are joined back to the original GeoDataFrame using <strong>Index Alignment</strong>. This guarantees zero data loss and preserves the original Polygon geometry.</li>
+                                <li><strong>2. CRS Alignment (EPSG:2249):</strong> Both datasets are projected to <strong>MA State Plane (Meters)</strong> for precise distance calculation.</li>
+                                <li><strong>3. Nearest Neighbor Join (5m Radius):</strong> Uses <code>sjoin_nearest</code> to find the single closest permit within <strong>5 meters</strong> (from polygon edge).
+                                    
+                                    <div style="margin-top: 8px; padding: 8px; background: #eef2f7; border-left: 3px solid #3498db; border-radius: 4px; font-size: 0.9em;">
+                                        <strong>Matching Statistics (Total: 5,018):</strong><br>
+                                        <span style="color: #27ae60;">●</span> Exact Matches (In Polygon): <strong>4,922 (98.1%)</strong><br>
+                                        <span style="color: #e67e22;">●</span> Buffer Matches (<5m): <strong>96 (1.9%)</strong>
+                                    </div>
+                                </li>
+                                <li><strong>4. Non-Destructive Merge:</strong> New attributes (`DEMOLITION_TYPE`, `DATE`, `STATUS`) are joined back using <strong>Index Alignment</strong>. This guarantees zero data loss and perfectly preserves original Polygon geometry.</li>
                                 </ul>
                             </div>
                             <div class="flow-arrow">▼</div>
@@ -1782,7 +1788,7 @@
                                 <h4>Result: NSI-Enhanced USA Structures Dataset v3</h4>
                                 <p>2,091,488 Records</p>
                                 <p>69 Total Columns (66 + 3 from Permits)</p>
-                                <p>Geometry: Polygons</p>
+                                <p>Geometry: MultiPolygon (Unchanged)</p>
                                 <small>
                                     <strong>Validation:</strong> Original row count (2,091,488) perfectly preserved.
                                     <br><strong>Final Format:</strong> GPKG (Layer: <code>structures_demolition</code>)
