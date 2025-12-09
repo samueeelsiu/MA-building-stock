@@ -1163,6 +1163,7 @@
                 <button class="nav-tab" onclick="showSection('materials')">Materials</button>
                 <button class="nav-tab soil-tab" onclick="showSection('soilAnalysis')">Soil Analysis</button>
                 <button class="nav-tab" onclick="showSection('historicShoreline')">Boston Historic Shoreline</button>
+                <button class="nav-tab" onclick="showSection('foundationAnalysis')">Foundation-Height Statistics</button>
                 <button class="nav-tab" onclick="showSection('clf')">CLF Analysis</button>
                 <button class="nav-tab" onclick="showSection('interactive')">Explorer</button>
             </div>
@@ -2276,6 +2277,16 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                             <label>Log Scale (Heatmap Only):</label>
                             <input type="checkbox" id="heatmapLogScale" onchange="updateHeatmapOnly()">
                         </div>
+
+                        <div style="display: flex; align-items: center;">
+                            <label style="font-size: 0.9em; margin-right: 8px; font-weight: 500;">Metric:</label>
+                            <select id="structMetric" onchange="updateStructureHeatmapUI()" style="padding: 4px; font-size: 0.9em;">
+                                <option value="count" selected>Count</option>
+                                <option value="area">Gross Area (sq ft)</option>
+                            </select>
+                        </div>
+
+                        <div style="border-left: 1px solid #ccc; height: 20px;"></div>
                         
                         <label style="margin-left: 20px;">Breakdown Chart Type:</label>
                         <select id="breakdownChartType" onchange="updateOccupancyBreakdown()">
@@ -2405,7 +2416,159 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 </div>
             </div>
 
-<div id="interactive" class="section">
+            <div id="foundationAnalysis" class="section">
+                <div class="section-header">
+                    <h2>Boston Foundation Type Analysis by Building Height</h2>
+                    <p>Comprehensive analysis of foundation types on Original vs. Filled Land across height bins.</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="bf_total">Loading...</div>
+                        <div class="stat-label">Total Boston Buildings</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #f8f9ff 0%, #f8f9ff 100%); color: white;">
+                        <div class="stat-value" id="bf_shoreline">Loading...</div>
+                        <div class="stat-label">Shoreline (Filled Land)</div>
+                    </div>
+                    <div class="stat-card" style="background: linear-gradient(135deg, #f8f9ff 0%, #f8f9ff 100%); color: white;">
+                        <div class="stat-value" id="bf_original">Loading...</div>
+                        <div class="stat-label">Original Land</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="bf_valid">Loading...</div>
+                        <div class="stat-label">With Foundation Type</div>
+                    </div>
+                </div>
+
+                <div class="info-box" style="margin-top: 20px; border-left-color: #0d0887; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);">
+                    <h3 style="color: #0d0887;">Methodology & Data Processing</h3>
+                    
+                    <p style="border-bottom: 1px solid rgba(13, 8, 135, 0.1); padding-bottom: 10px; margin-bottom: 10px;">
+                        <strong>Data Scope & Cleaning:</strong> 
+                        This analysis is strictly filtered to buildings where <code>PROP_CITY</code> is <strong>'BOSTON'</strong>. 
+                        Furthermore, all data presented here has already passed the rigorous cleaning pipeline detailed in the 
+                        <a href="#" onclick="showSection('dataAnalysis')" style="color: #0d0887; text-decoration: underline;">Data Pipelines</a> tab 
+                        (refer to the <em>"Geopackage data to Json data - Cleaning Process"</em> Sankey diagram), ensuring outliers and invalid records are excluded.
+                    </p>
+                    
+                    <p>
+                        <strong>Shoreline Detection:</strong> Buildings are classified as "Shoreline" (Filled Land) vs. "Original Land" using a georeferenced historic map (<em>1630 Boston Shoreline</em>). A building is considered to be on filled land if its centroid falls within the pixel value range (182) representing filled areas in the GeoTIFF (Unlike the <a href="#" onclick="showSection('historicShoreline')" style="color: #0d0887; text-decoration: underline;">Boston Historic Shoreline</a> section, the shoreline data points filtered here are based on PROP_CITY = Boston, rather than directly using the GeoTIFF).
+                    </p>
+                    <p>
+                        <strong>Height Binning:</strong> Building heights are categorized into 5 bins based on <code>HEIGHT_USED</code> (measured height prioritized over predicted):
+                        <br>
+                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">&lt;0 ft (Error/Underground)</span> | 
+                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">0-24 ft (Low-rise)</span> | 
+                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">24-72 ft (Mid-rise)</span> | 
+                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">72-120 ft (High-rise)</span> | 
+                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">120+ ft ('Skyscraper')</span>
+                    </p>
+                    <p>
+                        <strong>Foundation Classification:</strong> Standardized NSI codes are mapped to descriptive names (e.g.,like mentioned in <a href="#" onclick="showSection('materials')" style="color: #0d0887; text-decoration: underline;">Materials</a> Section, 'P' → 'Pier', 'S' → 'Slab').
+                    </p>
+                </div>
+
+                <hr>
+
+                <div class="chart-container">
+                    <div class="section-header" style="border: none; margin-bottom: 15px;">
+                        <h3 style="color: #2c3e50;">Section 1: Original Land vs Shoreline Land Comparison</h3>
+                    </div>
+                    <div class="controls">
+                        <div class="control-group">
+                            <label>Compare Height Bin:</label>
+                            <select id="section1-bin-select" onchange="updateBFSection1()">
+                                </select>
+                        </div>
+                    </div>
+                    
+                    <div id="section1-content" style="margin-top: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                            <div class="panel" style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 1px solid #e8e8f0;">
+                                <div class="panel-title" style="font-weight: 600; color: #0d0887; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 15px;">
+                                    Original Land <span id="s1-orig-n" style="font-size: 0.85rem; color: #666; margin-left: 10px;"></span>
+                                </div>
+                                <div id="s1-orig-table"></div> 
+                                <div id="s1-orig-bar" style="height: 450px; margin-top: 20px;"></div>
+                                <div id="s1-orig-pie" style="height: 450px; margin-top: 20px;"></div>
+                            </div>
+
+                            <div class="panel" style="background: #fff5f8; padding: 20px; border-radius: 10px; border: 1px solid #f0e0e8;">
+                                <div class="panel-title" style="font-weight: 600; color: #cc4778; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 15px;">
+                                    Shoreline Land <span id="s1-shore-n" style="font-size: 0.85rem; color: #666; margin-left: 10px;"></span>
+                                </div>
+                                <div id="s1-shore-table"></div> 
+                                <div id="s1-shore-bar" style="height: 450px; margin-top: 20px;"></div>
+                                <div id="s1-shore-pie" style="height: 450px; margin-top: 20px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="chart-container">
+                    <div class="section-header" style="border: none; margin-bottom: 15px;">
+                        <h3 style="color: #2c3e50;">Section 2: Internal Height Bin Comparison</h3>
+                    </div>
+                    <div class="controls">
+                        <div class="control-group">
+                            <label>Land Type:</label>
+                            <select id="section2-land-select" onchange="updateBFSection2()">
+                                <option value="original">Original Land</option>
+                                <option value="shoreline">Shoreline Land</option>
+                            </select>
+                            
+                            <label>Height Bin 1:</label>
+                            <select id="section2-bin1-select" onchange="updateBFSection2()"></select>
+                            
+                            <label>Height Bin 2:</label>
+                            <select id="section2-bin2-select" onchange="updateBFSection2()"></select>
+                        </div>
+                    </div>
+
+                    <div id="section2-content" style="margin-top: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                            <div class="panel" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6;">
+                                <div class="panel-title" style="font-weight: 600; margin-bottom: 15px;">
+                                    Bin 1 Comparison <span id="s2-bin1-n" style="font-size: 0.85rem; color: #666;"></span>
+                                </div>
+                                <div id="s2-bin1-table"></div>
+                                <div id="s2-bin1-bar" style="height: 450px; margin-top: 20px;"></div>
+                                <div id="s2-bin1-pie" style="height: 450px; margin-top: 20px;"></div>
+                            </div>
+
+                            <div class="panel" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6;">
+                                <div class="panel-title" style="font-weight: 600; margin-bottom: 15px;">
+                                    Bin 2 Comparison <span id="s2-bin2-n" style="font-size: 0.85rem; color: #666;"></span>
+                                </div>
+                                <div id="s2-bin2-table"></div>
+                                <div id="s2-bin2-bar" style="height: 450px; margin-top: 20px;"></div>
+                                <div id="s2-bin2-pie" style="height: 450px; margin-top: 20px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <div class="chart-container">
+                    <div class="section-header collapsible" onclick="toggleBFSection3()" style="cursor: pointer;">
+                        <h3 style="color: #2c3e50;">Section 3: Complete Data Overview (Click to Expand) <span id="s3-arrow">▶</span></h3>
+                    </div>
+                    <div id="section3-content" style="display: none;">
+                        
+                        <h4 style="margin-top: 20px; color: #0d0887;">Original Land (Full Breakdown)</h4>
+                        <div id="s3-orig-full-charts"></div> <hr style="margin: 30px 0;">
+
+                        <h4 style="color: #cc4778;">Shoreline Land (Full Breakdown)</h4>
+                        <div id="s3-shore-full-charts"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="interactive" class="section">
                 <div class="section-header">
                     <h2>Interactive Data Explorer</h2>
                     <p>Explore the data with custom filters and advanced visualizations (*Data from 75,000 random sampled data from 1.7M cleaned dataset)</p>
@@ -4815,6 +4978,9 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             createMixScPieChart();
             populateHistoricShorelineFilters();
             updateHistoricShorelineCharts();
+            if(buildingData.boston_full_analysis) {
+                initBostonFoundationAnalysis();
+            }
             if (clfData) {
                 createCLFCharts();
             }
@@ -6038,7 +6204,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             Plotly.newPlot('historicShorelineMapPlot', mapData, layout, {responsive: true});
         }
 
-                function updateHistoricShorelineCharts() {
+        function updateHistoricShorelineCharts() {
             if (!historicShorelineData) return;
 
             // Get current filter values from the controls.
@@ -6063,6 +6229,202 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             createHistoricYearChart(filteredData); // Update the new Year chart 
             createHistoricMaterialChart(filteredData); // Update the new Material chart 
             createHistoricFoundationChart(filteredData); // Update the new Foundation chart 
+        }
+        
+        // --- Boston Foundation Analysis Logic ---
+
+        const BF_COLORS = {
+            'Slab': '#0d0887',
+            'Crawl Space': '#5c01a6',
+            'Basement': '#9c179e',
+            'Solid Wall': '#cc4778',
+            'Pier': '#ed7953',
+            'Pile': '#f89540',
+            'Fill': '#fdb42f',
+            'Unknown': '#cccccc'
+        };
+
+        function initBostonFoundationAnalysis() {
+            const data = buildingData.boston_full_analysis;
+            if (!data) {
+                console.warn("Boston full analysis data missing.");
+                return;
+            }
+
+            // 1. Update Summary
+            document.getElementById('bf_total').textContent = data.summary.total_boston.toLocaleString();
+            document.getElementById('bf_shoreline').textContent = data.summary.shoreline_count.toLocaleString();
+            document.getElementById('bf_original').textContent = data.summary.non_shoreline_count.toLocaleString();
+            document.getElementById('bf_valid').textContent = data.summary.valid_foundation_count.toLocaleString();
+
+            // 2. Populate Dropdowns
+            const bins = data.bin_order;
+            const populate = (id) => {
+                const sel = document.getElementById(id);
+                sel.innerHTML = '<option value="">-- Select --</option>' + 
+                                bins.map(b => `<option value="${b}">${b}</option>`).join('');
+            };
+            populate('section1-bin-select');
+            populate('section2-bin1-select');
+            populate('section2-bin2-select');
+
+            // Default selections
+            document.getElementById('section1-bin-select').value = '0-24 ft';
+            document.getElementById('section2-bin1-select').value = '0-24 ft';
+            document.getElementById('section2-bin2-select').value = '24-72 ft';
+
+            // 3. Initial Draw
+            updateBFSection1();
+            updateBFSection2();
+        }
+
+        function generateStatsTable(breakdown, total) {
+            if (total === 0) return '<p>No data</p>';
+            
+            let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.9em;">';
+            html += '<tr style="background:#eee;"><th style="padding:5px; text-align:left;">Type</th><th style="padding:5px; text-align:right;">Count</th><th style="padding:5px; text-align:right;">%</th></tr>';
+            
+            breakdown.forEach(row => {
+                html += `<tr style="border-bottom: 1px solid #f0f0f0;">
+                    <td style="padding:5px;">${row.foundation}</td>
+                    <td style="padding:5px; text-align:right;">${row.count.toLocaleString()}</td>
+                    <td style="padding:5px; text-align:right;">${row.pct}%</td>
+                </tr>`;
+            });
+            html += '</table>';
+            return html;
+        }
+
+        function drawBFCharts(containerBar, containerPie, chartData, titleSuffix) {
+            Plotly.newPlot(containerBar, [{
+                x: chartData.map(d => d.foundation),
+                y: chartData.map(d => d.count),
+                type: 'bar',
+                marker: { color: chartData.map(d => BF_COLORS[d.foundation] || '#999') },
+                text: chartData.map(d => d.count.toLocaleString()),
+                textposition: 'auto'
+            }], {
+                title: { text: `Counts (${titleSuffix})`, font: {size: 16} },
+                margin: { t: 40, b: 120, l: 50, r: 20 }, 
+                height: 450, 
+                xaxis: { 
+                    tickangle: -45, 
+                    title: { text: 'Foundation Type', standoff: 20 }
+                },
+                yaxis: { title: 'Count' }
+            }, {responsive: true});
+
+            Plotly.newPlot(containerPie, [{
+                labels: chartData.map(d => d.foundation),
+                values: chartData.map(d => d.count),
+                type: 'pie',
+                marker: { colors: chartData.map(d => BF_COLORS[d.foundation] || '#999') },
+                textinfo: 'percent', 
+                textposition: 'inside',
+                hole: 0.4
+            }], {
+                title: { text: `Distribution (${titleSuffix})`, font: {size: 16} },
+                margin: { t: 40, b: 40, l: 20, r: 20 },
+                height: 450, 
+                showlegend: true,
+                legend: {
+                    orientation: 'v',
+                    x: 1.05, 
+                    y: 0.5,
+                    xanchor: 'left',
+                    yanchor: 'middle'
+                }
+            }, {responsive: true});
+        }
+
+        function updateBFSection1() {
+            const data = buildingData.boston_full_analysis;
+            const bin = document.getElementById('section1-bin-select').value;
+            if (!bin) return;
+
+            const origStats = data.data.original[bin];
+            const shoreStats = data.data.shoreline[bin];
+
+            // Original Side
+            document.getElementById('s1-orig-n').textContent = `(n=${origStats.total.toLocaleString()})`;
+            document.getElementById('s1-orig-table').innerHTML = generateStatsTable(origStats.breakdown, origStats.total);
+            drawBFCharts('s1-orig-bar', 's1-orig-pie', origStats.chart_data, 'Original');
+
+            // Shoreline Side
+            document.getElementById('s1-shore-n').textContent = `(n=${shoreStats.total.toLocaleString()})`;
+            document.getElementById('s1-shore-table').innerHTML = generateStatsTable(shoreStats.breakdown, shoreStats.total);
+            drawBFCharts('s1-shore-bar', 's1-shore-pie', shoreStats.chart_data, 'Shoreline');
+        }
+
+        function updateBFSection2() {
+            const data = buildingData.boston_full_analysis;
+            const landType = document.getElementById('section2-land-select').value;
+            const bin1 = document.getElementById('section2-bin1-select').value;
+            const bin2 = document.getElementById('section2-bin2-select').value;
+
+            if (!bin1 || !bin2) return;
+
+            const stats1 = data.data[landType][bin1];
+            const stats2 = data.data[landType][bin2];
+
+            // Bin 1
+            document.getElementById('s2-bin1-n').textContent = `(n=${stats1.total.toLocaleString()})`;
+            document.getElementById('s2-bin1-table').innerHTML = generateStatsTable(stats1.breakdown, stats1.total);
+            drawBFCharts('s2-bin1-bar', 's2-bin1-pie', stats1.chart_data, bin1);
+
+            // Bin 2
+            document.getElementById('s2-bin2-n').textContent = `(n=${stats2.total.toLocaleString()})`;
+            document.getElementById('s2-bin2-table').innerHTML = generateStatsTable(stats2.breakdown, stats2.total);
+            drawBFCharts('s2-bin2-bar', 's2-bin2-pie', stats2.chart_data, bin2);
+        }
+
+        function toggleBFSection3() {
+            const content = document.getElementById('section3-content');
+            const arrow = document.getElementById('s3-arrow');
+            const isHidden = content.style.display === 'none';
+            
+            content.style.display = isHidden ? 'block' : 'none';
+            arrow.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
+            
+            if (isHidden && !window.bfSection3Loaded) {
+                renderBFSection3();
+                window.bfSection3Loaded = true;
+            }
+        }
+
+        function renderBFSection3() {
+            const data = buildingData.boston_full_analysis;
+            
+            const renderRows = (containerId, landType) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                
+                data.bin_order.forEach((bin, idx) => {
+                    const stats = data.data[landType][bin];
+                    if(stats.total === 0) return;
+
+                    const rowId = `s3-${landType}-${idx}`;
+                    const html = `
+                        <div style="background: white; padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #eee;">
+                            <h5 style="margin:0 0 10px 0; color: #333; font-size: 1.1em;">${bin} (n=${stats.total.toLocaleString()})</h5>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                <div>${generateStatsTable(stats.breakdown, stats.total)}</div>
+                                <div id="${rowId}-bar" style="height: 400px;"></div>
+                                <div id="${rowId}-pie" style="height: 400px;"></div>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML += html;
+                    
+                    // Need to wait for DOM update before plotting
+                    setTimeout(() => {
+                        drawBFCharts(`${rowId}-bar`, `${rowId}-pie`, stats.chart_data, bin);
+                    }, 0);
+                });
+            };
+
+            renderRows('s3-orig-full-charts', 'original');
+            renderRows('s3-shore-full-charts', 'shoreline');
         }
 
         /**

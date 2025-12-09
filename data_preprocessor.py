@@ -18,6 +18,7 @@ from datetime import datetime
 import warnings
 import re
 from collections import defaultdict, Counter
+from PIL import Image
 
 warnings.filterwarnings('ignore')
 
@@ -49,7 +50,7 @@ class BuildingDataProcessor:
         try:
             self.df = pyogrio.read_dataframe(
                 self.file_path,
-                layer='structures_yr_source_updated',
+                layer='structures_yr_source',
                 ignore_geometry=True,
                 use_arrow=True
             )
@@ -512,6 +513,154 @@ class BuildingDataProcessor:
             self.data_flow_stats['unclassified_resolution']['mix_sc_recalculated_count'] = recalculated_count
 
         return self
+
+    def process_boston_foundation_full_analysis(self,
+                                                geotiff_path="commonwealth_q524n430n_image_georectified_primary.tif"):
+        """
+        Full replication of the Boston Foundation Analysis logic.
+        Returns a structured dictionary containing all data needed for the 3 dashboard sections.
+        """
+        print("Processing Full Boston Foundation Analysis (Shoreline/Height)...")
+
+        # 1. Filter for Boston
+        req_cols = ['PROP_CITY', 'LONGITUDE', 'LATITUDE', 'foundation_type', 'HEIGHT', 'PRED_HEIGHT']
+        for c in req_cols:
+            if c not in self.df_cleaned.columns:
+                print(f"  Warning: Missing column {c}, skipping Boston analysis.")
+                return None
+
+        df_bos = self.df_cleaned[self.df_cleaned['PROP_CITY'].astype(str).str.upper() == 'BOSTON'].copy()
+
+        if len(df_bos) == 0:
+            print("  No Boston records found.")
+            return None
+
+        # 2. GeoTIFF Processing (Shoreline Detection)
+        try:
+            img = Image.open(geotiff_path)
+            img_array = np.array(img)
+            tiff_tags = img.tag_v2
+            pixel_scale = tiff_tags.get(33550)
+            tiepoint = tiff_tags.get(33922)
+
+            if not pixel_scale or not tiepoint:
+                print("  GeoTIFF tags missing. Skipping.")
+                return None
+
+            scale_x, scale_y = pixel_scale[0], pixel_scale[1]
+            tie_i, tie_j, _, tie_x, tie_y, _ = tiepoint
+            origin_x = tie_x - tie_i * scale_x
+            origin_y = tie_y + tie_j * scale_y
+
+            def is_filled_land(lon, lat):
+                if pd.isna(lon) or pd.isna(lat): return False
+                col = int((lon - origin_x) / scale_x)
+                row = int((origin_y - lat) / scale_y)
+                if 0 <= row < img_array.shape[0] and 0 <= col < img_array.shape[1]:
+                    val = img_array[row, col]
+                    if isinstance(val, np.ndarray): val = val[0]
+                    return val == 182
+                return False
+
+            df_bos['is_shoreline'] = df_bos.apply(lambda row: is_filled_land(row['LONGITUDE'], row['LATITUDE']), axis=1)
+
+        except Exception as e:
+            print(f"  Error processing GeoTIFF: {e}. Defaulting all to non-shoreline.")
+            df_bos['is_shoreline'] = False
+
+        # 3. Height Processing
+        METERS_TO_FEET = 3.28084
+
+        def get_height_ft(row):
+            h = row['HEIGHT']
+            ph = row['PRED_HEIGHT']
+            if pd.notna(h) and h != 0: return h * METERS_TO_FEET
+            if pd.notna(ph) and ph != 0: return ph * METERS_TO_FEET
+            return None
+
+        df_bos['height_ft'] = df_bos.apply(get_height_ft, axis=1)
+
+        # Filter for valid height AND foundation type (as per your script)
+        df_valid = df_bos.dropna(subset=['height_ft', 'foundation_type']).copy()
+        df_valid = df_valid[df_valid['foundation_type'] != '']
+
+        # 4. Binning and Mapping
+        def assign_bin(h):
+            if h < 0: return '<0 ft'
+            if h < 24: return '0-24 ft'
+            if h < 72: return '24-72 ft'
+            if h < 120: return '72-120 ft'
+            return '120+ ft'
+
+        df_valid['height_bin'] = df_valid['height_ft'].apply(assign_bin)
+
+        f_map = {
+            'C': 'Crawl Space', 'B': 'Basement', 'S': 'Slab', 'P': 'Pier',
+            'I': 'Pile', 'F': 'Fill', 'W': 'Solid Wall'
+        }
+        df_valid['foundation_name'] = df_valid['foundation_type'].map(lambda x: f_map.get(x, x))
+
+        # 5. Build Structured Data for JSON
+        bin_order = ['<0 ft', '0-24 ft', '24-72 ft', '72-120 ft', '120+ ft']
+        foundation_order = ['Slab', 'Crawl Space', 'Basement', 'Solid Wall', 'Pier', 'Pile', 'Fill']
+
+        shoreline_count = int(df_bos['is_shoreline'].sum())
+        non_shoreline_count = len(df_bos) - shoreline_count
+
+        result = {
+            'summary': {
+                'total_boston': len(df_bos),
+                'shoreline_count': shoreline_count,
+                'non_shoreline_count': non_shoreline_count,
+                'valid_foundation_count': len(df_valid)
+            },
+            'bin_order': bin_order,
+            'foundation_order': foundation_order,
+            'data': {
+                'original': {},
+                'shoreline': {}
+            }
+        }
+
+        # Helper to generate stats for a subset
+        def get_stats(subset):
+            total = len(subset)
+            counts = subset['foundation_name'].value_counts()
+            stats_list = []
+
+            # For Pie/Bar charts (ordered)
+            chart_data = []
+
+            for fname in foundation_order:
+                count = int(counts.get(fname, 0))
+                pct = (count / total * 100) if total > 0 else 0
+
+                stats_list.append({
+                    'foundation': fname,
+                    'count': count,
+                    'pct': round(pct, 2)
+                })
+
+                if count > 0:  # Only add to charts if exists or strictly follow order
+                    chart_data.append({'foundation': fname, 'count': count})
+
+            return {
+                'total': total,
+                'breakdown': stats_list,
+                'chart_data': chart_data
+            }
+
+        # Fill Data Structure
+        for land_type in ['original', 'shoreline']:
+            is_shore = (land_type == 'shoreline')
+            land_df = df_valid[df_valid['is_shoreline'] == is_shore]
+
+            for bin_name in bin_order:
+                bin_df = land_df[land_df['height_bin'] == bin_name]
+                result['data'][land_type][bin_name] = get_stats(bin_df)
+
+        print("  Boston Full Analysis Complete.")
+        return result
 
     def process_hierarchical_distribution(self):
         """
@@ -1795,6 +1944,7 @@ class BuildingDataProcessor:
         # Calculate NSI data source statistics
         nsi_data_sources = self.calculate_nsi_data_sources()
 
+        boston_full_analysis = self.process_boston_foundation_full_analysis()
 
         hierarchical_distribution = self.process_hierarchical_distribution()
 
@@ -1816,6 +1966,7 @@ class BuildingDataProcessor:
                 'samples_files': []
             },
             'hierarchical_distribution': hierarchical_distribution,
+            'boston_full_analysis': boston_full_analysis,
             'occ_cls_occ_dict_sankey': occ_cls_occ_dict_sankey,
             'year_occ_flow': year_occ_flow,
             'summary_stats': {
