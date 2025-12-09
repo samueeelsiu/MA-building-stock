@@ -2441,19 +2441,20 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     </div>
                 </div>
 
-                <div class="info-box" style="margin-top: 20px; border-left-color: #0d0887; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);">
+            <div class="info-box" style="margin-top: 20px; border-left-color: #0d0887; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);">
                     <h3 style="color: #0d0887;">Methodology & Data Processing</h3>
                     
                     <p style="border-bottom: 1px solid rgba(13, 8, 135, 0.1); padding-bottom: 10px; margin-bottom: 10px;">
                         <strong>Data Scope & Cleaning:</strong> 
                         This analysis is strictly filtered to buildings where <code>PROP_CITY</code> is <strong>'BOSTON'</strong>. 
                         Furthermore, all data presented here has already passed the rigorous cleaning pipeline detailed in the 
-                        <a href="#" onclick="showSection('dataAnalysis')" style="color: #0d0887; text-decoration: underline;">Data Pipelines</a> tab 
+                        <a href="#" onclick="showSection('dataAnalysis'); return false;" style="color: #0d0887; text-decoration: underline;">Data Pipelines</a> tab 
                         (refer to the <em>"Geopackage data to Json data - Cleaning Process"</em> Sankey diagram), ensuring outliers and invalid records are excluded.
                     </p>
                     
                     <p>
-                        <strong>Shoreline Detection:</strong> Buildings are classified as "Shoreline" (Filled Land) vs. "Original Land" using a georeferenced historic map (<em>1630 Boston Shoreline</em>). A building is considered to be on filled land if its centroid falls within the pixel value range (182) representing filled areas in the GeoTIFF (Unlike the <a href="#" onclick="showSection('historicShoreline')" style="color: #0d0887; text-decoration: underline;">Boston Historic Shoreline</a> section, the shoreline data points filtered here are based on PROP_CITY = Boston, rather than directly using the GeoTIFF).
+                        <strong>Shoreline Detection:</strong> Buildings are classified as "Shoreline" (Filled Land) vs. "Original Land" using a georeferenced historic map (<em>1630 Boston Shoreline</em>). A building is considered to be on filled land if its centroid falls within the pixel value range (182) representing filled areas in the GeoTIFF (Unlike the 
+                        <a href="#" onclick="showSection('historicShoreline'); return false;" style="color: #0d0887; text-decoration: underline;">Boston Historic Shoreline</a> section, the shoreline data points filtered here are based on PROP_CITY = Boston, rather than directly using the GeoTIFF).
                     </p>
                     <p>
                         <strong>Height Binning:</strong> Building heights are categorized into 5 bins based on <code>HEIGHT_USED</code> (measured height prioritized over predicted):
@@ -2465,7 +2466,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">120+ ft ('Skyscraper')</span>
                     </p>
                     <p>
-                        <strong>Foundation Classification:</strong> Standardized NSI codes are mapped to descriptive names (e.g.,like mentioned in <a href="#" onclick="showSection('materials')" style="color: #0d0887; text-decoration: underline;">Materials</a> Section, 'P' → 'Pier', 'S' → 'Slab').
+                        <strong>Foundation Classification:</strong> Standardized NSI codes are mapped to descriptive names (e.g., like mentioned in 
+                        <a href="#" onclick="showSection('materials'); return false;" style="color: #0d0887; text-decoration: underline;">Materials</a> Section, 'P' → 'Pier', 'S' → 'Slab').
                     </p>
                 </div>
 
