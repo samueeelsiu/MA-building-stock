@@ -1136,6 +1136,72 @@
             margin-bottom: 6px;
             }
 
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr; 
+            gap: 30px;
+            width: 100%;
+        }
+
+        .comparison-grid .panel {
+            min-width: 0; 
+            width: 100%;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+        }
+
+        @media (max-width: 1200px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .radio-group-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        .radio-pill {
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        .radio-pill input[type="radio"] {
+            display: none; 
+        }
+
+        .radio-pill span {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #f0f2f5;
+            border: 1px solid #d1d5db;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #4b5563;
+            transition: all 0.2s ease;
+        }
+
+        .radio-pill input[type="radio"]:checked + span {
+        background-color: #667eea; 
+            
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .radio-pill:hover span {
+            background-color: #e5e7eb;
+        }
+
+        .radio-pill input[type="radio"]:checked:hover + span {
+            opacity: 0.9;
+        }
+
 
 
     </style>
@@ -1163,7 +1229,7 @@
                 <button class="nav-tab" onclick="showSection('materials')">Materials</button>
                 <button class="nav-tab soil-tab" onclick="showSection('soilAnalysis')">Soil Analysis</button>
                 <button class="nav-tab" onclick="showSection('historicShoreline')">Boston Historic Shoreline</button>
-                <button class="nav-tab" onclick="showSection('foundationAnalysis')">Foundation-Height Statistics</button>
+                <button class="nav-tab" onclick="showSection('foundationAnalysis')">Boston Foundation-Height Statistics</button>
                 <button class="nav-tab" onclick="showSection('clf')">CLF Analysis</button>
                 <button class="nav-tab" onclick="showSection('interactive')">Explorer</button>
             </div>
@@ -2416,7 +2482,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 </div>
             </div>
 
-            <div id="foundationAnalysis" class="section">
+        <div id="foundationAnalysis" class="section">
                 <div class="section-header">
                     <h2>Boston Foundation Type Analysis by Building Height</h2>
                     <p>Comprehensive analysis of foundation types on Original vs. Filled Land across height bins.</p>
@@ -2441,34 +2507,10 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     </div>
                 </div>
 
-            <div class="info-box" style="margin-top: 20px; border-left-color: #0d0887; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);">
-                    <h3 style="color: #0d0887;">Methodology & Data Processing</h3>
-                    
-                    <p style="border-bottom: 1px solid rgba(13, 8, 135, 0.1); padding-bottom: 10px; margin-bottom: 10px;">
-                        <strong>Data Scope & Cleaning:</strong> 
-                        This analysis is strictly filtered to buildings where <code>PROP_CITY</code> is <strong>'BOSTON'</strong>. 
-                        Furthermore, all data presented here has already passed the rigorous cleaning pipeline detailed in the 
-                        <a href="#" onclick="showSection('dataAnalysis'); return false;" style="color: #0d0887; text-decoration: underline;">Data Pipelines</a> tab 
-                        (refer to the <em>"Geopackage data to Json data - Cleaning Process"</em> Sankey diagram), ensuring outliers and invalid records are excluded.
-                    </p>
-                    
-                    <p>
-                        <strong>Shoreline Detection:</strong> Buildings are classified as "Shoreline" (Filled Land) vs. "Original Land" using a georeferenced historic map (<em>1630 Boston Shoreline</em>). A building is considered to be on filled land if its centroid falls within the pixel value range (182) representing filled areas in the GeoTIFF (Unlike the 
-                        <a href="#" onclick="showSection('historicShoreline'); return false;" style="color: #0d0887; text-decoration: underline;">Boston Historic Shoreline</a> section, the shoreline data points filtered here are based on PROP_CITY = Boston, rather than directly using the GeoTIFF).
-                    </p>
-                    <p>
-                        <strong>Height Binning:</strong> Building heights are categorized into 5 bins based on <code>HEIGHT_USED</code> (measured height prioritized over predicted):
-                        <br>
-                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">&lt;0 ft (Error/Underground)</span> | 
-                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">0-24 ft (Low-rise)</span> | 
-                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">24-72 ft (Mid-rise)</span> | 
-                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">72-120 ft (High-rise)</span> | 
-                        <span style="font-family: monospace; background: rgba(255,255,255,0.5); padding: 2px 5px; border-radius: 4px;">120+ ft ('Skyscraper')</span>
-                    </p>
-                    <p>
-                        <strong>Foundation Classification:</strong> Standardized NSI codes are mapped to descriptive names (e.g., like mentioned in 
-                        <a href="#" onclick="showSection('materials'); return false;" style="color: #0d0887; text-decoration: underline;">Materials</a> Section, 'P' → 'Pier', 'S' → 'Slab').
-                    </p>
+                <div class="info-box" style="margin-top: 20px; border-left-color: #0d0887; background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);">
+                     <h3 style="color: #0d0887;">Methodology & Data Processing</h3>
+                     <p><strong>Shoreline Detection:</strong> Buildings are classified using the 1630 historic shoreline.</p>
+                     <p><strong>Height Binning:</strong> Buildings are categorized into 5 bins based on height.</p>
                 </div>
 
                 <hr>
@@ -2478,16 +2520,15 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         <h3 style="color: #2c3e50;">Section 1: Original Land vs Shoreline Land Comparison</h3>
                     </div>
                     <div class="controls">
-                        <div class="control-group">
-                            <label>Compare Height Bin:</label>
-                            <select id="section1-bin-select" onchange="updateBFSection1()">
-                                </select>
+                        <div class="control-group" style="display: block;">
+                            <label style="margin-bottom: 8px; display: block;">Compare Height Bin:</label>
+                            <div id="section1-bin-radios" class="radio-group-container"></div>
                         </div>
                     </div>
                     
                     <div id="section1-content" style="margin-top: 20px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                            <div class="panel" style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 1px solid #e8e8f0;">
+                        <div class="comparison-grid">
+                            <div class="panel">
                                 <div class="panel-title" style="font-weight: 600; color: #0d0887; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 15px;">
                                     Original Land <span id="s1-orig-n" style="font-size: 0.85rem; color: #666; margin-left: 10px;"></span>
                                 </div>
@@ -2496,7 +2537,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                                 <div id="s1-orig-pie" style="height: 450px; margin-top: 20px;"></div>
                             </div>
 
-                            <div class="panel" style="background: #fff5f8; padding: 20px; border-radius: 10px; border: 1px solid #f0e0e8;">
+                            <div class="panel">
                                 <div class="panel-title" style="font-weight: 600; color: #cc4778; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; margin-bottom: 15px;">
                                     Shoreline Land <span id="s1-shore-n" style="font-size: 0.85rem; color: #666; margin-left: 10px;"></span>
                                 </div>
@@ -2512,27 +2553,27 @@ The diagram below shows the fill rate of attributes obtained directly from Light
 
                 <div class="chart-container">
                     <div class="section-header" style="border: none; margin-bottom: 15px;">
-                        <h3 style="color: #2c3e50;">Section 2: Internal Height Bin Comparison</h3>
+                        <h3 style="color: #2c3e50;">Section 2: Height bin comparison within same land type</h3>
                     </div>
                     <div class="controls">
-                        <div class="control-group">
-                            <label>Land Type:</label>
-                            <select id="section2-land-select" onchange="updateBFSection2()">
-                                <option value="original">Original Land</option>
-                                <option value="shoreline">Shoreline Land</option>
-                            </select>
-                            
-                            <label>Height Bin 1:</label>
-                            <select id="section2-bin1-select" onchange="updateBFSection2()"></select>
-                            
-                            <label>Height Bin 2:</label>
-                            <select id="section2-bin2-select" onchange="updateBFSection2()"></select>
+                        <div class="control-group" style="display: block;">
+                            <label style="margin-bottom: 8px; display: block;">Land Type:</label>
+                            <div id="section2-land-radios" class="radio-group-container"></div>
+                        </div>
+                        <div class="control-group" style="display: block; margin-top: 15px;">
+                            <label style="margin-bottom: 8px; display: block;">Height Bin 1:</label>
+                            <div id="section2-bin1-radios" class="radio-group-container"></div>
+                        </div>
+
+                        <div class="control-group" style="display: block; margin-top: 15px;">
+                            <label style="margin-bottom: 8px; display: block;">Height Bin 2:</label>
+                            <div id="section2-bin2-radios" class="radio-group-container"></div>
                         </div>
                     </div>
 
                     <div id="section2-content" style="margin-top: 20px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-                            <div class="panel" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6;">
+                        <div class="comparison-grid">
+                            <div class="panel">
                                 <div class="panel-title" style="font-weight: 600; margin-bottom: 15px;">
                                     Bin 1 Comparison <span id="s2-bin1-n" style="font-size: 0.85rem; color: #666;"></span>
                                 </div>
@@ -2541,7 +2582,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                                 <div id="s2-bin1-pie" style="height: 450px; margin-top: 20px;"></div>
                             </div>
 
-                            <div class="panel" style="background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6;">
+                            <div class="panel">
                                 <div class="panel-title" style="font-weight: 600; margin-bottom: 15px;">
                                     Bin 2 Comparison <span id="s2-bin2-n" style="font-size: 0.85rem; color: #666;"></span>
                                 </div>
@@ -2552,22 +2593,22 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         </div>
                     </div>
                 </div>
-
+                
                 <hr>
-
+                
                 <div class="chart-container">
-                    <div class="section-header collapsible" onclick="toggleBFSection3()" style="cursor: pointer;">
+                     <div class="section-header collapsible" onclick="toggleBFSection3()" style="cursor: pointer;">
                         <h3 style="color: #2c3e50;">Section 3: Complete Data Overview (Click to Expand) <span id="s3-arrow">▶</span></h3>
                     </div>
                     <div id="section3-content" style="display: none;">
-                        
                         <h4 style="margin-top: 20px; color: #0d0887;">Original Land (Full Breakdown)</h4>
-                        <div id="s3-orig-full-charts"></div> <hr style="margin: 30px 0;">
-
+                        <div id="s3-orig-full-charts"></div> 
+                        <hr style="margin: 30px 0;">
                         <h4 style="color: #cc4778;">Shoreline Land (Full Breakdown)</h4>
                         <div id="s3-shore-full-charts"></div>
                     </div>
                 </div>
+
             </div>
 
             <div id="interactive" class="section">
@@ -6232,8 +6273,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             createHistoricMaterialChart(filteredData); // Update the new Material chart 
             createHistoricFoundationChart(filteredData); // Update the new Foundation chart 
         }
-        
-        // --- Boston Foundation Analysis Logic ---
+
+        // --- Boston Foundation Analysis Logic (Updated for Radio Buttons) ---
 
         const BF_COLORS = {
             'Slab': '#0d0887',
@@ -6253,31 +6294,103 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 return;
             }
 
-            // 1. Update Summary
+            // 1. Update Summary 
             document.getElementById('bf_total').textContent = data.summary.total_boston.toLocaleString();
             document.getElementById('bf_shoreline').textContent = data.summary.shoreline_count.toLocaleString();
             document.getElementById('bf_original').textContent = data.summary.non_shoreline_count.toLocaleString();
             document.getElementById('bf_valid').textContent = data.summary.valid_foundation_count.toLocaleString();
 
-            // 2. Populate Dropdowns
             const bins = data.bin_order;
-            const populate = (id) => {
-                const sel = document.getElementById(id);
-                sel.innerHTML = '<option value="">-- Select --</option>' + 
-                                bins.map(b => `<option value="${b}">${b}</option>`).join('');
-            };
-            populate('section1-bin-select');
-            populate('section2-bin1-select');
-            populate('section2-bin2-select');
 
-            // Default selections
-            document.getElementById('section1-bin-select').value = '0-24 ft';
-            document.getElementById('section2-bin1-select').value = '0-24 ft';
-            document.getElementById('section2-bin2-select').value = '24-72 ft';
+            // Helper function to create Radio Buttons for BINS 
+            const createBinRadios = (containerId, nameGroup, callbackStr, defaultVal) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = bins.map(b => {
+                    const isChecked = b === defaultVal ? 'checked' : '';
+                    const inputId = `${nameGroup}_${b.replace(/[^a-z0-9]/gi, '')}`; 
+                    return `
+                        <label class="radio-pill" for="${inputId}">
+                            <input type="radio" id="${inputId}" name="${nameGroup}" value="${b}" ${isChecked} onchange="${callbackStr}">
+                            <span>${b}</span>
+                        </label>
+                    `;
+                }).join('');
+            };
+
+            const landContainer = document.getElementById('section2-land-radios');
+            const landOptions = [
+                { label: 'Original Land', value: 'original' },
+                { label: 'Shoreline Land', value: 'shoreline' }
+            ];
+            landContainer.innerHTML = landOptions.map(opt => {
+                const isChecked = opt.value === 'original' ? 'checked' : ''; 
+                const inputId = `s2_land_${opt.value}`;
+                return `
+                    <label class="radio-pill" for="${inputId}">
+                        <input type="radio" id="${inputId}" name="s2_land" value="${opt.value}" ${isChecked} onchange="updateBFSection2()">
+                        <span>${opt.label}</span>
+                    </label>
+                `;
+            }).join('');
+
+            // 2. Populate Bin Radios 
+            createBinRadios('section1-bin-radios', 's1_bin', 'updateBFSection1()', '0-24 ft');
+            createBinRadios('section2-bin1-radios', 's2_bin1', 'updateBFSection2()', '0-24 ft');
+            createBinRadios('section2-bin2-radios', 's2_bin2', 'updateBFSection2()', '24-72 ft');
 
             // 3. Initial Draw
             updateBFSection1();
             updateBFSection2();
+        }
+
+        // Updated to read from Radio Buttons
+        function updateBFSection1() {
+            const data = buildingData.boston_full_analysis;
+            
+            // Get value from checked radio in the group 's1_bin'
+            const selectedRadio = document.querySelector('input[name="s1_bin"]:checked');
+            if (!selectedRadio) return;
+            const bin = selectedRadio.value;
+
+            const origStats = data.data.original[bin];
+            const shoreStats = data.data.shoreline[bin];
+
+            // Original Side
+            document.getElementById('s1-orig-n').textContent = `(n=${origStats.total.toLocaleString()})`;
+            document.getElementById('s1-orig-table').innerHTML = generateStatsTable(origStats.breakdown, origStats.total);
+            drawBFCharts('s1-orig-bar', 's1-orig-pie', origStats.chart_data, 'Original');
+
+            // Shoreline Side
+            document.getElementById('s1-shore-n').textContent = `(n=${shoreStats.total.toLocaleString()})`;
+            document.getElementById('s1-shore-table').innerHTML = generateStatsTable(shoreStats.breakdown, shoreStats.total);
+            drawBFCharts('s1-shore-bar', 's1-shore-pie', shoreStats.chart_data, 'Shoreline');
+        }
+
+        function updateBFSection2() {
+            const data = buildingData.boston_full_analysis;
+            
+            const landRadio = document.querySelector('input[name="s2_land"]:checked');
+            if (!landRadio) return; 
+            const landType = landRadio.value;
+            
+            const r1 = document.querySelector('input[name="s2_bin1"]:checked');
+            const r2 = document.querySelector('input[name="s2_bin2"]:checked');
+            
+            if (!r1 || !r2) return;
+            
+            const bin1 = r1.value;
+            const bin2 = r2.value;
+
+            const stats1 = data.data[landType][bin1];
+            const stats2 = data.data[landType][bin2];
+
+            document.getElementById('s2-bin1-n').textContent = `(n=${stats1.total.toLocaleString()})`;
+            document.getElementById('s2-bin1-table').innerHTML = generateStatsTable(stats1.breakdown, stats1.total);
+            drawBFCharts('s2-bin1-bar', 's2-bin1-pie', stats1.chart_data, bin1);
+
+            document.getElementById('s2-bin2-n').textContent = `(n=${stats2.total.toLocaleString()})`;
+            document.getElementById('s2-bin2-table').innerHTML = generateStatsTable(stats2.breakdown, stats2.total);
+            drawBFCharts('s2-bin2-bar', 's2-bin2-pie', stats2.chart_data, bin2);
         }
 
         function generateStatsTable(breakdown, total) {
@@ -6339,46 +6452,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             }, {responsive: true});
         }
 
-        function updateBFSection1() {
-            const data = buildingData.boston_full_analysis;
-            const bin = document.getElementById('section1-bin-select').value;
-            if (!bin) return;
-
-            const origStats = data.data.original[bin];
-            const shoreStats = data.data.shoreline[bin];
-
-            // Original Side
-            document.getElementById('s1-orig-n').textContent = `(n=${origStats.total.toLocaleString()})`;
-            document.getElementById('s1-orig-table').innerHTML = generateStatsTable(origStats.breakdown, origStats.total);
-            drawBFCharts('s1-orig-bar', 's1-orig-pie', origStats.chart_data, 'Original');
-
-            // Shoreline Side
-            document.getElementById('s1-shore-n').textContent = `(n=${shoreStats.total.toLocaleString()})`;
-            document.getElementById('s1-shore-table').innerHTML = generateStatsTable(shoreStats.breakdown, shoreStats.total);
-            drawBFCharts('s1-shore-bar', 's1-shore-pie', shoreStats.chart_data, 'Shoreline');
-        }
-
-        function updateBFSection2() {
-            const data = buildingData.boston_full_analysis;
-            const landType = document.getElementById('section2-land-select').value;
-            const bin1 = document.getElementById('section2-bin1-select').value;
-            const bin2 = document.getElementById('section2-bin2-select').value;
-
-            if (!bin1 || !bin2) return;
-
-            const stats1 = data.data[landType][bin1];
-            const stats2 = data.data[landType][bin2];
-
-            // Bin 1
-            document.getElementById('s2-bin1-n').textContent = `(n=${stats1.total.toLocaleString()})`;
-            document.getElementById('s2-bin1-table').innerHTML = generateStatsTable(stats1.breakdown, stats1.total);
-            drawBFCharts('s2-bin1-bar', 's2-bin1-pie', stats1.chart_data, bin1);
-
-            // Bin 2
-            document.getElementById('s2-bin2-n').textContent = `(n=${stats2.total.toLocaleString()})`;
-            document.getElementById('s2-bin2-table').innerHTML = generateStatsTable(stats2.breakdown, stats2.total);
-            drawBFCharts('s2-bin2-bar', 's2-bin2-pie', stats2.chart_data, bin2);
-        }
 
         function toggleBFSection3() {
             const content = document.getElementById('section3-content');
