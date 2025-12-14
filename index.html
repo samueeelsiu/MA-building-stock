@@ -1294,6 +1294,11 @@
                             <option value="foundation_type">Foundation Type</option>
                             <option value="Est GFA sqmeters">Total GFA</option>
                         </select>
+
+                        <div class="toggle-switch" style="margin-left: 20px; border-left: 2px solid #ddd; padding-left: 20px;">
+                            <label>Size by GFA:</label>
+                            <input type="checkbox" id="overviewSizeByGFA" onchange="createOverviewMap()">
+                        </div>
                     </div>
                 </div>
 
@@ -2136,6 +2141,14 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         </select>
                     </div>
                     <div id="clusterTreemap"></div>
+                </div>
+
+                <div class="map-container" style="margin-top: 30px;">
+                    <div class="section-header" style="border:none; margin-bottom:10px;">
+                        <h3>Geographic Distribution of Clusters</h3>
+                        <p>Visualizing how the K-means clusters identified above are distributed spatially.</p>
+                    </div>
+                    <div id="clusterMapPlot"></div>
                 </div>
             </div>
 
@@ -3687,6 +3700,73 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             };
             
             Plotly.newPlot('dataCleaningSankey', sankeyData, layout, {responsive: true});
+        }
+
+        function createClusterMap() {
+            if (!buildingData || !buildingData.building_samples_random) return;
+
+
+            const samples = buildingData.building_samples_random.map(s => ({
+                ...s,
+                displayCluster: s[`cluster_base_k${currentClusterK}`]
+            })).filter(s => 
+                s.displayCluster !== undefined && s.displayCluster !== null && 
+                s.LATITUDE && s.LONGITUDE 
+            );
+
+            const mapSamples = samples.length > 75000 ? samples.slice(0, 75000) : samples;
+
+            const traces = [];
+
+            for (let i = 0; i < currentClusterK; i++) {
+                const clusterPoints = mapSamples.filter(s => s.displayCluster === i);
+                
+                if (clusterPoints.length === 0) continue;
+
+                const color = plasmaColors[i % plasmaColors.length];
+
+                traces.push({
+                    type: 'scattermapbox',
+                    mode: 'markers',
+                    lon: clusterPoints.map(p => p.LONGITUDE),
+                    lat: clusterPoints.map(p => p.LATITUDE),
+                    marker: {
+                        size: 6,
+                        color: color,
+                        opacity: 0.6
+                    },
+                    name: `Cluster ${i + 1}`,
+                    text: clusterPoints.map(p => 
+                        `<b>Cluster ${i + 1}</b><br>` + 
+                        `GFA: ${Math.round(p['Est GFA sqmeters'])} sqm<br>` +
+                        `Year: ${p.year_built}<br>` + 
+                        `Occ: ${p.OCC_CLS}`
+                    ),
+                    hovertemplate: '%{text}<extra></extra>'
+                });
+            }
+
+            const layout = {
+                title: {
+                    text: `Spatial Distribution of Clusters with 75,000 samples (K=${currentClusterK})`,
+                    font: { size: 18, color: '#333' }
+                },
+                mapbox: {
+                    style: 'open-street-map',
+                    center: { lat: 42.3601, lon: -71.0589 },
+                    zoom: 8
+                },
+                height: 600,
+                margin: { t: 50, b: 0, l: 0, r: 0 },
+                showlegend: true,
+                legend: {
+                    bgcolor: 'rgba(255,255,255,0.9)',
+                    bordercolor: '#ccc',
+                    borderwidth: 1
+                }
+            };
+
+            Plotly.newPlot('clusterMapPlot', traces, layout, {responsive: true});
         }
 
         
@@ -5861,12 +5941,20 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             'F': '#f0f921'   // Fill - Brightest yellow
         };
 
+        /**
+         * Creates the Overview Map with filters and coloring options.
+         * MODIFIED: Added logic to size points by GFA and adjust opacity/strokes for better visibility.
+         */
         function createOverviewMap() {
             // 1. Get current filter values from the DOM
             const occFilter = document.getElementById('overviewOccFilter').value;
             const materialFilter = document.getElementById('overviewMaterialFilter').value;
             const foundationFilter = document.getElementById('overviewFoundationFilter').value;
             const colorBy = document.getElementById('overviewColorBy').value;
+            
+            // === NEW: Get Toggle State for GFA Sizing ===
+            // This checkbox must be added to the HTML controls area
+            const sizeByGFA = document.getElementById('overviewSizeByGFA') ? document.getElementById('overviewSizeByGFA').checked : false;
 
             // 2. Filter the data based on dropdown selections
             // We filter from the random samples array
@@ -5893,6 +5981,23 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             let mapData = [];
             let layoutSettings = {};
 
+            // === NEW: Dynamic Marker Styling Logic ===
+            // If 'Size by GFA' is checked:
+            // 1. Size depends on SQRT of Area (to represent physical size accurately).
+            // 2. Opacity is lowered to visual overlapping clusters.
+            // 3. Line/Stroke is removed to reduce visual clutter.
+            
+            const markerSize = sizeByGFA 
+                ? filteredData.map(d => {
+                    const area = d['Est GFA sqmeters'] || 0;
+                    // Logic: Min size 3px, Max size 25px, Scaling factor 0.15
+                    return Math.max(3, Math.min(25, Math.sqrt(area) * 0.15));
+                }) 
+                : 8; // Default fixed size if toggle is off
+
+            const markerOpacity = sizeByGFA ? 0.4 : 0.8; 
+            const markerLine = sizeByGFA ? { width: 0 } : { width: 0.5, color: 'rgba(255,255,255,0.3)' };
+
             // 4. Handle Coloring Logic
             // Check if the user selected "Total GFA" (Continuous data) or a Category (Discrete data)
             if (colorBy === 'Est GFA sqmeters') {
@@ -5902,7 +6007,6 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 const gfaValues = filteredData.map(d => d['Est GFA sqmeters']);
                 
                 // Calculate Log10 values for coloring because building areas follow a power law.
-                // Use a small epsilon or check > 0 to avoid Math.log(0) = -Infinity
                 const logValues = gfaValues.map(v => (v > 0 ? Math.log10(v) : 0));
 
                 // Create a single trace for continuous data
@@ -5912,7 +6016,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     lat: filteredData.map(d => d.LATITUDE),
                     mode: 'markers',
                     marker: {
-                        size: 8,
+                        size: markerSize,       // <--- Dynamic Size
                         color: logValues,       // Use log values for color mapping
                         colorscale: [
                             [0.0, '#0d0887'],
@@ -5928,7 +6032,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                             [1.0, '#f0f921']
                         ],
                         showscale: true,        // Show the continuous color bar
-                        opacity: 0.8,
+                        opacity: markerOpacity, // <--- Dynamic Opacity
                         colorbar: {
                             title: 'GFA (Log Scale)',
                             titleside: 'right',
@@ -6014,19 +6118,17 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     lat: filteredData.map(d => d.LATITUDE),
                     mode: 'markers',
                     marker: {
-                        size: 10,
+                        size: markerSize,        // <--- Dynamic Size
                         color: colorValues.map(v => colorMap[v] || '#999999'),
-                        opacity: 0.8,
-                        line: {
-                            width: 0.5,
-                            color: 'rgba(255,255,255,0.3)'
-                        }
+                        opacity: markerOpacity,  // <--- Dynamic Opacity
+                        line: markerLine         // <--- Dynamic Stroke
                     },
                     text: filteredData.map(d => 
                         `<b>Year Built:</b> ${d.year_built}<br>` +
                         `<b>Occupancy:</b> ${d.OCC_CLS || 'N/A'}<br>` +
                         `<b>Material:</b> ${materialTypeMap[d.material_type] || d.material_type || 'N/A'}<br>` +
-                        `<b>Foundation:</b> ${foundationTypeMap[d.foundation_type] || d.foundation_type || 'N/A'}`
+                        `<b>Foundation:</b> ${foundationTypeMap[d.foundation_type] || d.foundation_type || 'N/A'}<br>` +
+                        `<b>GFA:</b> ${Math.round(d['Est GFA sqmeters']).toLocaleString()} sqm`
                     ),
                     hovertemplate: '%{text}<extra></extra>',
                     showlegend: false // Hide this trace from legend, use dummy traces instead
@@ -6062,7 +6164,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // 5. Final Map Layout
             const layout = {
                 title: {
-                    text: `Massachusetts Building Distribution (${filteredData.length} points shown)`,
+                    text: `Massachusetts Building Distribution ${sizeByGFA ? '(Sized by GFA)' : ''} (${filteredData.length} points shown)`,
                     font: { size: 20, color: '#333' }
                 },
                 mapbox: {
@@ -6080,7 +6182,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             Plotly.newPlot('overviewMapPlot', mapData, layout, {responsive: true});
         }
 
-                function populateHistoricShorelineFilters() {
+        function populateHistoricShorelineFilters() {
             // Check if the historic data is loaded and is an array.
             if (!historicShorelineData || !Array.isArray(historicShorelineData)) return;
 
@@ -7031,6 +7133,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             document.getElementById('clusterTable').innerHTML = `<p>No statistics available for K=${currentClusterK}.</p>`;
             document.getElementById('clusterTreemap').innerHTML = '';
         }
+            createClusterMap();
     }
 
     // You also need to slightly modify `updateClusterTreemap` to accept data as an argument.
