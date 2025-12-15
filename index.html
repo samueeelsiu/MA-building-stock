@@ -1202,7 +1202,34 @@
             opacity: 0.9;
         }
 
+        .map-legend-overlay {
+            position: absolute;
+            bottom: 10px;       
+            right: 10px;       
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 10px;  
+            border-radius: 6px;  
+            border: none;
+            box-shadow: none; 
+            z-index: 999;
+            font-size: 11px;    
+            pointer-events: none;
+            line-height: 1.2;   
+        }
 
+        .size-legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;  
+        }
+
+        .size-legend-circle {
+            background: #888;
+            border-radius: 50%;
+            margin-right: 6px;   
+            opacity: 0.5;
+            display: inline-block;
+        }
 
     </style>
 </head>
@@ -1286,24 +1313,38 @@
                         <label>Filter by Foundation:</label>
                         <select id="overviewFoundationFilter" onchange="createOverviewMap()"></select>
                     </div>
-                    <div class="control-group">
-                        <label>Color Points By:</label>
-                        <select id="overviewColorBy" onchange="createOverviewMap()">
-                            <option value="OCC_CLS">Occupancy Class</option>
-                            <option value="material_type">Material Type</option>
-                            <option value="foundation_type">Foundation Type</option>
-                            <option value="Est GFA sqmeters">Total GFA</option>
-                        </select>
+                
+                <div class="control-group">
+                    <label>Color Points By:</label>
+                    <select id="overviewColorBy" onchange="handleColorByChange()">
+                        <option value="OCC_CLS">Occupancy Class</option>
+                        <option value="material_type">Material Type</option>
+                        <option value="foundation_type">Foundation Type</option>
+                        <option value="Est GFA sqmeters">Total GFA (Continuous)</option>
+                        <option value="cluster">Simple Cluster</option>
+                    </select>
 
-                        <div class="toggle-switch" style="margin-left: 20px; border-left: 2px solid #ddd; padding-left: 20px;">
-                            <label>Size by GFA:</label>
-                            <input type="checkbox" id="overviewSizeByGFA" onchange="createOverviewMap()">
-                        </div>
+                    <span id="overviewKSelectorContainer" style="display: none; margin-left: 10px; align-items: center;">
+                        <label style="min-width: auto; margin-right: 5px;">K=</label>
+                        <select id="overviewKSelector" onchange="createOverviewMap()" style="min-width: 60px; padding: 8px;">
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7" selected>7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                        </select>
+                    </span>
+
+                    <div class="toggle-switch" style="margin-left: 20px; border-left: 2px solid #ddd; padding-left: 20px;">
+                        <label>Size by GFA:</label>
+                        <input type="checkbox" id="overviewSizeByGFA" onchange="createOverviewMap()">
                     </div>
                 </div>
+                </div>
 
-                <div class="map-container">
+                <div class="map-container" style="position: relative;">
                     <div id="overviewMapPlot"></div>
+                    <div id="mapLegendOverlay" class="map-legend-overlay" style="display: none;"></div>
                 </div>
 
                 <div class="chart-container">
@@ -5941,187 +5982,219 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             'F': '#f0f921'   // Fill - Brightest yellow
         };
 
-        /**
-         * Creates the Overview Map with filters and coloring options.
-         * MODIFIED: Added logic to size points by GFA and adjust opacity/strokes for better visibility.
-         */
+        function handleColorByChange() {
+            const colorBy = document.getElementById('overviewColorBy').value;
+            const kContainer = document.getElementById('overviewKSelectorContainer');
+            
+            // Show K selector only if 'cluster' is selected
+            if (colorBy === 'cluster') {
+                kContainer.style.display = 'inline-flex';
+            } else {
+                kContainer.style.display = 'none';
+            }
+            createOverviewMap();
+        }
+
+        function calculateMarkerSize(area) {
+            if (!area || area <= 0) return 6; 
+
+            return Math.max(6, Math.min(30, Math.sqrt(area) * 0.18 + 4)); 
+        }
+
+
         function createOverviewMap() {
-            // 1. Get current filter values from the DOM
+            // 1. Safety Check
+            if (!buildingData || !buildingData.building_samples_random) return;
+
+            // --- A. GET UI STATES ---
             const occFilter = document.getElementById('overviewOccFilter').value;
             const materialFilter = document.getElementById('overviewMaterialFilter').value;
             const foundationFilter = document.getElementById('overviewFoundationFilter').value;
             const colorBy = document.getElementById('overviewColorBy').value;
+            const sizeByGFA = document.getElementById('overviewSizeByGFA').checked;
             
-            // === NEW: Get Toggle State for GFA Sizing ===
-            // This checkbox must be added to the HTML controls area
-            const sizeByGFA = document.getElementById('overviewSizeByGFA') ? document.getElementById('overviewSizeByGFA').checked : false;
+            // Get selected K value (default to 7 if element missing)
+            const kSelector = document.getElementById('overviewKSelector');
+            const selectedK = kSelector ? kSelector.value : '7'; 
 
-            // 2. Filter the data based on dropdown selections
-            // We filter from the random samples array
+            // --- B. FILTER DATA ---
             let filteredData = buildingData.building_samples_random.filter(d => {
                 const occMatch = (occFilter === 'All' || d.OCC_CLS === occFilter);
                 const materialMatch = (materialFilter === 'All' || d.material_type === materialFilter);
                 const foundationMatch = (foundationFilter === 'All' || d.foundation_type === foundationFilter);
-                // Ensure valid coordinates match
                 return d.LATITUDE && d.LONGITUDE && occMatch && materialMatch && foundationMatch;
             });
 
-            // 3. Apply sampling limit to ensure performance
-            // Limit to 75,000 points max for smooth rendering
+            // --- C. DOWNSAMPLE ---
             if (filteredData.length > 75000) {
                 filteredData = filteredData.sort(() => 0.5 - Math.random()).slice(0, 75000);
             }
 
-            // Check if any data remains after filtering
             if (filteredData.length === 0) {
-                document.getElementById('overviewMapPlot').innerHTML = '<p style="text-align:center; padding-top:100px;">No data available for the current filter selection.</p>';
+                document.getElementById('overviewMapPlot').innerHTML = '<p style="text-align:center; padding-top:100px;">No data available.</p>';
+                renderSizeLegend(false); // Hide overlay if no data
                 return;
             }
+
+            // --- D. STYLES (SIZING & OPACITY) ---
+            const markerSizes = sizeByGFA 
+                ? filteredData.map(d => calculateMarkerSize(d['Est GFA sqmeters']))
+                : 8; 
+
+            const markerOpacity = sizeByGFA ? 0.5 : 0.7;
+            const markerLine = sizeByGFA ? { width: 0 } : { width: 0.5, color: 'rgba(255,255,255,0.3)' };
 
             let mapData = [];
             let layoutSettings = {};
 
-            // === NEW: Dynamic Marker Styling Logic ===
-            // If 'Size by GFA' is checked:
-            // 1. Size depends on SQRT of Area (to represent physical size accurately).
-            // 2. Opacity is lowered to visual overlapping clusters.
-            // 3. Line/Stroke is removed to reduce visual clutter.
-            
-            const markerSize = sizeByGFA 
-                ? filteredData.map(d => {
-                    const area = d['Est GFA sqmeters'] || 0;
-                    // Logic: Min size 3px, Max size 25px, Scaling factor 0.15
-                    return Math.max(6, Math.min(30, Math.sqrt(area) * 0.2));
-                }) 
-                : 8; // Default fixed size if toggle is off
+            // --- E. COLORING LOGIC ---
 
-            const markerOpacity = sizeByGFA ? 0.4 : 0.8; 
-            const markerLine = sizeByGFA ? { width: 0 } : { width: 0.5, color: 'rgba(255,255,255,0.3)' };
+            // === CASE 1: COLOR BY SIMPLE CLUSTER (K-MEANS) ===
+            if (colorBy === 'cluster') {
+                const kKey = `cluster_base_k${selectedK}`;
+                const clusterColors = getPlasmaColors(parseInt(selectedK));
 
-            // 4. Handle Coloring Logic
-            // Check if the user selected "Total GFA" (Continuous data) or a Category (Discrete data)
-            if (colorBy === 'Est GFA sqmeters') {
-                // --- CASE A: Continuous Coloring by Total GFA (Log Scale) ---
-
-                // Extract GFA values
-                const gfaValues = filteredData.map(d => d['Est GFA sqmeters']);
-                
-                // Calculate Log10 values for coloring because building areas follow a power law.
-                const logValues = gfaValues.map(v => (v > 0 ? Math.log10(v) : 0));
-
-                // Create a single trace for continuous data
-                const mainTrace = {
+                const clusterTrace = {
                     type: 'scattermapbox',
                     lon: filteredData.map(d => d.LONGITUDE),
                     lat: filteredData.map(d => d.LATITUDE),
                     mode: 'markers',
                     marker: {
-                        size: markerSize,       // <--- Dynamic Size
-                        color: logValues,       // Use log values for color mapping
-                        colorscale: [
-                            [0.0, '#0d0887'],
-                            [0.1, '#46039f'],
-                            [0.2, '#7201a8'],
-                            [0.3, '#9c179e'],
-                            [0.4, '#bd3786'],
-                            [0.5, '#d8576b'],
-                            [0.6, '#ed7953'],
-                            [0.7, '#fb9f3a'],
-                            [0.8, '#fdca26'],
-                            [0.9, '#f0f921'],
-                            [1.0, '#f0f921']
-                        ],
-                        showscale: true,        // Show the continuous color bar
-                        opacity: markerOpacity, // <--- Dynamic Opacity
+                        size: markerSizes,
+                        color: filteredData.map(d => {
+                            const cVal = d[kKey]; 
+                            return (cVal !== undefined && cVal !== null) ? clusterColors[cVal] : '#999';
+                        }),
+                        opacity: markerOpacity,
+                        line: markerLine
+                    },
+                    text: filteredData.map(d => 
+                        `<b>Cluster (K=${selectedK}):</b> ${d[kKey] !== undefined ? parseInt(d[kKey]) + 1 : 'N/A'}<br>` +
+                        `<b>Occupancy:</b> ${d.OCC_CLS || 'N/A'}<br>` +
+                        `<b>GFA:</b> ${Math.round(d['Est GFA sqmeters']).toLocaleString()} sqm`
+                    ),
+                    hovertemplate: '%{text}<extra></extra>',
+                    showlegend: false
+                };
+
+                const dummyTraces = [];
+                for(let i=0; i<parseInt(selectedK); i++) {
+                    dummyTraces.push({
+                        type: 'scattermapbox',
+                        lon: [null], lat: [null], mode: 'markers',
+                        name: `Cluster ${i+1}`,
+                        marker: { size: 10, color: clusterColors[i] },
+                        showlegend: true,
+                        hoverinfo: 'skip'
+                    });
+                }
+                mapData = [clusterTrace, ...dummyTraces];
+                layoutSettings = { 
+                    showlegend: true,
+                    legend: { 
+                        x: 1.02, 
+                        y: 1, 
+                        yanchor: 'top',
+                        bgcolor: 'rgba(255,255,255,0.95)', 
+                        
+                        borderwidth: 0,  
+                        
+                        font: { size: 11 }
+                    }
+                };
+
+            // === CASE 2: COLOR BY GFA (CONTINUOUS) ===
+            } else if (colorBy === 'Est GFA sqmeters') {
+                
+                const gfaValues = filteredData.map(d => d['Est GFA sqmeters']);
+                const logValues = gfaValues.map(v => (v > 0 ? Math.log10(v) : 0));
+
+                mapData = [{
+                    type: 'scattermapbox',
+                    lon: filteredData.map(d => d.LONGITUDE),
+                    lat: filteredData.map(d => d.LATITUDE),
+                    mode: 'markers',
+                    marker: {
+                        size: markerSizes,
+                        color: logValues,
+                        colorscale: 'Plasma', 
+                        showscale: true,
+                        opacity: markerOpacity,
                         colorbar: {
                             title: 'GFA (Log Scale)',
                             titleside: 'right',
-                            // Custom ticks to map Log values back to readable Area strings
-                            // 2->100, 3->1k, 4->10k, 5->100k, 6->1M
                             tickvals: [2, 3, 4, 5, 6],
-                            ticktext: ['100m²', '1k', '10k', '100k', '1M'] 
+                            ticktext: ['100m²', '1k', '10k', '100k', '1M'],
+                            
+                            y: 1,         
+                            yanchor: 'top',  
+                            len: 0.5,        
+                            
+                            thickness: 15  
                         }
                     },
-                    // Tooltip: Display the ACTUAL GFA value (formatted), not the log value
                     text: filteredData.map(d => 
                         `<b>Occupancy:</b> ${d.OCC_CLS}<br>` +
                         `<b>Total GFA:</b> ${Math.round(d['Est GFA sqmeters']).toLocaleString()} sqm<br>` +
                         `<b>Year:</b> ${d.year_built}`
                     ),
                     hovertemplate: '%{text}<extra></extra>',
-                    showlegend: false // No categorical legend needed for continuous data
-                };
-                
-                mapData = [mainTrace];
-
-                // Layout adjustments for continuous mode
-                layoutSettings = {
                     showlegend: false
-                };
+                }];
+                layoutSettings = { showlegend: false };
 
+            // === CASE 3: COLOR BY CATEGORY (RESTORED SORTING) ===
             } else {
-                // --- CASE B: Categorical Coloring (Occupancy, Material, Foundation) ---
-
-                // Choose the appropriate fixed color mapping
                 let colorMap;
+                let sortOrder = [];
+
+                // 1. Define strict sort order to match Plasma Gradient (Dark -> Light)
                 if (colorBy === 'OCC_CLS') {
                     colorMap = FIXED_OCC_COLORS;
+                    sortOrder = ['Residential', 'Commercial', 'Government', 'Industrial', 
+                                'Assembly', 'Unclassified', 'Education', 'Utility and Misc', 'Agriculture'];
                 } else if (colorBy === 'material_type') {
                     colorMap = FIXED_MATERIAL_COLORS;
+                    sortOrder = ['W', 'M', 'S', 'C', 'H'];
                 } else if (colorBy === 'foundation_type') {
                     colorMap = FIXED_FOUNDATION_COLORS;
+                    sortOrder = ['B', 'S', 'C', 'I', 'P', 'W', 'F'];
                 }
-                
-                // Get unique categories present in filtered data for the legend
+
+                // 2. Get unique categories and SORT them based on the fixed order
                 const colorValues = filteredData.map(d => d[colorBy]);
-                const uniqueCategories = [...new Set(colorValues)].filter(cat => cat != null);
+                const uniqueCats = [...new Set(colorValues)].filter(c => c != null);
                 
-                // Sort categories for consistent legend order
-                if (colorBy === 'OCC_CLS') {
-                    const occOrder = ['Residential', 'Commercial', 'Government', 'Industrial', 
-                                    'Assembly', 'Unclassified', 'Education', 'Utility and Misc', 'Agriculture'];
-                    uniqueCategories.sort((a, b) => occOrder.indexOf(a) - occOrder.indexOf(b));
-                } else if (colorBy === 'material_type') {
-                    const materialOrder = ['W', 'M', 'S', 'C', 'H'];
-                    uniqueCategories.sort((a, b) => materialOrder.indexOf(a) - materialOrder.indexOf(b));
-                } else if (colorBy === 'foundation_type') {
-                    const foundationOrder = ['B', 'S', 'C', 'I', 'P', 'W', 'F'];
-                    uniqueCategories.sort((a, b) => foundationOrder.indexOf(a) - foundationOrder.indexOf(b));
+                if (sortOrder.length > 0) {
+                    uniqueCats.sort((a, b) => sortOrder.indexOf(a) - sortOrder.indexOf(b));
                 } else {
-                    uniqueCategories.sort();
+                    uniqueCats.sort();
                 }
-                
-                // Create dummy traces for the Legend (Categorical)
-                // These are invisible points just to generate the legend items with correct colors
-                const legendTraces = uniqueCategories.map(cat => ({
+
+                // 3. Create Dummy Legend Traces (In correct order)
+                const dummyTraces = uniqueCats.map(cat => ({
                     type: 'scattermapbox',
-                    lon: [null],
-                    lat: [null],
-                    mode: 'markers',
-                    marker: {
-                        size: 10,
-                        color: colorMap[cat] || '#999999'  // Fallback gray
-                    },
-                    // Map codes to names if needed (e.g. 'W' -> 'Wood')
+                    lon: [null], lat: [null], mode: 'markers',
+                    marker: { size: 10, color: colorMap[cat] || '#999' },
+                    // Resolve codes to names
                     name: colorBy === 'material_type' ? (materialTypeMap[cat] || cat) :
                         colorBy === 'foundation_type' ? (foundationTypeMap[cat] || cat) :
                         cat,
                     showlegend: true,
                     hoverinfo: 'skip'
                 }));
-                
-                // Main map trace containing all points
-                // We color points individually using the colorMap array
+
+                // 4. Main Trace
                 const mainTrace = {
                     type: 'scattermapbox',
                     lon: filteredData.map(d => d.LONGITUDE),
                     lat: filteredData.map(d => d.LATITUDE),
                     mode: 'markers',
                     marker: {
-                        size: markerSize,        // <--- Dynamic Size
-                        color: colorValues.map(v => colorMap[v] || '#999999'),
-                        opacity: markerOpacity,  // <--- Dynamic Opacity
-                        line: markerLine         // <--- Dynamic Stroke
+                        size: markerSizes,
+                        color: colorValues.map(v => colorMap[v] || '#999'),
+                        opacity: markerOpacity,
+                        line: markerLine
                     },
                     text: filteredData.map(d => 
                         `<b>Year Built:</b> ${d.year_built}<br>` +
@@ -6131,40 +6204,36 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                         `<b>GFA:</b> ${Math.round(d['Est GFA sqmeters']).toLocaleString()} sqm`
                     ),
                     hovertemplate: '%{text}<extra></extra>',
-                    showlegend: false // Hide this trace from legend, use dummy traces instead
+                    showlegend: false
                 };
-                
-                mapData = [mainTrace, ...legendTraces];
-                
-                // Layout adjustments for categorical mode
-                layoutSettings = {
+
+                mapData = [mainTrace, ...dummyTraces];
+
+                layoutSettings = { 
                     showlegend: true,
                     legend: {
                         x: 1.02,
-                        y: 0.5,
-                        yanchor: 'middle',
+                        y: 1,
+                        yanchor: 'top',
                         bgcolor: 'rgba(255,255,255,0.95)',
-                        bordercolor: '#ccc',
-                        borderwidth: 1,
+                        
+                        borderwidth: 0, 
+                        
                         font: { size: 11 },
                         title: {
                             text: colorBy === 'OCC_CLS' ? 'Occupancy Class' :
                                 colorBy === 'material_type' ? 'Material Type' :
                                 'Foundation Type',
-                            font: {
-                                size: 13,
-                                color: '#333',
-                                family: 'Arial, sans-serif'
-                            }
+                            font: { size: 13, color: '#333' }
                         }
                     }
                 };
             }
 
-            // 5. Final Map Layout
+            // --- F. LAYOUT ---
             const layout = {
                 title: {
-                    text: `Massachusetts Building Distribution ${sizeByGFA ? '(Sized by GFA)' : ''} (${filteredData.length} points shown)`,
+                    text: `Massachusetts Building Distribution ${sizeByGFA ? '(Sized by GFA)' : ''} (${filteredData.length} points)`,
                     font: { size: 20, color: '#333' }
                 },
                 mapbox: {
@@ -6173,13 +6242,50 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     zoom: 8
                 },
                 height: 600,
-                // Ensure enough right margin for Legend OR Colorbar
-                margin: { t: 50, b: 0, l: 0, r: 120 },
-                ...layoutSettings // Merge custom settings (legend vs no legend)
+                margin: { t: 50, b: 0, l: 0, r: 150 },
+                ...layoutSettings
             };
 
-            // 6. Render the Plot
             Plotly.newPlot('overviewMapPlot', mapData, layout, {responsive: true});
+
+            // --- G. RENDER SIZE LEGEND ---
+            renderSizeLegend(sizeByGFA);
+        }
+
+
+        function renderSizeLegend(isVisible) {
+            const container = document.getElementById('mapLegendOverlay');
+            if (!isVisible) {
+                container.style.display = 'none';
+                return;
+            }
+
+            // Define sample areas to show in legend
+            const legendSamples = [
+                { label: '100 m²', area: 100 },
+                { label: '1,000 m²', area: 1000 },
+                { label: '10,000 m²', area: 10000 },
+                { label: '50,000 m²', area: 50000 }
+            ];
+
+            let html = '<strong>Size Legend (GFA)</strong><br><br>';
+            
+            legendSamples.forEach(item => {
+                // Use the exact same math function as the map
+                const radius = calculateMarkerSize(item.area);
+                // Multiply by 2 for CSS width/height (diameter)
+                const diameter = radius * 2; 
+                
+                html += `
+                    <div class="size-legend-item">
+                        <div class="size-legend-circle" style="width: ${diameter}px; height: ${diameter}px;"></div>
+                        <span>${item.label}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            container.style.display = 'block';
         }
 
         function populateHistoricShorelineFilters() {
