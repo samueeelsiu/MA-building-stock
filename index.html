@@ -6284,6 +6284,13 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 `;
             });
 
+            html += `
+                <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #eee; font-size: 0.85em; color: #555; line-height: 1.3;">
+                    <em>Radius (px) = &radic;<span style="text-decoration:overline;">Area</span> * 0.18 + 4</em><br>
+                    <span style="color: #777;">(Min: 6px, Max: 30px)</span>
+                </div>
+            `;
+
             container.innerHTML = html;
             container.style.display = 'block';
         }
