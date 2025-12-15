@@ -1335,6 +1335,13 @@
                         </select>
                     </span>
 
+                    <span id="overviewClusterFilterContainer" style="display: none; margin-left: 10px; align-items: center;">
+                        <label style="min-width: auto; margin-right: 5px;">Filter:</label>
+                        <select id="overviewClusterFilter" onchange="createOverviewMap()" style="min-width: 120px; padding: 8px;">
+                            <option value="All">All Clusters</option>
+                        </select>
+                    </span>
+
                     <div class="toggle-switch" style="margin-left: 20px; border-left: 2px solid #ddd; padding-left: 20px;">
                         <label>Size by GFA:</label>
                         <input type="checkbox" id="overviewSizeByGFA" onchange="createOverviewMap()">
@@ -5983,17 +5990,27 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         };
 
         function handleColorByChange() {
-            const colorBy = document.getElementById('overviewColorBy').value;
-            const kContainer = document.getElementById('overviewKSelectorContainer');
-            
-            // Show K selector only if 'cluster' is selected
-            if (colorBy === 'cluster') {
-                kContainer.style.display = 'inline-flex';
-            } else {
-                kContainer.style.display = 'none';
-            }
-            createOverviewMap();
-        }
+                    const colorBy = document.getElementById('overviewColorBy').value;
+                    const kContainer = document.getElementById('overviewKSelectorContainer');
+                    const clusterFilterContainer = document.getElementById('overviewClusterFilterContainer');
+                    
+                    // Show K selector AND Cluster Filter only if 'cluster' is selected
+                    if (colorBy === 'cluster') {
+                        kContainer.style.display = 'inline-flex';
+                        clusterFilterContainer.style.display = 'inline-flex';
+                        populateOverviewClusterFilter();
+                    } else {
+                        kContainer.style.display = 'none';
+                        clusterFilterContainer.style.display = 'none';
+                        
+                        // Reset filter to All when switching away from cluster mode to avoid confusion
+                        const filterSelect = document.getElementById('overviewClusterFilter');
+                        if(filterSelect) filterSelect.value = 'All';
+                    }
+                    handleColorByChangeExtras(); // Helper specifically for the K selector visibility logic if you had separate logic, otherwise createOverviewMap is enough.
+                    // Based on your original code, it just calls createOverviewMap, so:
+                    createOverviewMap();
+                }
 
         function calculateMarkerSize(area) {
             if (!area || area <= 0) return 6; 
@@ -6001,6 +6018,31 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             return Math.max(6, Math.min(30, Math.sqrt(area) * 0.18 + 4)); 
         }
 
+        function onOverviewKChange() {
+            populateOverviewClusterFilter();
+            createOverviewMap();
+        }
+
+        function populateOverviewClusterFilter() {
+            const kSelector = document.getElementById('overviewKSelector');
+            const filterSelect = document.getElementById('overviewClusterFilter');
+            if (!kSelector || !filterSelect) return;
+            
+            const k = parseInt(kSelector.value);
+            const currentVal = filterSelect.value;
+            
+            let html = '<option value="All">All Clusters</option>';
+            for (let i = 0; i < k; i++) {
+                html += `<option value="${i}">Cluster ${i + 1}</option>`;
+            }
+            filterSelect.innerHTML = html;
+            
+            if (currentVal !== 'All' && parseInt(currentVal) < k) {
+                filterSelect.value = currentVal;
+            } else {
+                filterSelect.value = 'All';
+            }
+        }
 
         function createOverviewMap() {
             // 1. Safety Check
@@ -6016,13 +6058,22 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // Get selected K value (default to 7 if element missing)
             const kSelector = document.getElementById('overviewKSelector');
             const selectedK = kSelector ? kSelector.value : '7'; 
-
+            const clusterFilterVal = document.getElementById('overviewClusterFilter') ? document.getElementById('overviewClusterFilter').value : 'All';
             // --- B. FILTER DATA ---
             let filteredData = buildingData.building_samples_random.filter(d => {
                 const occMatch = (occFilter === 'All' || d.OCC_CLS === occFilter);
                 const materialMatch = (materialFilter === 'All' || d.material_type === materialFilter);
                 const foundationMatch = (foundationFilter === 'All' || d.foundation_type === foundationFilter);
-                return d.LATITUDE && d.LONGITUDE && occMatch && materialMatch && foundationMatch;
+
+                let clusterMatch = true;
+                if (colorBy === 'cluster' && clusterFilterVal !== 'All') {
+                    const kKey = `cluster_base_k${selectedK}`;
+                    if (d[kKey] != clusterFilterVal) {
+                        clusterMatch = false;
+                    }
+                }
+
+            return d.LATITUDE && d.LONGITUDE && occMatch && materialMatch && foundationMatch && clusterMatch;
             });
 
             // --- C. DOWNSAMPLE ---
