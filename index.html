@@ -2585,6 +2585,14 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                             <label style="margin-bottom: 8px; display: block;">Compare Height Bin:</label>
                             <div id="section1-bin-radios" class="radio-group-container"></div>
                         </div>
+                        <div class="control-group" style="display: block; margin-top: 15px;">
+                            <div class="toggle-switch" style="display: inline-flex; align-items: center;">
+                                <label style="cursor:pointer; display: inline-flex; align-items: center;">
+                                    <input type="checkbox" id="bf-collapse-toggle" onchange="toggleBFCollapseAsCLF()">
+                                    <span style="font-weight:600; color:#555;"> Collapse as CLF Foundation</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     
                     <div id="section1-content" style="margin-top: 20px;">
@@ -2948,6 +2956,27 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             'F': 'Fill',
             'W': 'Solid Wall'
         };
+
+        // CLF Foundation Type mapping - maps foundation types to CLF categories
+        const CLF_FOUNDATION_MAP = {
+            'Slab': 'Shallow foundation',
+            'Crawl Space': 'Shallow foundation',
+            'Basement': 'Shallow foundation',
+            'Fill': 'Shallow foundation',
+            'Pier': "Deep Foundation < 50' (15m)",
+            'Pile': "Deep Foundation > 50' (15m)",
+            'Solid Wall': 'Other Foundation System'
+        };
+
+        // CLF Foundation Type order for display
+        const CLF_FOUNDATION_ORDER = [
+            'Shallow foundation',
+            "Deep Foundation < 50' (15m)",
+            "Deep Foundation > 50' (15m)",
+            'Other Foundation System'
+        ];
+        // Track collapse state for Boston Foundation Analysis
+        let bfCollapseAsCLF = false;
         
         function getPlasmaColors(n) {
             if (n <= 10) return plasmaColors.slice(0, n);
@@ -6659,52 +6688,194 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             drawBFCharts('s2-bin2-bar', 's2-bin2-pie', stats2.chart_data, bin2);
         }
 
+        /**
+        * Generate statistics table with optional CLF Foundation Type column
+        * @param {Array} breakdown - Array of {foundation, count, pct} objects
+        * @param {number} total - Total count
+        * @returns {string} HTML table string
+        */
         function generateStatsTable(breakdown, total) {
             if (total === 0) return '<p>No data</p>';
             
-            let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.9em;">';
-            html += '<tr style="background:#eee;"><th style="padding:5px; text-align:left;">Type</th><th style="padding:5px; text-align:right;">Count</th><th style="padding:5px; text-align:right;">%</th></tr>';
+            // Check if we should collapse as CLF
+            if (bfCollapseAsCLF) {
+                return generateCLFCollapsedTable(breakdown, total);
+            }
             
-            breakdown.forEach(row => {
-                html += `<tr style="border-bottom: 1px solid #f0f0f0;">
-                    <td style="padding:5px;">${row.foundation}</td>
+            // Normal mode: show CLF Foundation Type column + Type column
+            let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.9em;">';
+            html += `<tr style="background:#eee;">
+                <th style="padding:5px; text-align:left; border-right: 1px solid #ddd;">CLF Foundation Type</th>
+                <th style="padding:5px; text-align:left;">Type</th>
+                <th style="padding:5px; text-align:right;">Count</th>
+                <th style="padding:5px; text-align:right;">%</th>
+            </tr>`;
+            
+            // Sort breakdown by CLF category order first
+            const sortedBreakdown = [...breakdown].sort((a, b) => {
+                const clfA = CLF_FOUNDATION_MAP[a.foundation] || 'Other Foundation System';
+                const clfB = CLF_FOUNDATION_MAP[b.foundation] || 'Other Foundation System';
+                const orderA = CLF_FOUNDATION_ORDER.indexOf(clfA);
+                const orderB = CLF_FOUNDATION_ORDER.indexOf(clfB);
+                return orderA - orderB;
+            });
+            
+            // Track which CLF types have been shown (for rowspan)
+            let lastCLF = null;
+            const clfCounts = {};
+            
+            // First pass: count how many rows per CLF type
+            sortedBreakdown.forEach(row => {
+                const clfType = CLF_FOUNDATION_MAP[row.foundation] || 'Other Foundation System';
+                clfCounts[clfType] = (clfCounts[clfType] || 0) + 1;
+            });
+            
+            // Track which CLF types have started
+            const clfStarted = {};
+            
+            sortedBreakdown.forEach(row => {
+                const clfType = CLF_FOUNDATION_MAP[row.foundation] || 'Other Foundation System';
+                const isNewCLF = !clfStarted[clfType];
+                
+                html += `<tr style="border-bottom: 1px solid #f0f0f0;">`;
+                
+                // Add CLF column cell (with rowspan for first occurrence)
+                if (isNewCLF) {
+                    const rowspan = clfCounts[clfType];
+                    html += `<td style="padding:5px; border-right: 1px solid #ddd; vertical-align: middle;" rowspan="${rowspan}">
+                        ${clfType}
+                    </td>`;
+                    clfStarted[clfType] = true;
+                }
+                
+                html += `<td style="padding:5px;">${row.foundation}</td>
                     <td style="padding:5px; text-align:right;">${row.count.toLocaleString()}</td>
                     <td style="padding:5px; text-align:right;">${row.pct}%</td>
                 </tr>`;
             });
+            
             html += '</table>';
             return html;
         }
 
+        /**
+        * Generate collapsed CLF table (aggregated by CLF Foundation Type)
+        * @param {Array} breakdown - Array of {foundation, count, pct} objects
+        * @param {number} total - Total count
+        * @returns {string} HTML table string
+        */
+        function generateCLFCollapsedTable(breakdown, total) {
+            // Aggregate by CLF Foundation Type
+            const clfAggregated = {};
+            
+            breakdown.forEach(row => {
+                const clfType = CLF_FOUNDATION_MAP[row.foundation] || 'Other Foundation System';
+                if (!clfAggregated[clfType]) {
+                    clfAggregated[clfType] = 0;
+                }
+                clfAggregated[clfType] += row.count;
+            });
+            
+            let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.9em;">';
+            html += `<tr style="background:#eee;">
+                <th style="padding:5px; text-align:left;">CLF Foundation Type</th>
+                <th style="padding:5px; text-align:right;">Count</th>
+                <th style="padding:5px; text-align:right;">%</th>
+            </tr>`;
+            
+            // Display in order
+            CLF_FOUNDATION_ORDER.forEach(clfType => {
+                const count = clfAggregated[clfType] || 0;
+                const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+                html += `<tr style="border-bottom: 1px solid #f0f0f0;">
+                    <td style="padding:5px;">${clfType}</td>
+                    <td style="padding:5px; text-align:right;">${count.toLocaleString()}</td>
+                    <td style="padding:5px; text-align:right;">${pct}%</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            return html;
+        }
+
+
+
+        /**
+         * Draw bar and pie charts for Boston Foundation data
+         * @param {string} containerBar - ID of bar chart container
+         * @param {string} containerPie - ID of pie chart container
+         * @param {Array} chartData - Array of {foundation, count} objects
+         * @param {string} titleSuffix - Suffix for chart titles
+         */
         function drawBFCharts(containerBar, containerPie, chartData, titleSuffix) {
+            let displayData;
+            
+            if (bfCollapseAsCLF) {
+                displayData = aggregateChartDataByCLF(chartData);
+            } else {
+                displayData = chartData;
+            }
+            
+            // Fixed colors for each foundation type (for consistent comparison)
+            const BF_TYPE_COLORS = {
+                'Slab': '#0d0887',           // Deep purple
+                'Crawl Space': '#5c01a6',    // Purple
+                'Basement': '#9c179e',       // Magenta
+                'Fill': '#cc4778',           // Pink
+                'Pier': '#ed7953',           // Orange
+                'Pile': '#fdb42f',           // Yellow-orange
+                'Solid Wall': '#f0f921'      // Yellow
+            };
+
+            // Fixed colors for CLF foundation types
+            const BF_CLF_TYPE_COLORS = {
+                'Shallow foundation': '#0d0887',
+                "Deep Foundation < 50' (15m)": '#ed7953',
+                "Deep Foundation > 50' (15m)": '#9c179e',
+                'Other Foundation System': '#f0f921'
+            };
+
+            const colors = displayData.map(d => 
+                bfCollapseAsCLF 
+                    ? (BF_CLF_TYPE_COLORS[d.foundation] || '#999')
+                    : (BF_TYPE_COLORS[d.foundation] || '#999')
+            );
+            // Bar chart
             Plotly.newPlot(containerBar, [{
-                x: chartData.map(d => d.foundation),
-                y: chartData.map(d => d.count),
+                x: displayData.map(d => d.foundation),
+                y: displayData.map(d => d.count),
                 type: 'bar',
-                marker: { color: chartData.map(d => BF_COLORS[d.foundation] || '#999') },
-                text: chartData.map(d => d.count.toLocaleString()),
+                marker: { color: colors },
+                text: displayData.map(d => d.count.toLocaleString()),
                 textposition: 'auto'
             }], {
-                title: { text: `Counts (${titleSuffix})`, font: {size: 16} },
+                title: { 
+                    text: bfCollapseAsCLF ? `CLF Foundation Counts (${titleSuffix})` : `Counts (${titleSuffix})`, 
+                    font: {size: 16} 
+                },
                 margin: { t: 40, b: 120, l: 50, r: 20 }, 
                 height: 450, 
                 xaxis: { 
                     tickangle: -45, 
-                    title: { text: 'Foundation Type', standoff: 20 }
+                    title: { text: bfCollapseAsCLF ? 'CLF Foundation Type' : 'Foundation Type', standoff: 20 }
                 },
                 yaxis: { title: 'Count' }
             }, {responsive: true});
 
+            // Pie chart
             Plotly.newPlot(containerPie, [{
-                labels: chartData.map(d => d.foundation),
-                values: chartData.map(d => d.count),
+                labels: displayData.map(d => d.foundation),
+                values: displayData.map(d => d.count),
                 type: 'pie',
-                marker: { colors: chartData.map(d => BF_COLORS[d.foundation] || '#999') },
+                marker: { colors: colors },
                 textinfo: 'percent', 
                 textposition: 'inside',
                 hole: 0.4
             }], {
-                title: { text: `Distribution (${titleSuffix})`, font: {size: 16} },
+                title: { 
+                    text: bfCollapseAsCLF ? `CLF Distribution (${titleSuffix})` : `Distribution (${titleSuffix})`, 
+                    font: {size: 16} 
+                },
                 margin: { t: 40, b: 40, l: 20, r: 20 },
                 height: 450, 
                 showlegend: true,
@@ -6718,6 +6889,46 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             }, {responsive: true});
         }
 
+        /**
+         * Aggregate chart data by CLF Foundation Type
+         * @param {Array} chartData - Array of {foundation, count} objects
+         * @returns {Array} Aggregated array of {foundation: clfType, count} objects
+         */
+        function aggregateChartDataByCLF(chartData) {
+            const clfAggregated = {};
+            
+            chartData.forEach(item => {
+                const clfType = CLF_FOUNDATION_MAP[item.foundation] || 'Other Foundation System';
+                if (!clfAggregated[clfType]) {
+                    clfAggregated[clfType] = 0;
+                }
+                clfAggregated[clfType] += item.count;
+            });
+            
+            // Return in order
+            return CLF_FOUNDATION_ORDER
+                .filter(clfType => clfAggregated[clfType] > 0)
+                .map(clfType => ({
+                    foundation: clfType,
+                    count: clfAggregated[clfType]
+                }));
+        }
+
+        /**
+         * Toggle collapse/expand state for CLF Foundation view
+         */
+        function toggleBFCollapseAsCLF() {
+            bfCollapseAsCLF = document.getElementById('bf-collapse-toggle').checked;
+            
+            // Refresh all sections
+            updateBFSection1();
+            updateBFSection2();
+            
+            // Refresh section 3 if loaded
+            if (window.bfSection3Loaded) {
+                renderBFSection3();
+            }
+        }
 
         function toggleBFSection3() {
             const content = document.getElementById('section3-content');
