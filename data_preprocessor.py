@@ -589,8 +589,8 @@ class BuildingDataProcessor:
             if h < 0: return '<0 ft'
             if h < 24: return '0-24 ft'
             if h < 72: return '24-72 ft'
-            if h < 120: return '72-120 ft'
-            return '120+ ft'
+            if h < 147: return '72-147 ft'
+            return '147+ ft'
 
         df_valid['height_bin'] = df_valid['height_ft'].apply(assign_bin)
 
@@ -601,7 +601,7 @@ class BuildingDataProcessor:
         df_valid['foundation_name'] = df_valid['foundation_type'].map(lambda x: f_map.get(x, x))
 
         # 5. Build Structured Data for JSON
-        bin_order = ['<0 ft', '0-24 ft', '24-72 ft', '72-120 ft', '120+ ft']
+        bin_order = ['<0 ft', '0-24 ft', '24-72 ft', '72-147 ft', '147+ ft']
         foundation_order = ['Slab', 'Crawl Space', 'Basement', 'Solid Wall', 'Pier', 'Pile', 'Fill']
 
         shoreline_count = int(df_bos['is_shoreline'].sum())
