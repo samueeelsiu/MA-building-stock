@@ -2678,6 +2678,67 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                     </div>
                 </div>
 
+                <hr>
+
+                <div class="chart-container">
+                    <div class="section-header" style="border: none; margin-bottom: 15px;">
+                        <h3 style="color: #2c3e50;">Section 4: CLF Metadata Height vs Foundation Analysis</h3>
+                        <p style="color: #666; font-size: 0.9em;">Data source: CLF buildings_metadata.xlsx (covers all of North America)</p>
+                    </div>
+                    
+                    <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85em;">
+                        <strong>Height Bin Mapping (CLF → Our Bins):</strong>
+                        <table style="width: 100%; margin-top: 10px; border-collapse: collapse;">
+                            <tr style="background: #eee;">
+                                <th style="padding: 5px; text-align: left; border: 1px solid #ddd;">CLF Height Bin</th>
+                                <th style="padding: 5px; text-align: left; border: 1px solid #ddd;">Our Height Bin</th>
+                            </tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">0-7.5 m</td><td style="padding: 5px; border: 1px solid #ddd;">0-24 ft</td></tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">7.6-15 m</td><td style="padding: 5px; border: 1px solid #ddd;">24-72 ft</td></tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">15.1-22.5 m</td><td style="padding: 5px; border: 1px solid #ddd;">24-72 ft</td></tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">22.6-30 m</td><td style="padding: 5px; border: 1px solid #ddd;">72-147 ft</td></tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">31-45 m</td><td style="padding: 5px; border: 1px solid #ddd;">147+ ft</td></tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">46-60 m</td><td style="padding: 5px; border: 1px solid #ddd;">147+ ft</td></tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">61-90 m</td><td style="padding: 5px; border: 1px solid #ddd;">147+ ft</td></tr>
+                            <tr><td style="padding: 5px; border: 1px solid #ddd;">Over 90 m</td><td style="padding: 5px; border: 1px solid #ddd;">147+ ft</td></tr>
+                        </table>
+                    </div>
+                    
+                    <div class="controls">
+                        <div class="control-group" style="display: block;">
+                            <label style="margin-bottom: 8px; display: block;">Height Bin 1:</label>
+                            <div id="section4-bin1-radios" class="radio-group-container"></div>
+                        </div>
+                        <div class="control-group" style="display: block; margin-top: 15px;">
+                            <label style="margin-bottom: 8px; display: block;">Height Bin 2:</label>
+                            <div id="section4-bin2-radios" class="radio-group-container"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="section4-content" style="margin-top: 20px;">
+                        <p id="s4-total-info" style="color: #666; margin-bottom: 15px;"></p>
+                        <div class="comparison-grid">
+                            <div class="panel">
+                                <div class="panel-title" style="font-weight: 600; margin-bottom: 15px;">
+                                    Bin 1 <span id="s4-bin1-n" style="font-size: 0.85rem; color: #666;"></span>
+                                </div>
+                                <div id="s4-bin1-table"></div>
+                                <div id="s4-bin1-bar" style="height: 450px; margin-top: 20px;"></div>
+                                <div id="s4-bin1-pie" style="height: 450px; margin-top: 20px;"></div>
+                            </div>
+                            
+                            <div class="panel">
+                                <div class="panel-title" style="font-weight: 600; margin-bottom: 15px;">
+                                    Bin 2 <span id="s4-bin2-n" style="font-size: 0.85rem; color: #666;"></span>
+                                </div>
+                                <div id="s4-bin2-table"></div>
+                                <div id="s4-bin2-bar" style="height: 450px; margin-top: 20px;"></div>
+                                <div id="s4-bin2-pie" style="height: 450px; margin-top: 20px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div id="interactive" class="section">
@@ -5181,6 +5242,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             if(buildingData.boston_full_analysis) {
                 initBostonFoundationAnalysis();
             }
+            initCLFMetadataSection();
             if (clfData) {
                 createCLFCharts();
             }
@@ -6636,6 +6698,131 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             // 3. Initial Draw
             updateBFSection1();
             updateBFSection2();
+        }
+
+        // --- Section 4: CLF Metadata Height Analysis ---
+
+        function initCLFMetadataSection() {
+            const data = buildingData.clf_metadata_height;
+            if (!data) {
+                console.warn("CLF metadata height data not available.");
+                document.getElementById('section4-content').innerHTML = '<p style="color: #999;">CLF metadata not available.</p>';
+                return;
+            }
+            
+            const bins = data.bin_order;
+            
+            // Display total info
+            document.getElementById('s4-total-info').textContent = 
+                `Total CLF Buildings (with height data): ${data.total_buildings}`;
+            
+            // Create radio buttons for bin selection
+            const createBinRadios = (containerId, nameGroup, defaultVal) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = bins.map(b => {
+                    const isChecked = b === defaultVal ? 'checked' : '';
+                    const inputId = `${nameGroup}_${b.replace(/[^a-z0-9]/gi, '')}`;
+                    return `
+                        <label class="radio-pill" for="${inputId}">
+                            <input type="radio" id="${inputId}" name="${nameGroup}" value="${b}" ${isChecked} onchange="updateCLFSection4()">
+                            <span>${b}</span>
+                        </label>
+                    `;
+                }).join('');
+            };
+            
+            createBinRadios('section4-bin1-radios', 's4_bin1', '0-24 ft');
+            createBinRadios('section4-bin2-radios', 's4_bin2', '24-72 ft');
+            
+            updateCLFSection4();
+        }
+
+        function updateCLFSection4() {
+            const data = buildingData.clf_metadata_height;
+            if (!data) return;
+            
+            const r1 = document.querySelector('input[name="s4_bin1"]:checked');
+            const r2 = document.querySelector('input[name="s4_bin2"]:checked');
+            if (!r1 || !r2) return;
+            
+            const bin1 = r1.value;
+            const bin2 = r2.value;
+            
+            const stats1 = data.data[bin1];
+            const stats2 = data.data[bin2];
+            
+            // Update Bin 1
+            document.getElementById('s4-bin1-n').textContent = `(n=${stats1.total})`;
+            document.getElementById('s4-bin1-table').innerHTML = generateCLFMetadataTable(stats1.breakdown, stats1.total);
+            drawCLFMetadataCharts('s4-bin1-bar', 's4-bin1-pie', stats1.chart_data, bin1);
+            
+            // Update Bin 2
+            document.getElementById('s4-bin2-n').textContent = `(n=${stats2.total})`;
+            document.getElementById('s4-bin2-table').innerHTML = generateCLFMetadataTable(stats2.breakdown, stats2.total);
+            drawCLFMetadataCharts('s4-bin2-bar', 's4-bin2-pie', stats2.chart_data, bin2);
+        }
+
+        function generateCLFMetadataTable(breakdown, total) {
+            if (total === 0) return '<p>No data for this height bin</p>';
+            
+            let html = '<table style="width:100%; border-collapse: collapse; font-size: 0.9em;">';
+            html += '<tr style="background:#eee;"><th style="padding:5px; text-align:left;">CLF Foundation Type</th><th style="padding:5px; text-align:right;">Count</th><th style="padding:5px; text-align:right;">%</th></tr>';
+            
+            breakdown.forEach(row => {
+                html += `<tr style="border-bottom: 1px solid #f0f0f0;">
+                    <td style="padding:5px;">${row.foundation}</td>
+                    <td style="padding:5px; text-align:right;">${row.count.toLocaleString()}</td>
+                    <td style="padding:5px; text-align:right;">${row.pct}%</td>
+                </tr>`;
+            });
+            
+            html += '</table>';
+            return html;
+        }
+
+        // Fixed colors for CLF foundation types
+        const CLF_FDN_COLORS = {
+            'Shallow foundation': '#0d0887',
+            "Deep foundation < 50' (15m)": '#9c179e',
+            "Deep foundation > 50' (15m)": '#ed7953',
+            'Other Foundation System': '#f0f921'
+        };
+
+        function drawCLFMetadataCharts(containerBar, containerPie, chartData, titleSuffix) {
+            const colors = chartData.map(d => CLF_FDN_COLORS[d.foundation] || '#999');
+            
+            // Bar chart
+            Plotly.newPlot(containerBar, [{
+                x: chartData.map(d => d.foundation),
+                y: chartData.map(d => d.count),
+                type: 'bar',
+                marker: { color: colors },
+                text: chartData.map(d => d.count.toLocaleString()),
+                textposition: 'auto'
+            }], {
+                title: { text: `CLF Foundation Counts (${titleSuffix})`, font: {size: 16} },
+                margin: { t: 40, b: 150, l: 50, r: 20 },
+                height: 450,
+                xaxis: { tickangle: -45, title: { text: 'CLF Foundation Type', standoff: 20 } },
+                yaxis: { title: 'Count' }
+            }, {responsive: true});
+            
+            // Pie chart
+            Plotly.newPlot(containerPie, [{
+                labels: chartData.map(d => d.foundation),
+                values: chartData.map(d => d.count),
+                type: 'pie',
+                marker: { colors: colors },
+                textinfo: 'percent',
+                textposition: 'inside',
+                hole: 0.4
+            }], {
+                title: { text: `CLF Distribution (${titleSuffix})`, font: {size: 16} },
+                margin: { t: 40, b: 40, l: 20, r: 20 },
+                height: 450,
+                showlegend: true,
+                legend: { orientation: 'v', x: 1.05, y: 0.5, xanchor: 'left', yanchor: 'middle' }
+            }, {responsive: true});
         }
 
         // Updated to read from Radio Buttons

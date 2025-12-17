@@ -1917,6 +1917,111 @@ class BuildingDataProcessor:
         except Exception as e:
             print(f"Error writing CLF JSON to {output_path}: {e}")
 
+    def process_clf_metadata_height_analysis(self, excel_path='buildings_metadata.xlsx'):
+        """
+        Process CLF buildings_metadata.xlsx for height vs foundation type analysis.
+        Maps CLF height bins to our ft bins for comparison.
+        """
+        print(f"\nProcessing CLF metadata from {excel_path}...")
+
+        try:
+            df = pd.read_excel(excel_path)
+        except FileNotFoundError:
+            print(f"Error: CLF metadata file not found at {excel_path}. Skipping.")
+            return None
+        except Exception as e:
+            print(f"Error reading {excel_path}: {e}. Skipping.")
+            return None
+
+        # Filter out rows without height data
+        if 'bldg_height' not in df.columns:
+            print("Error: Column 'bldg_height' not found.")
+            return None
+
+        df_valid = df[df['bldg_height'].notna()].copy()
+        print(f"  Total rows with height data: {len(df_valid)} (out of {len(df)})")
+
+        if df_valid.empty:
+            print("  No valid height data found.")
+            return None
+
+        # CLF height bins to our ft bins mapping
+        height_bin_map = {
+            '0-7.5 m': '0-24 ft',
+            '7.6-15 m': '24-72 ft',
+            '15.1-22.5 m': '24-72 ft',
+            '22.6-30 m': '72-147 ft',
+            '31-45 m': '147+ ft',
+            '46-60 m': '147+ ft',
+            '61-90 m': '147+ ft',
+            'Over 90 m': '147+ ft'
+        }
+
+        # Our bin order
+        our_bin_order = ['0-24 ft', '24-72 ft', '72-147 ft', '147+ ft']
+
+        # CLF foundation types (for reference)
+        clf_fdn_types = ['Shallow foundation', "Deep foundation < 50' (15m)",
+                         "Deep foundation > 50' (15m)", 'Other Foundation System']
+
+        # Map CLF height bins to our bins
+        df_valid['our_height_bin'] = df_valid['bldg_height'].map(height_bin_map)
+
+        # Group by our height bin and foundation type
+        result = {}
+
+        for our_bin in our_bin_order:
+            bin_data = df_valid[df_valid['our_height_bin'] == our_bin]
+            total = len(bin_data)
+
+            # Count by foundation type
+            breakdown = []
+            fdn_counts = bin_data['str_fdn_type'].value_counts().to_dict() if total > 0 else {}
+
+            for fdn_type in clf_fdn_types:
+                count = fdn_counts.get(fdn_type, 0)
+                pct = round((count / total * 100), 1) if total > 0 else 0.0
+                breakdown.append({
+                    'foundation': fdn_type,
+                    'count': int(count),
+                    'pct': pct
+                })
+
+            result[our_bin] = {
+                'total': int(total),
+                'breakdown': breakdown,
+                'chart_data': [{'foundation': b['foundation'], 'count': b['count']} for b in breakdown]
+            }
+
+        # Also store the raw CLF height breakdown for reference
+        clf_height_breakdown = {}
+        clf_height_order = ['0-7.5 m', '7.6-15 m', '15.1-22.5 m', '22.6-30 m',
+                            '31-45 m', '46-60 m', '61-90 m', 'Over 90 m']
+
+        for clf_bin in clf_height_order:
+            bin_data = df_valid[df_valid['bldg_height'] == clf_bin]
+            if len(bin_data) > 0:
+                fdn_counts = bin_data['str_fdn_type'].value_counts().to_dict()
+                clf_height_breakdown[clf_bin] = {
+                    'mapped_to': height_bin_map.get(clf_bin, 'Unknown'),
+                    'total': int(len(bin_data)),
+                    'foundations': {k: int(v) for k, v in fdn_counts.items()}
+                }
+
+        output = {
+            'total_buildings': int(len(df_valid)),
+            'bin_order': our_bin_order,
+            'clf_fdn_types': clf_fdn_types,
+            'height_bin_map': height_bin_map,
+            'data': result,
+            'clf_raw_breakdown': clf_height_breakdown
+        }
+
+        print(f"  Processed CLF metadata: {len(df_valid)} buildings across {len(result)} height bins.")
+
+        return output
+
+
     def export_to_json(self, output_path='building_data.json'):
         """Export all processed data to JSON - Split into main and multiple sample files"""
         print("Exporting data to JSON (split into multiple files)...")
@@ -1945,7 +2050,7 @@ class BuildingDataProcessor:
         nsi_data_sources = self.calculate_nsi_data_sources()
 
         boston_full_analysis = self.process_boston_foundation_full_analysis()
-
+        clf_metadata_height = self.process_clf_metadata_height_analysis()
         hierarchical_distribution = self.process_hierarchical_distribution()
 
         # NEW: full-pop aggregation for the new Year→Occ→Mat→Found→Soil Sankey
@@ -1969,6 +2074,7 @@ class BuildingDataProcessor:
             'boston_full_analysis': boston_full_analysis,
             'occ_cls_occ_dict_sankey': occ_cls_occ_dict_sankey,
             'year_occ_flow': year_occ_flow,
+            'clf_metadata_height': clf_metadata_height,
             'summary_stats': {
                 'total_buildings': len(self.df_cleaned),
                 'avg_year_built': int(self.df_cleaned['year_built'].mean()),
