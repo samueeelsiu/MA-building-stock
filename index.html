@@ -6371,6 +6371,20 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 ...layoutSettings
             };
 
+            const plotDiv = document.getElementById('overviewMapPlot');
+            let savedView = null;
+            if (plotDiv && plotDiv.layout && plotDiv.layout.mapbox) {
+                savedView = {
+                    center: plotDiv.layout.mapbox.center,
+                    zoom: plotDiv.layout.mapbox.zoom
+                };
+            }
+
+            if (savedView) {
+                layout.mapbox.center = savedView.center;
+                layout.mapbox.zoom = savedView.zoom;
+            }
+
             Plotly.newPlot('overviewMapPlot', mapData, layout, {responsive: true});
 
             // --- G. RENDER SIZE LEGEND ---
