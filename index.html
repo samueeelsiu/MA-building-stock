@@ -6799,12 +6799,14 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 type: 'bar',
                 marker: { color: colors },
                 text: chartData.map(d => d.count.toLocaleString()),
-                textposition: 'auto'
+                textposition: 'auto',
+                textangle: 0,
+                textfont: { size: 16 }
             }], {
                 title: { text: `CLF Foundation Counts (${titleSuffix})`, font: {size: 16} },
                 margin: { t: 40, b: 150, l: 50, r: 20 },
                 height: 450,
-                xaxis: { tickangle: -45, title: { text: 'CLF Foundation Type', standoff: 20 } },
+                xaxis: { tickangle: -30, title: { text: 'CLF Foundation Type', standoff: 20 } },
                 yaxis: { title: 'Count' }
             }, {responsive: true});
             
@@ -7044,7 +7046,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 margin: { t: 40, b: 120, l: 50, r: 20 }, 
                 height: 450, 
                 xaxis: { 
-                    tickangle: -45, 
+                    tickangle: bfCollapseAsCLF ? -25 : -45, 
                     title: { text: bfCollapseAsCLF ? 'CLF Foundation Type' : 'Foundation Type', standoff: 20 }
                 },
                 yaxis: { title: 'Count' }
