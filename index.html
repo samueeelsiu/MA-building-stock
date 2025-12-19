@@ -1324,7 +1324,7 @@
                         <option value="cluster">Simple Cluster</option>
                     </select>
 
-                    <span id="overviewKSelectorContainer" style="display: none; margin-left: 10px; align-items: center;">
+                    <span id="overviewKSelectorContainer" style="display: inline-flex; margin-left: 10px; align-items: center;">
                         <label style="min-width: auto; margin-right: 5px;">K=</label>
                         <select id="overviewKSelector" onchange="createOverviewMap()" style="min-width: 60px; padding: 8px;">
                             <option value="5">5</option>
@@ -1335,7 +1335,7 @@
                         </select>
                     </span>
 
-                    <span id="overviewClusterFilterContainer" style="display: none; margin-left: 10px; align-items: center;">
+                    <span id="overviewClusterFilterContainer" style="display: inline-flex; margin-left: 10px; align-items: center;">
                         <label style="min-width: auto; margin-right: 5px;">Filter:</label>
                         <select id="overviewClusterFilter" onchange="createOverviewMap()" style="min-width: 120px; padding: 8px;">
                             <option value="All">All Clusters</option>
@@ -5228,6 +5228,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
             updateStatistics();
             updateOverview();
             populateOverviewFilters();
+            populateOverviewClusterFilter();
             createOverviewMap();
             createDataPipelinesDiagrams();
             renderUnclassifiedResolution();
@@ -6082,26 +6083,8 @@ The diagram below shows the fill rate of attributes obtained directly from Light
         };
 
         function handleColorByChange() {
-                    const colorBy = document.getElementById('overviewColorBy').value;
-                    const kContainer = document.getElementById('overviewKSelectorContainer');
-                    const clusterFilterContainer = document.getElementById('overviewClusterFilterContainer');
-                    
-                    // Show K selector AND Cluster Filter only if 'cluster' is selected
-                    if (colorBy === 'cluster') {
-                        kContainer.style.display = 'inline-flex';
-                        clusterFilterContainer.style.display = 'inline-flex';
-                        populateOverviewClusterFilter();
-                    } else {
-                        kContainer.style.display = 'none';
-                        clusterFilterContainer.style.display = 'none';
-                        
-                        // Reset filter to All when switching away from cluster mode to avoid confusion
-                        const filterSelect = document.getElementById('overviewClusterFilter');
-                        if(filterSelect) filterSelect.value = 'All';
-                    }
-                    
-                    createOverviewMap();
-                }
+            createOverviewMap();
+        }
 
         function calculateMarkerSize(area) {
             if (!area || area <= 0) return 6; 
@@ -6157,7 +6140,7 @@ The diagram below shows the fill rate of attributes obtained directly from Light
                 const foundationMatch = (foundationFilter === 'All' || d.foundation_type === foundationFilter);
 
                 let clusterMatch = true;
-                if (colorBy === 'cluster' && clusterFilterVal !== 'All') {
+                if (clusterFilterVal !== 'All') {
                     const kKey = `cluster_base_k${selectedK}`;
                     if (d[kKey] != clusterFilterVal) {
                         clusterMatch = false;
